@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ماكيت Maket — نموذج كتلي ثلاثي الأبعاد — المركز التعليمي والتدريبي الطبي</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Cairo:wght@400;700&family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Reem+Kufi:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Tajawal,sans-serif;background:#f4f2ee;color:#222;overflow:hidden}
+#top{position:fixed;top:0;left:0;right:0;z-index:10;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+#titlebar{display:flex;align-items:center;gap:10px;background:#3a3f4b;color:#fff;padding:3px 10px;font-size:12px}
+#titlebar b{font-size:13px}#titlebar .qa{display:flex;gap:2px;margin-right:auto}
+#titlebar .qa button{background:transparent;border:0;color:#fff;font-size:15px;padding:2px 8px}
+#titlebar .qa button:hover{background:rgba(255,255,255,.15)}
+#tabs{display:flex;gap:2px;background:#eef0f4;padding:3px 8px 0;overflow-x:auto}
+.tab{border:1px solid transparent;border-bottom:0;background:transparent;padding:5px 14px;font-size:13px;border-radius:6px 6px 0 0;cursor:pointer;white-space:nowrap;font-family:inherit;color:#333}
+.tab.on{background:#fff;border-color:#d4d7de;font-weight:700;color:#2F3F9E}
+.tab.ctx{background:#e2f2e2;color:#1f6b2a;display:none}.tab.ctx.on{background:#fff;color:#1f6b2a;border-color:#9ccc9c}
+#ribbon{height:96px;display:flex;align-items:stretch;overflow-x:auto;overflow-y:hidden;border-top:1px solid #d4d7de;background:#fff}
+.pane{display:none;align-items:stretch}.pane.on{display:flex}
+.grp{display:flex;flex-direction:column;border-left:1px solid #e3e5ea;padding:4px 8px 0}
+.gb{flex:1;display:flex;gap:4px;align-items:center}
+.gc{font-size:11px;color:#888;text-align:center;padding:2px 0 3px;white-space:nowrap}
+.big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:54px;height:64px;padding:2px 6px;font-size:12px;border:1px solid transparent;background:transparent;border-radius:6px;cursor:pointer;font-family:inherit;color:#222;white-space:nowrap}
+.big i{font-style:normal;font-size:22px;line-height:1}
+.big:hover{background:#eef2fb;border-color:#cdd6ee}.big.on{background:#dfe6fb;border-color:#9fb1e8}
+.big.warn i,.big.warn{color:#b00}.big.armed{background:#b00;color:#fff}
+.col{display:flex;flex-direction:column;gap:3px;justify-content:center}
+.fld{display:flex;align-items:center;gap:4px;font-size:12px;color:#555;white-space:nowrap}
+.fld select,.fld input{font-family:inherit;font-size:12px;padding:2px 4px;border:1px solid #c9ccd3;border-radius:4px;background:#fff}
+.fld input[type=number]{width:62px;text-align:center}.fld input[type=text]{width:130px}
+.sm{font-family:inherit;font-size:12px;border:1px solid #c9ccd3;background:#f7f8fa;border-radius:4px;padding:2px 7px;cursor:pointer;color:#222}
+.sm:hover{background:#e9ecf2}.sm.on{background:#2F3F9E;color:#fff;border-color:#2F3F9E}.sm.armed{background:#b00;color:#fff;border-color:#b00}
+.sides{display:grid;grid-template-columns:auto auto auto auto auto;gap:2px 3px;align-items:center;font-size:11px;color:#555}
+.sides .sm{padding:0 5px;font-size:11px}
+#v{position:fixed;left:0;right:0;bottom:28px;touch-action:none}
+#status{position:fixed;bottom:0;left:0;right:0;height:28px;background:#3a3f4b;color:#e8e8e8;font-size:12px;display:flex;align-items:center;gap:18px;padding:0 12px;overflow-x:auto;white-space:nowrap}
+#status b{color:#ffc58a}
+#lab{position:fixed;pointer-events:none;background:#222;color:#fff;font-size:12px;padding:3px 8px;border-radius:6px;transform:translate(-50%,-130%);white-space:nowrap;display:none;z-index:5}
+.nl{position:fixed;pointer-events:none;background:rgba(255,255,255,.88);color:#222;font-size:11px;padding:1px 6px;border-radius:5px;transform:translate(-50%,-50%);white-space:nowrap;border:1px solid #ddd;z-index:4}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:20}
+#modal .box{background:#fff;border-radius:12px;padding:16px;width:min(560px,92vw)}
+#modal textarea{width:100%;height:220px;font-family:monospace;font-size:12px;direction:ltr}
+#msg{position:fixed;top:150px;left:50%;transform:translateX(-50%);background:#2F7D32;color:#fff;padding:6px 14px;border-radius:8px;font-size:13px;display:none;z-index:30}
+.fnb{display:flex;flex-direction:column;justify-content:center;width:120px;font-size:11px}
+.fnb .bar{height:7px;background:#eee;border-radius:4px;overflow:hidden;margin-top:2px}.fnb .bar i{display:block;height:100%}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-left:4px;vertical-align:-1px}
+.hint{color:#888;font-size:11px}
+.fld input[type=range]{width:110px}.fld input[type=date]{width:130px}
+#mlab{position:fixed;pointer-events:none;background:#b00020;color:#fff;font-size:12px;padding:2px 8px;border-radius:6px;transform:translate(-50%,-140%);white-space:nowrap;display:none;z-index:6}
+#shot{max-width:100%;max-height:60vh;display:block;margin:8px auto;border:1px solid #ddd}
+.warnTxt{color:#ffb3b3}
+#ctx{position:fixed;display:none;background:#fff;border:1px solid #ccd;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.2);z-index:40;min-width:180px;padding:4px 0;font-size:13px}
+#ctx div{padding:6px 14px;cursor:pointer}#ctx div:hover{background:#eef2fb}
+#elBox{display:flex;flex-wrap:wrap;gap:4px;max-height:80px;overflow:auto;max-width:calc(100vw - 40px);align-content:flex-start}
+.chip{display:flex;align-items:center;gap:3px;border:1px solid #d4d7de;border-radius:14px;padding:1px 4px 1px 8px;font-size:12px;background:#f7f8fa}
+.chip.on{background:#ffe9b8;border-color:#ffb000}.chip.off{opacity:.5}
+.chip .nm{cursor:pointer;white-space:nowrap}.chip button{border:0;background:transparent;cursor:pointer;font-size:12px;padding:0 2px}
+#sheetWrap{position:fixed;left:0;right:0;bottom:28px;background:#5b6070;display:none;z-index:8;overflow:auto;direction:ltr;padding:24px}
+#sheetPage{position:relative;margin:0 auto;background:#fff;box-shadow:0 6px 30px rgba(0,0,0,.4);overflow:hidden}
+.sitem{position:absolute;cursor:move;touch-action:none}.sitem img{width:100%;height:100%;display:block;pointer-events:none;user-select:none}
+.sitem.sel{outline:2px solid #ff8f00;outline-offset:1px}.sitem:hover{outline:1px dashed #9aa}
+.stext{width:100%;height:100%;font-family:Tajawal,sans-serif;direction:rtl;line-height:1.35;white-space:pre-wrap;overflow:hidden;outline:none}
+.stext[contenteditable=true]{background:#fffbe6;cursor:text;overflow:visible}
+.srh{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;background:#ff8f00;border:2px solid #fff;border-radius:3px;cursor:nwse-resize}
+.sframe{position:absolute;border:1.5px solid #222;pointer-events:none}
+.sitem img{mix-blend-mode:multiply}
+#cropBox{position:relative;display:inline-block;overflow:hidden;touch-action:none;user-select:none}
+#cropImg{display:block;max-width:min(78vw,900px);max-height:60vh}
+#cropRect{position:absolute;border:2px solid #ff8f00;box-shadow:0 0 0 9999px rgba(0,0,0,.5);cursor:move}
+#cropRect span{position:absolute;width:14px;height:14px;background:#ff8f00;border:2px solid #fff;border-radius:3px}
+#cropRect [data-c=nw]{left:-8px;top:-8px;cursor:nwse-resize}#cropRect [data-c=ne]{right:-8px;top:-8px;cursor:nesw-resize}
+#cropRect [data-c=sw]{left:-8px;bottom:-8px;cursor:nesw-resize}#cropRect [data-c=se]{right:-8px;bottom:-8px;cursor:nwse-resize}
+#cropRect [data-c=n]{left:calc(50% - 7px);top:-8px;cursor:ns-resize}#cropRect [data-c=s]{left:calc(50% - 7px);bottom:-8px;cursor:ns-resize}
+#cropRect [data-c=w]{top:calc(50% - 7px);left:-8px;cursor:ew-resize}#cropRect [data-c=e]{top:calc(50% - 7px);right:-8px;cursor:ew-resize}
+#modal .box{width:auto;min-width:min(560px,92vw);max-width:94vw}
+.qchk{display:flex;align-items:center;gap:6px;cursor:pointer}
+.hqb{position:absolute;top:2px;left:2px;background:#2F3F9E;color:#fff;font-size:9px;padding:0 4px;border-radius:3px;opacity:.75;pointer-events:none}
+.rep{max-height:62vh;overflow:auto;font-size:12.5px}.rep table{border-collapse:collapse;width:100%;margin:6px 0 12px}.rep th,.rep td{border:1px solid #e1e3e8;padding:4px 7px;text-align:right;white-space:nowrap}.rep th{background:#f3f4f7;font-weight:700}
+.rep tr.cur td{background:#fff6dd}.rep .neg{color:#c62828}.rep .pos{color:#2e7d32}.rep h4{margin:10px 0 2px;color:#9C3F24}
+.repk{display:flex;gap:8px;flex-wrap:wrap}.repk div{background:#f6f3ef;border-radius:8px;padding:6px 12px;display:flex;flex-direction:column;align-items:center;min-width:90px}.repk b{font-size:18px;color:#9C3F24}.repk span{font-size:11px;color:#666}
+.sguide{position:absolute;background:#e91e63;pointer-events:none;z-index:50}
+.sitem.lk{cursor:default}.sitem.lk::after{content:"🔒";position:absolute;top:-2px;right:2px;font-size:10px}
+.sitem svg text{font-family:Tajawal}
+.sitem.editing{cursor:text;outline:2px solid #2F3F9E!important}
+.gal{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);gap:3px}
+.gal button{font-family:inherit;font-size:12px;border:1px solid #d4d7de;background:#fff;border-radius:6px;padding:2px 6px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap;min-height:26px}
+.gal button:hover{background:#eef2fb}.gal button.on{border-color:#2F3F9E;background:#dfe6fb;font-weight:700}
+.gal button .dot{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.25);display:inline-block}
+.gal button i{font-style:normal;font-size:15px}
+.tab.dotted::after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#e53935;margin-right:5px;vertical-align:middle}
+@media (max-width:820px){#titlebar>span{display:none}#titlebar{padding:2px 6px}.big{min-width:46px;height:58px;font-size:11px;padding:2px 4px}.big i{font-size:19px}.tab{padding:5px 9px;font-size:12px}#ribbon{height:90px;touch-action:pan-x}.grp{padding:3px 5px 0}.gc{font-size:10px}#status{font-size:11px;gap:10px}}
+#shZoomBar{position:fixed;left:14px;bottom:40px;z-index:9;background:#fff;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,.25);padding:4px 6px;display:none;gap:4px;align-items:center}
+#shZoomBar b{min-width:40px;text-align:center;font-size:12px}
+.expsec{border:1px solid #e3e5ea;border-radius:10px;padding:10px 12px;margin:8px 0}.expgrid{display:grid;grid-template-columns:1fr;gap:5px;margin-top:6px}
+.sm.pri2{background:#2F3F9E;color:#fff;border-color:#2F3F9E;padding:5px 14px}
+#cloudSt{background:rgba(255,255,255,.12);border:0;color:#ddd;border-radius:10px;padding:1px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;margin-inline-start:8px}
+#cloudSt.ok{color:#9be7a0}#cloudSt.sync{color:#ffd27a}#cloudSt.err{color:#ff9a9a}#cloudSt.off{color:#aaa}
+#tour{position:fixed;inset:auto 0 44px 0;display:none;justify-content:center;z-index:60;pointer-events:none}
+#tour .tbox{pointer-events:auto;background:#fff;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.3);padding:14px 16px;width:min(460px,92vw);font-size:13.5px;line-height:1.8;border-top:4px solid #2F3F9E}
+#tour .thead{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}#tour .thead b{font-size:16px;color:#2F3F9E}
+#tour .tfoot{display:flex;gap:6px;margin-top:10px}
+.tourhl{box-shadow:0 0 0 3px #ffb000,0 0 18px rgba(255,176,0,.8)!important;border-radius:8px;position:relative;z-index:11}
+
+#pins{position:fixed;inset:0;pointer-events:none;z-index:5}
+.pin{position:fixed;pointer-events:auto;cursor:pointer;width:22px;height:22px;border-radius:50% 50% 50% 0;transform:translate(-30%,-100%) rotate(-45deg);background:#1565c0;color:#fff;font:700 11px Tajawal,sans-serif;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(0,0,0,.35);border:2px solid #fff}
+.pin.sup{background:#e65100}.pin.done{background:#9e9e9e;opacity:.7}
+.nrow{display:flex;gap:6px;align-items:flex-start;padding:7px;border-bottom:1px solid #eee}.nrow.done .nt{text-decoration:line-through;color:#888}.nrow.hl{background:#fff8e1}
+.nnum{min-width:22px;height:22px;border-radius:50%;background:#1565c0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}.nnum.sup{background:#e65100}
+.ntx{flex:1}.nb{font-size:11px;color:#777}.nt{white-space:pre-wrap;line-height:1.6}
+#modal .box.wide{width:min(1100px,96vw);max-width:96vw}
+.pgWrap{display:grid;grid-template-columns:1.25fr 1fr;gap:14px;max-height:62vh}.pgWrap>div{overflow:auto;max-height:60vh;padding-inline-end:4px}
+@media(max-width:760px){.pgWrap{grid-template-columns:1fr;max-height:none}.pgWrap>div{max-height:36vh}}
+.pgH{margin:10px 0 4px;font-weight:700;display:flex;align-items:center;gap:6px}
+.pgR{display:flex;gap:4px;margin:2px 0;align-items:center}.pgR .pgN{flex:1;min-width:90px;font-size:12px}.pgR .pgA{width:58px;font-size:12px}.pgR .pgS{width:44%;font-size:11.5px}
+.pgC{padding:6px 0;border-bottom:1px solid #eee}.pgCt{display:flex;gap:6px;align-items:center;font-weight:600}.pgCl{font-size:11px;color:#666;margin-top:2px;line-height:1.5}
+.pgC .bar,.fnb .bar{height:6px;background:#eee;border-radius:3px;overflow:hidden;margin-top:3px}.pgC .bar i{display:block;height:100%}
+#rvBar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fff3e0;border-bottom:2px solid #e65100;padding:6px 10px;font-size:13px}
+#rvBar button{border:1px solid #e0b080;background:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit}#rvBar button.pri{background:#e65100;color:#fff;border-color:#e65100}
+@media(max-width:700px){.grp .gc{display:none}#ribbon .big{min-width:48px;font-size:10.5px;padding:3px 4px}#ribbon .big i{font-size:17px}#titlebar>span{display:none}#titlebar b{font-size:12px}.fld{font-size:11.5px}}
+.revmode #tabs,.revmode #ribbon{display:none}#rvBar .rvv{display:flex;gap:4px;margin-inline-start:auto}#rvBar button.on{background:#ffe0b2}
+</style></head><body>
+<div id="top">
+ <div id="titlebar"><b>النموذج الكتلي 3D</b><span>— المركز التعليمي والتدريبي الطبي</span><span id="curname" style="color:#ffc58a"></span><button id="cloudSt" class="off" title="الحفظ السحابي — اضغط حتى تزامن هسه">☁</button><select id="revSel" style="display:none;font-size:12px"></select>
+  <div class="qa"><button id="qExp" title="تصدير">⬇</button><button id="qHelp" title="طريقة الشغل">❓</button><button id="qShot" title="حفظ صورة">📷</button><button id="qUndo" title="تراجع Ctrl+Z">↶</button><button id="qRedo" title="إعادة Ctrl+Y">↷</button><button id="qSave" title="حفظ">💾</button></div></div>
+ <div id="tabs">
+  <button class="tab" data-t="file">ملف</button>
+  <button class="tab on" data-t="home">الرئيسية</button>
+  <button class="tab" data-t="view">عرض</button>
+  <button class="tab" data-t="site">الموقع</button>
+  <button class="tab" data-t="sun">الشمس</button>
+  <button class="tab" data-t="sec">مقطع</button>
+    <button class="tab" data-t="sheet">اللوحات</button>
+  <button class="tab" data-t="areas">المساحات</button>
+  <button class="tab ctx" data-t="mod" id="tabMod">تعديل الكتلة</button>
+  <button class="tab ctx" data-t="shmod" id="tabShMod">تنسيق اللوحة</button>
+ </div>
+ <div id="ribbon">
+  <div class="pane" id="p_file">
+   <div class="grp"><div class="gb"><button class="big" id="bNew"><i>📄</i>جديد من الصفر</button><button class="big" id="bSketch"><i>✍️</i>السكيج الأول</button><button class="big" id="bSketch2"><i>✍️</i>السكيج الثاني</button><button class="big" id="bSketch3"><i>✍️</i>السكيج الثالث</button></div><div class="gc">بدء</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+     <div class="fld">التصاميم <select id="dsel" style="width:150px"></select><button class="sm" id="bOpen">فتح</button><button class="sm" id="bDelD">حذف</button></div>
+     <div class="fld">الاسم <input type="text" id="dname" placeholder="اسم التصميم"><button class="sm" id="bSave">حفظ باسم</button></div>
+   </div></div><div class="gc">التصاميم المحفوظة</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bBackup"><i>💾</i>حفظ نسخة كاملة</button><button class="big" id="bRestore"><i>📂</i>استرجاع نسخة</button><input type="file" id="restoreFile" accept=".json,application/json" style="display:none"></div><div class="gc">نسخة احتياطية (كل التصاميم واللوحات)</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bReview"><i>📤</i>للمشرف</button><button class="big" id="bNote"><i>📌</i>ملاحظة</button><button class="big" id="bNotes"><i>🗒</i>الملاحظات <span class="cnt"></span></button><button class="big on" id="bPins"><i>📍</i>الدبابيس</button></div><div class="gc">مراجعة وملاحظات</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="b3D"><i>⬇</i>تصدير</button></div><div class="gc">ريفت · أوتوكاد · سكتش أب · PDF</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bIO"><i>📋</i>نسخ / لصق</button><button class="big" id="bShot"><i>📷</i>حفظ صورة</button></div><div class="gc">مشاركة</div></div>
+  </div>
+  <div class="pane on" id="p_home">
+   <div class="grp"><div class="gb"><button class="big on" id="tSel"><i>✋</i>تحديد</button><button class="big" id="tDraw"><i>✏️</i>رسم</button><button class="big" id="tCut"><i>✂️</i>قص الكتلة</button><button class="big" id="tMeas"><i>📐</i>قياس</button></div><div class="gc">أدوات</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+     <div class="fld">الشكل <select id="dShape"></select> المادة <select id="dMat"></select></div>
+     <div class="fld">الوظيفة <select id="dFn"></select> الطوابق <input type="number" id="dF" min="1" max="20" value="2"></div>
+   </div></div><div class="gc">إعدادات الرسم</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+     <div class="fld">المغناطيس <select id="dSnap"><option value="0.5">0.5 م</option><option value="1" selected>1 م</option><option value="2">2 م</option><option value="5">5 م</option></select></div>
+     <div class="fld"><button class="sm on" id="bEdge">التصاق بحواف الكتل</button></div>
+   </div></div><div class="gc">الالتقاط</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bMulti"><i>☰</i>تحديد متعدد</button><button class="big" id="bAll"><i>▦</i>تحديد الكل</button></div><div class="gc">التحديد (أو Shift + ضغط)</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bPlan"><i>📐</i>وضع المسقط</button></div><div class="gc">رسم دقيق</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="tUndo"><i>↶</i>تراجع</button><button class="big" id="tRedo"><i>↷</i>إعادة</button></div><div class="gc">السجل</div></div>
+  </div>
+  <div class="pane" id="p_view">
+   <div class="grp"><div class="gb"><button class="big" data-v="iso"><i>🧊</i>أيزو</button><button class="big" data-v="top"><i>⬛</i>مسقط</button><button class="big" data-v="front"><i>▭</i>واجهة</button><button class="big" data-v="side"><i>▯</i>جانبي</button><button class="big" data-v="eye"><i>👁</i>منظور عين</button></div><div class="gc">زوايا النظر</div></div>
+   <div class="grp"><div class="gb"><button class="big on" id="bGrid"><i>#</i>الشبكة</button><button class="big" id="bNames"><i>🏷</i>الأسماء</button><button class="big on" id="bDims"><i>📏</i>القياسات</button></div><div class="gc">إظهار</div></div>
+   <div class="grp"><div class="gb"><button class="big on" id="cMat"><i>🧱</i>حسب المادة</button><button class="big" id="cFn"><i>🎨</i>حسب الوظيفة</button><button class="big" id="cWhite"><i>⬜</i>موديل أبيض</button><button class="big" id="cXray"><i>👻</i>شفاف</button></div><div class="gc">نمط العرض</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="rqAll"><i>✨</i>إظهار محسّن</button><div class="col"><div class="fld"><button class="sm" id="rqTex">🧱 ملمس المواد</button></div><div class="fld"><button class="sm" id="rqAO">🌫 ظلال ناعمة</button></div><div class="fld"><button class="sm" id="rqSky">🌤 سماء</button></div></div></div><div class="gc">جودة الإظهار</div></div>
+   <div class="grp"><div class="gb"><div class="col"><div class="fld"><select id="vidMode"><option value="orbit">دوران حول المشروع</option><option value="sun">حركة الظلال (يوم)</option></select></div><div class="fld">المدة <select id="vidDur"><option>6</option><option selected>10</option><option>15</option></select> ثانية</div></div><button class="big" id="bVideo"><i>🎬</i>تسجيل فيديو</button></div><div class="gc">فيديو للعرض</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bShot2"><i>📷</i>حفظ صورة</button><div class="col"><div class="fld"><button class="sm" id="bWhite">خلفية بيضاء</button></div></div></div><div class="gc">إخراج</div></div>
+  </div>
+  <div class="pane" id="p_site">
+   <div class="grp"><div class="gb"><div class="col">
+    <div class="fld">العرض <input type="number" id="sW" min="20" max="400"> م</div>
+    <div class="fld">العمق <input type="number" id="sD" min="20" max="400"> م</div>
+   </div><div class="col">
+    <div class="fld">الارتداد <input type="number" id="sSB" min="0" max="30" step="0.5"> م</div>
+    <div class="fld">ارتفاع الطابق <input type="number" id="sFH" min="2.5" max="8" step="0.5"> م</div>
+   </div><div class="col">
+    <div class="fld">اتجاه الشمال <input type="number" id="sN" min="-180" max="180" step="5"> °</div>
+   </div></div><div class="gc">القطعة</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bImg"><i>🛰</i>رفع صورة الموقع</button><input type="file" id="imgFile" accept="image/*" style="display:none">
+    <div class="col">
+     <div class="fld"><button class="sm on" id="bImgShow">إظهار</button> الشفافية <input type="range" id="iOp" min="0.1" max="1" step="0.05"></div>
+     <div class="fld">عرض الصورة <input type="number" id="iW" step="1"> م · تدوير <input type="number" id="iR" step="1" style="width:52px">°</div>
+     <div class="fld">إزاحة س <input type="number" id="iX" step="1" style="width:52px"> ص <input type="number" id="iZ" step="1" style="width:52px"></div>
+    </div>
+    <div class="col">
+     <button class="sm" id="bCal">📏 معايرة بنقطتين</button>
+     <div class="fld" id="calBox" style="display:none">المسافة الحقيقية <input type="number" id="calD" step="0.5" style="width:60px"> م <button class="sm" id="calOk">تطبيق</button></div>
+     <button class="sm" id="bImgDel">حذف الصورة</button>
+    </div></div><div class="gc">صورة الموقع (قمر صناعي)</div></div>
+  </div>
+  <div class="pane" id="p_sun">
+   <div class="grp"><div class="gb"><button class="big" id="bSunOn"><i>☀️</i>شمس حقيقية</button></div><div class="gc">بغداد — باب المعظم</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+    <div class="fld">التاريخ <input type="date" id="sunDate"> <button class="sm" data-d="06-21">21 حزيران</button><button class="sm" data-d="12-21">21 كانون1</button><button class="sm" data-d="03-21">21 آذار</button></div>
+    <div class="fld">الساعة <input type="range" id="sunH" min="5" max="19.5" step="0.25" style="width:200px"> <b id="sunHL"></b></div>
+   </div></div><div class="gc">الزمن</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bSunPlay"><i>▶</i>حركة اليوم</button><button class="big" id="bWind"><i>🌬</i>الرياح السائدة</button><div class="col" id="sunInfo" style="min-width:230px;font-size:12px;color:#444;line-height:1.6"></div></div><div class="gc">التحليل</div></div>
+  </div>
+  <div class="pane" id="p_sec">
+   <div class="grp"><div class="gb"><button class="big" id="bSec"><i>✂️</i>تفعيل المقطع</button></div><div class="gc">مقطع</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+    <div class="fld">الاتجاه <button class="sm on" id="secX">طولي (س)</button><button class="sm" id="secZ">عرضي (ص)</button><button class="sm" id="secY">أفقي (مسقط طابق)</button><button class="sm" id="secFlip">قلب الجهة</button> <select id="secLvl" style="display:none"></select></div>
+    <div class="fld">الموضع <input type="range" id="secPos" min="-60" max="60" step="0.5" style="width:240px"> <b id="secPL"></b></div>
+   </div></div><div class="gc">إعدادات المقطع</div></div>
+  </div>
+  <div id="elBox" style="display:none"></div>
+  <div class="pane" id="p_sheet">
+   <div class="grp"><div class="gb"><button class="big" id="shOpen"><i>🖼</i>فتح اللوحة</button><div class="col"><div class="fld"><select id="shList" style="width:150px"></select></div><div class="fld"><button class="sm" id="shNew">+ جديدة</button><button class="sm" id="shMoreS">⋯ المزيد</button></div></div></div><div class="gc">اللوحات</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="shQuick"><i>⚡</i>شيت سريع</button><button class="big" id="shShot"><i>📷</i>لقطة</button><button class="big" id="shAddM"><i>➕</i>إضافة ▾</button></div><div class="gc">محتوى</div></div>
+   <div class="grp"><div class="gb"><div class="col"><div class="fld"><select id="shSize"><option>A4</option><option selected>A3</option><option>A2</option><option>A1</option></select><button class="sm" id="shLand">أفقي</button><button class="sm" id="shPort">عمودي</button></div><div class="fld"><button class="sm" id="shFrame">إطار</button><button class="sm" id="shAuto">ترتيب تلقائي</button></div></div></div><div class="gc">الصفحة</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="shExpDlg" style="background:#2F3F9E;color:#fff"><i>⬇</i>تصدير</button></div><div class="gc">PDF · صور · 3D</div></div>
+   <div style="display:none" id="shLegacy">
+    <input type="text" id="shName"><button id="shRen"></button><button id="shDupS"></button><button id="shDelS">حذف</button><button id="shClear">مسح</button>
+    <button id="shUp"></button><input type="file" id="shFile" accept="image/*" multiple><button id="shText"></button><button id="shTitle"></button><button id="shTB"></button><button id="shBox"></button><button id="shLine"></button><button id="shLineV"></button><button id="shNorth"></button><button id="shScale"></button><button id="shLegend"></button>
+    <span id="shCount"></span><button id="shGround" class="on"></button><button id="shNamesB"></button>
+   </div>
+  </div>
+  <div class="pane" id="p_shmod">
+   <div class="grp" id="shSel" style="display:none"><div class="gb"><div class="col">
+     <div class="fld"><input type="text" id="shTxt" placeholder="النص" style="width:170px" title="اكتب هنا وينعدل النص مباشرة"><button class="sm" id="shEditT" title="تعديل على اللوحة (دبل كلك أو Enter)">✎</button><select id="shFont"><option value="Tajawal">Tajawal</option><option value="Cairo">Cairo</option><option value="Amiri">Amiri</option><option value="Noto Naskh Arabic">Noto Naskh Arabic</option><option value="Reem Kufi">Reem Kufi</option></select><button class="sm" id="shMinus">−</button><button class="sm" id="shPlus">+</button><button class="sm" id="shBold">B</button><button class="sm" id="shAlign">⇆</button><input type="color" id="shColor" style="width:28px;height:22px;padding:0;border:1px solid #ccc"><input type="number" id="shSw" step="0.1" min="0" title="سمك الخط / الإطار مم" style="width:50px"><input type="number" id="shRot" step="5" title="تدوير الشمال °" style="width:52px"></div>
+     <div class="fld"><span id="shScaleBox">مقياس 1:<select id="shScaleN"><option>100</option><option>200</option><option>250</option><option>500</option><option>1000</option><option>2000</option></select></span><span id="shLen">1:<input type="number" id="shLenN" style="width:52px"> طول <input type="number" id="shLenL" style="width:44px" placeholder="تلقائي">م</span><button class="sm" id="shCrop">✂ قص</button><button class="sm" id="shTrim">شيل الحواف</button><button class="sm" id="shDupB">نسخ</button><button class="sm" id="shFront">⬆ أمام</button><button class="sm" id="shBack">⬇ خلف</button><button class="sm" id="shLockB">🔒 قفل</button><button class="sm" id="shDel" style="color:#b00">حذف</button><b id="shSelInfo" style="color:#9C3F24"></b></div>
+   </div></div><div class="gc">العنصر المحدد</div></div>
+   <div class="grp" id="shArr"><div class="gb"><div class="col">
+     <div class="fld"><button class="sm" data-al="r" title="محاذاة يمين">⇥</button><button class="sm" data-al="c" title="توسيط أفقي">↔</button><button class="sm" data-al="l" title="محاذاة يسار">⇤</button><button class="sm" data-al="t" title="محاذاة أعلى">⤒</button><button class="sm" data-al="m" title="توسيط عمودي">↕</button><button class="sm" data-al="b" title="محاذاة أسفل">⤓</button></div>
+     <div class="fld"><button class="sm" id="shDistH" title="توزيع أفقي متساوي">⋯ توزيع</button><button class="sm" id="shDistV" title="توزيع عمودي متساوي">⋮ توزيع</button><button class="sm" id="shSame" title="نفس العرض">⇔ نفس الحجم</button><button class="sm" id="shGrp">تجميع</button><button class="sm" id="shUngrp">فك</button></div>
+   </div></div><div class="gc">ترتيب ومحاذاة</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="shDone"><i>✕</i>إنهاء</button></div><div class="gc"></div></div>
+  </div>
+  <div class="pane" id="p_areas"><div class="grp"><div class="gb" id="fnBox"></div><div class="gc">المساحة الطابقية لكل وظيفة مقابل البرنامج (مع 25% حركة)</div></div><div class="grp"><div class="gb"><button class="big" id="bProg"><i>📋</i>توزيع البرنامج</button><button class="big" id="bReport"><i>📊</i>تقرير المساحات</button><button class="big" id="bCompare"><i>⚖️</i>مقارنة التصاميم</button></div><div class="gc">تقارير</div></div></div>
+  <div class="pane" id="p_mod"><div style="display:flex" id="selBox"></div></div>
+ </div>
+</div>
+<div id="v"></div>
+<div id="tour"><div class="tbox"><div class="thead"><b id="tourT"></b><span id="tourN" class="hint"></span></div><div id="tourX"></div><div class="tfoot"><button class="sm" id="tourSkip">تخطي</button><span style="flex:1"></span><button class="sm" id="tourPrev">→ السابق</button><button class="sm pri2" id="tourNext"></button></div></div></div>
+<div id="sheetWrap"><div id="sheetPage"></div></div>
+<div id="shZoomBar"><button class="sm" id="shUndo" title="تراجع">↶</button><button class="sm" id="shZout">−</button><b id="shZL">100%</b><button class="sm" id="shZin">+</button><button class="sm" id="shZfit">ملائمة</button><button class="sm on" id="shGuides">خطوط إرشاد</button><button class="sm" id="shSnapOpt">📷 خيارات اللقطة</button></div>
+<div id="status"></div>
+<div id="msg"></div>
+<div id="lab"></div><div id="mlab"></div><div id="names"></div>
+<div id="modal"><div class="box">
+ <b id="mTitle">نسخ / لصق التصميم</b>
+ <div id="mIO"><div class="hint" style="margin:6px 0;font-size:12px">انسخ النص حتى تحفظه أو تدزه لي، أو الصق تصميم واضغط "استيراد".</div>
+ <textarea id="ioText"></textarea>
+ <div style="display:flex;gap:6px;margin-top:6px"><button class="sm" id="ioCopy">نسخ</button><button class="sm" id="ioImport">استيراد</button></div></div>
+ <div id="mShot" style="display:none"><div class="hint" style="font-size:12px;margin-top:6px">بالموبايل: اضغط مطولاً على الصورة ← حفظ. باللابتوب: كلك يمين ← حفظ الصورة باسم (Save image as).</div><img id="shot" alt="لقطة النموذج"></div>
+ <div id="mCrop" style="display:none"><div class="hint" style="font-size:12px;margin:6px 0">اسحب زوايا المربع حتى تحدد الجزء اللي تريده، أو اسحب المربع نفسه حتى تحركه.</div>
+ <div style="text-align:center"><div id="cropBox"><img id="cropImg" alt="قص"><div id="cropRect"><span data-c="nw"></span><span data-c="ne"></span><span data-c="sw"></span><span data-c="se"></span><span data-c="n"></span><span data-c="s"></span><span data-c="w"></span><span data-c="e"></span></div></div></div>
+ <div style="display:flex;gap:6px;margin-top:8px"><button class="sm" id="cropOk" style="background:#2F3F9E;color:#fff">✂ تطبيق القص</button><button class="sm" id="cropAll">رجوع للكامل</button></div></div>
+ <div id="mReport" style="display:none"><div id="repBody"></div><button class="sm" id="repCSV" style="margin-top:8px;background:#2F7D32;color:#fff">⬇ تنزيل الجدول (Excel / CSV)</button></div>
+ <div id="mExport" style="display:none;font-size:13px;min-width:min(520px,88vw)">
+  <div class="expsec"><b>🖼 اللوحة الحالية</b> <span class="hint" id="expSheetName"></span>
+   <div class="fld" style="margin:6px 0">الصيغة <select id="shFmt"><option value="pdf">PDF (للطباعة)</option><option value="png">PNG (بدون ضغط)</option><option value="jpg">JPG (حجم أصغر)</option></select> الدقة <select id="shDpi"><option value="150">150 DPI</option><option value="200">200 DPI</option><option value="300" selected>300 DPI</option><option value="400">400 DPI</option></select> <button class="sm on" id="shHQ" title="اللقطات من النموذج تنرسم من جديد بدقة الطباعة">HQ</button></div>
+   <div class="fld"><button class="sm pri2" id="shDown" style="display:none">⬇ تنزيل اللوحة</button><button class="sm" id="shAll" style="display:none">📚 كل اللوحات PDF واحد</button><button class="sm" id="shExport">👁 معاينة</button><span class="hint" id="shDownHint"></span></div></div>
+  <div class="expsec"><b>🧊 النموذج ثلاثي الأبعاد</b> <span class="hint">(كلها بملف ZIP واحد)</span>
+   <div class="expgrid">
+    <label class="qchk"><input type="checkbox" class="xf" value="ifc" checked> <b>Revit</b> — IFC <span class="hint">(File ← Open ← IFC)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="dwg3d" checked> <b>AutoCAD 3D</b> — DXF <span class="hint">(أوجه ثلاثية)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="dwg2d" checked> <b>AutoCAD مسقط</b> — DXF 2D <span class="hint">(حدود الكتل والموقع)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="dae" checked> <b>SketchUp</b> — DAE <span class="hint">(File ← Import)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="obj"> <b>OBJ</b> <span class="hint">(بلندر، رينو، لومين، 3ds Max)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="csv" checked> <b>جدول الكتل</b> — CSV <span class="hint">(إكسل)</span></label>
+   </div>
+   <div class="fld" style="margin-top:6px"><button class="sm pri2" id="exp3D">⬇ تنزيل النموذج</button><span class="hint">الوحدات: متر</span></div></div>
+ </div>
+ <div id="mNotes" style="display:none;font-size:13px;min-width:min(520px,88vw)"><div id="notesList" style="max-height:52vh;overflow:auto;margin:8px 0"></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="sm" id="ntCopy">📋 نسخ كنص (واتساب)</button><button class="sm pri2" id="ntSend">📤 حفظ ملف الملاحظات للطالب</button><button class="sm pri2" id="ntImp">📥 استيراد ملاحظات المشرف</button><input type="file" id="ntFile" accept=".json,application/json" style="display:none"></div></div>
+ <div id="mRvInfo" style="display:none;font-size:13px;line-height:2;max-width:560px"><div id="rvInfoT"></div></div>
+ <div id="mProg" style="display:none;font-size:12.5px">
+  <div id="pgSum" style="margin:6px 0"></div>
+  <div class="fld" style="flex-wrap:wrap;gap:6px;margin-bottom:6px"><button class="sm pri2" id="pgAuto">⚡ توزيع تلقائي حسب وظيفة الكتل</button><button class="sm" id="pgAdd">＋ فضاء</button><button class="sm" id="pgFilt">👁 غير الموزع فقط</button>
+   الكفاءة <select id="pgEff"><option value="0.7">70%</option><option value="0.75">75%</option><option value="0.8">80%</option><option value="0.85">85%</option></select>
+   <button class="sm" id="pgSheet">🖼 للوحة</button><button class="sm" id="pgCSV">⬇ Excel</button><button class="sm" id="pgClear">↺ مسح التوزيع</button><button class="sm" id="pgReset">⟲ البرنامج الافتراضي</button></div>
+  <div class="pgWrap"><div><b>الفضاءات</b> <span class="hint">(الاسم · م² · وين ينحط)</span><div id="pgList"></div></div><div><b>سعة الكتل والطوابق</b> <span class="hint">(المساحة × الكفاءة)</span><div id="pgCap"></div></div></div></div>
+ <div id="mInput" style="display:none;font-size:13px"><div class="fld" style="margin:8px 0"><input type="text" id="inpVal" style="width:min(360px,80vw)"></div><button class="sm pri2" id="inpOk">موافق</button></div>
+ <div id="mQuick" style="display:none;font-size:13px">
+ <div class="fld" style="margin:8px 0">التصميم <select id="qDesign" style="width:260px"></select></div>
+ <b>الزوايا</b><div id="qViews" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin:6px 0 10px"></div>
+ <b>الخيارات</b><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin:6px 0 10px">
+  <label class="qchk"><input type="checkbox" id="qGround" checked> أرضية الموقع</label><label class="qchk"><input type="checkbox" id="qFn"> تلوين حسب الوظيفة</label>
+  <label class="qchk"><input type="checkbox" id="qSun"> ظلال الشمس الحقيقية</label><label class="qchk"><input type="checkbox" id="qLegend" checked> مفتاح الألوان (مع التلوين)</label><label class="qchk"><input type="checkbox" id="qTB" checked> جدول عنوان</label><label class="qchk"><input type="checkbox" id="qNames"> أسماء الكتل على اللقطات</label><label class="qchk"><input type="checkbox" id="qNorth" checked> سهم الشمال على المسقط</label><label class="qchk"><input type="checkbox" id="qScale" checked> مقياس رسم مضبوط للمسقط</label></div>
+ <div class="fld" style="margin:6px 0">الحجم <select id="qSize"><option>A4</option><option selected>A3</option><option>A2</option><option>A1</option></select> الاتجاه <select id="qOrient"><option value="land">أفقي</option><option value="port">عمودي</option></select> الترتيب <select id="qLayout"><option value="big">لقطة كبيرة + صغار</option><option value="grid">شبكة متساوية</option></select></div>
+ <div class="fld" style="margin:6px 0">العنوان <input type="text" id="qTitle" placeholder="(اسم التصميم تلقائياً)" style="width:260px"></div>
+ <button class="sm" id="qGo" style="background:#2F3F9E;color:#fff;padding:6px 16px;margin-top:6px">⚡ أنشئ الشيت</button></div>
+ <div id="mHelp" style="display:none;font-size:13px;line-height:1.9;max-height:60vh;overflow:auto"><button class="sm pri2" id="bTour" style="margin-bottom:6px">🧭 ابدي الجولة التعريفية</button><br>
+ <b>التحديد والتحريك</b><br>• ضغطة على الكتلة = تحديد (ما تتحرك بالغلط)<br>• بعد التحديد: اسحبها حتى تتحرك<br>• المربعات البرتقالية على الحواف: اسحبها حتى تمد أو تقلص الجهة<br>• المخروط الأزرق فوك: اسحبه للأعلى أو الأسفل حتى تغير الطوابق<br>• Shift + ضغط = تحديد أكثر من كتلة<br>• كلك يمين على الكتلة = قائمة أوامر (نسخ، تدوير، عكس، قفل، إخفاء، حذف)
+ <br><b>الكاميرا</b><br>• بالـ3D: سحب بالفراغ = تدوير، كلك يمين وسحب = تحريك، العجلة = تكبير<br>• <b>وضع المسقط</b>: مسقط حقيقي بدون منظور، السحب يحرك اللوحة مثل الأوتوكاد — الأدق للرسم
+ <br><b>الرسم</b><br>• ✏️ رسم ← اسحب على الأرض. الرسم يلتصق بالشبكة وبحواف الكتل
+ <br><b>حماية الشغل</b><br>• كل تصميم ينحفظ تلقائياً<br>• اقفل الفناء والكتل اللي خلصت منها 🔒 حتى ما تتحرك بالغلط<br>• ↶ تراجع يرجع أي خطأ
+ <br><b>الجديد</b><br>• <b>أشكال جديدة</b>: كتلة بفناء وسطي، كتلة ببوابة (ممر)، سقف جملون، سقف مائل — إعداداتها بتبويب تعديل الكتلة<br>• <b>عناصر الواجهة</b>: شبابيك، كاسرات عمودية/أفقية، مشربية (تعديل الكتلة ← الواجهة)<br>• <b>توزيع البرنامج</b>: المساحات ← 📋 توزيع البرنامج — تحدد وظيفة الكتل وتضغط ⚡ توزيع تلقائي<br>• <b>إظهار محسّن</b>: عرض ← ✨ (ملمس + ظلال ناعمة + سماء) — اللقطات للوحات تطلع بنفس الجودة<br>• <b>الملاحظات</b>: كلك يمين على كتلة ← 📌 ملاحظة هنا، أو ملف ← 📌<br>• <b>المشرف</b>: ملف ← 📤 للمشرف ← ملف مراجعة يفتح بأي متصفح، والمشرف يرجعلك ملف ملاحظات تستورده<br><b>العرض والتحليل</b><br>• عرض ← نمط العرض: موديل أبيض (مثل الماكيت) أو شفاف<br>• مقطع ← أفقي (مسقط طابق): تختار الطابق وتشوف مسقطه الكتلي<br>• الشمس ← الرياح السائدة: أسهم الرياح الشمالية الغربية لبغداد<br>• عرض ← تسجيل فيديو: دوران حول المشروع أو حركة الظلال، ينزل ملف فيديو<br>• المساحات ← تقرير المساحات ومقارنة التصاميم، وتنزيل الجدول للإكسل<br>• ملف ← حفظ نسخة كاملة: ملف واحد بيه كل التصاميم واللوحات (احتفظ بيه احتياط)
+ <br><b>أدوات جديدة</b><br>• التدوير الحر: بتعديل الكتلة (زاوية) أو Shift+R يدوّر 15°<br>• مضلع حر: اختار الشكل "مضلع حر" وارسم نقطة نقطة، وسكّره على أول نقطة أو Enter<br>• ✂️ قص الكتلة: اسحب خط عبرها<br>• ملف ← تصدير 3D: ملف للسكتش أب (DAE) وللريفت (OBJ)<br>• اللوحات: من تحدد عنصر يطلع تبويب "تنسيق اللوحة" بيه كل أدوات التنسيق والمحاذاة
+ <br><b>الاختصارات</b><br>V تحديد · B رسم · M قياس · Ctrl+C / Ctrl+V نسخ ولصق · Ctrl+D تكرار · R تدوير · L قفل · H إخفاء · Delete حذف · الأسهم تحريك · PageUp/PageDown طوابق · Ctrl+Z تراجع</div>
+ <div style="margin-top:8px"><button class="sm" id="mClose">إغلاق</button></div>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1794933457';document.body.appendChild(s)}
+if(!q)return go();var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2ee;z-index:99;font:600 18px Tajawal,sans-serif';ov.textContent='⏳ جاري فتح التصميم…';document.body.appendChild(ov);
+fetch('https://kwoftzpxtytcgahsgjro.supabase.co/rest/v1/reviews?select=*&id=eq.'+encodeURIComponent(q),{headers:{apikey:'sb_publishable_YHx-GmgyEdNhCqhf98Ds2w_oCZAMMDp'}}).then(function(r){return r.json()}).then(function(j){if(j&&j[0])window.MC3D_REVIEW={name:j[0].name,st:j[0].st,key:q,remote:true};else alert('هذا الرابط ما يشتغل — اطلب رابط جديد من الطالب')}).catch(function(){alert('ما كدرت أفتح التصميم — تأكد من الإنترنت')}).then(function(){ov.remove();go()})})();
+</script></body></html>
