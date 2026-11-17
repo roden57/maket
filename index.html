@@ -118,7 +118,7 @@
 .revmode #tabs,.revmode #ribbon{display:none}#rvBar .rvv{display:flex;gap:4px;margin-inline-start:auto}#rvBar button.on{background:#ffe0b2}
 </style></head><body>
 <div id="top">
- <div id="titlebar"><b>النموذج الكتلي 3D</b><span>— المركز التعليمي والتدريبي الطبي</span><span id="curname" style="color:#ffc58a"></span><button id="cloudSt" class="off" title="الحفظ السحابي — اضغط حتى تزامن هسه">☁</button><select id="revSel" style="display:none;font-size:12px"></select>
+ <div id="titlebar"><b>النموذج الكتلي 3D</b><span>— المركز التعليمي والتدريبي الطبي</span><span id="curname" style="color:#ffc58a"></span><button id="cloudSt" class="off" title="الحفظ السحابي — اضغط حتى تزامن هسه">☁</button><span id="userSt" style="display:none;font-size:12px;color:#ffc58a;white-space:nowrap"><span id="userNm"></span> <button class="sm" id="bLogout" title="خروج من الحساب (اضغط مرتين)">خروج</button></span><select id="revSel" style="display:none;font-size:12px"></select>
   <div class="qa"><button id="qExp" title="تصدير">⬇</button><button id="qHelp" title="طريقة الشغل">❓</button><button id="qShot" title="حفظ صورة">📷</button><button id="qUndo" title="تراجع Ctrl+Z">↶</button><button id="qRedo" title="إعادة Ctrl+Y">↷</button><button id="qSave" title="حفظ">💾</button></div></div>
  <div id="tabs">
   <button class="tab" data-t="file">ملف</button>
@@ -161,7 +161,7 @@
   <div class="pane" id="p_view">
    <div class="grp"><div class="gb"><button class="big" data-v="iso"><i>🧊</i>أيزو</button><button class="big" data-v="top"><i>⬛</i>مسقط</button><button class="big" data-v="front"><i>▭</i>واجهة</button><button class="big" data-v="side"><i>▯</i>جانبي</button><button class="big" data-v="eye"><i>👁</i>منظور عين</button></div><div class="gc">زوايا النظر</div></div>
    <div class="grp"><div class="gb"><button class="big on" id="bGrid"><i>#</i>الشبكة</button><button class="big" id="bNames"><i>🏷</i>الأسماء</button><button class="big on" id="bDims"><i>📏</i>القياسات</button></div><div class="gc">إظهار</div></div>
-   <div class="grp"><div class="gb"><button class="big on" id="cMat"><i>🧱</i>حسب المادة</button><button class="big" id="cFn"><i>🎨</i>حسب الوظيفة</button><button class="big" id="cWhite"><i>⬜</i>موديل أبيض</button><button class="big" id="cXray"><i>👻</i>شفاف</button></div><div class="gc">نمط العرض</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="cMat"><i>🧱</i>حسب المادة</button><button class="big on" id="cFn"><i>🎨</i>حسب الوظيفة</button><button class="big" id="cWhite"><i>⬜</i>موديل أبيض</button><button class="big" id="cXray"><i>👻</i>شفاف</button></div><div class="gc">نمط العرض</div></div>
    <div class="grp"><div class="gb"><button class="big" id="rqAll"><i>✨</i>إظهار محسّن</button><div class="col"><div class="fld"><button class="sm" id="rqTex">🧱 ملمس المواد</button></div><div class="fld"><button class="sm" id="rqAO">🌫 ظلال ناعمة</button></div><div class="fld"><button class="sm" id="rqSky">🌤 سماء</button></div></div></div><div class="gc">جودة الإظهار</div></div>
    <div class="grp"><div class="gb"><div class="col"><div class="fld"><select id="vidMode"><option value="orbit">دوران حول المشروع</option><option value="sun">حركة الظلال (يوم)</option></select></div><div class="fld">المدة <select id="vidDur"><option>6</option><option selected>10</option><option>15</option></select> ثانية</div></div><button class="big" id="bVideo"><i>🎬</i>تسجيل فيديو</button></div><div class="gc">فيديو للعرض</div></div>
    <div class="grp"><div class="gb"><button class="big" id="bShot2"><i>📷</i>حفظ صورة</button><div class="col"><div class="fld"><button class="sm" id="bWhite">خلفية بيضاء</button></div></div></div><div class="gc">إخراج</div></div>
@@ -263,7 +263,7 @@
    <div class="fld" style="margin-top:6px"><button class="sm pri2" id="exp3D">⬇ تنزيل النموذج</button><span class="hint">الوحدات: متر</span></div></div>
  </div>
  <div id="mNotes" style="display:none;font-size:13px;min-width:min(520px,88vw)"><div id="notesList" style="max-height:52vh;overflow:auto;margin:8px 0"></div>
-  <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="sm" id="ntCopy">📋 نسخ كنص (واتساب)</button><button class="sm pri2" id="ntSend">📤 حفظ ملف الملاحظات للطالب</button><button class="sm pri2" id="ntImp">📥 استيراد ملاحظات المشرف</button><input type="file" id="ntFile" accept=".json,application/json" style="display:none"></div></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="sm" id="ntPull">🔄 تحديث</button><button class="sm" id="ntCopy">📋 نسخ كنص (واتساب)</button><button class="sm pri2" id="ntSend">📤 حفظ ملف الملاحظات للطالب</button><button class="sm pri2" id="ntImp">📥 استيراد ملاحظات المشرف</button><input type="file" id="ntFile" accept=".json,application/json" style="display:none"></div></div>
  <div id="mRvInfo" style="display:none;font-size:13px;line-height:2;max-width:560px"><div id="rvInfoT"></div></div>
  <div id="mProg" style="display:none;font-size:12.5px">
   <div id="pgSum" style="margin:6px 0"></div>
@@ -272,6 +272,11 @@
    <button class="sm" id="pgSheet">🖼 للوحة</button><button class="sm" id="pgCSV">⬇ Excel</button><button class="sm" id="pgClear">↺ مسح التوزيع</button><button class="sm" id="pgReset">⟲ البرنامج الافتراضي</button></div>
   <div class="pgWrap"><div><b>الفضاءات</b> <span class="hint">(الاسم · م² · وين ينحط)</span><div id="pgList"></div></div><div><b>سعة الكتل والطوابق</b> <span class="hint">(المساحة × الكفاءة)</span><div id="pgCap"></div></div></div></div>
  <div id="mInput" style="display:none;font-size:13px"><div class="fld" style="margin:8px 0"><input type="text" id="inpVal" style="width:min(360px,80vw)"></div><button class="sm pri2" id="inpOk">موافق</button></div>
+ <div id="mAuth" style="display:none;font-size:13px"><div class="hint" style="margin-bottom:6px">كل واحد بحسابه: تصاميمك ولوحاتك وروابط المراجعة وملاحظاتها تنحفظ بحسابك بس.</div>
+  <div class="fld" style="margin:6px 0">اسم المستخدم <input type="text" id="auU" autocomplete="username" autocapitalize="off" spellcheck="false" style="width:min(240px,60vw);direction:ltr"></div>
+  <div class="fld" style="margin:6px 0">كلمة السر <input type="password" id="auK" autocomplete="current-password" style="width:min(240px,60vw);direction:ltr"></div>
+  <button class="sm pri2" id="auIn">دخول</button> <button class="sm" id="auNew">حساب جديد</button>
+  <div id="auMsg" style="margin-top:6px;color:#c62828;font-size:12px"></div></div>
  <div id="mQuick" style="display:none;font-size:13px">
  <div class="fld" style="margin:8px 0">التصميم <select id="qDesign" style="width:260px"></select></div>
  <b>الزوايا</b><div id="qViews" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin:6px 0 10px"></div>
@@ -294,7 +299,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
-(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1794934043';document.body.appendChild(s)}
+(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1794935358';document.body.appendChild(s)}
 if(!q)return go();var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f4f2ee;z-index:99;font:600 18px Tajawal,sans-serif';ov.textContent='⏳ جاري فتح التصميم…';document.body.appendChild(ov);
 fetch('https://kwoftzpxtytcgahsgjro.supabase.co/rest/v1/reviews?select=*&id=eq.'+encodeURIComponent(q),{headers:{apikey:'sb_publishable_YHx-GmgyEdNhCqhf98Ds2w_oCZAMMDp'}}).then(function(r){return r.json()}).then(function(j){if(j&&j[0])window.MC3D_REVIEW={name:j[0].name,st:j[0].st,key:q,remote:true};else alert('هذا الرابط ما يشتغل — اطلب رابط جديد من الطالب')}).catch(function(){alert('ما كدرت أفتح التصميم — تأكد من الإنترنت')}).then(function(){ov.remove();go()})})();
 </script></body></html>

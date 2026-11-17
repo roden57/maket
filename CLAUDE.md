@@ -38,7 +38,7 @@ The tool is an in-browser 3D massing modeller with sheets (A4–A1) and exports.
 - **Cloud:**
   - Inside Claude, it uses `claude.use('db')`.
   - On the public site, it uses Supabase through a Firestore-like adapter (`sbCollection`), so `reconcile()` is shared.
-  - The owner unlocks it with a password: `owner_claim` RPC, stored as `mc3d_sbk`.
+  - Each person has an account (username + password). The `user_signup` and `user_login` RPCs handle it, and data lives under `u/<username>/`. The title bar shows 👤 name and a logout button. Logout syncs first, then clears the device.
 - **Review:**
   - The student publishes with `review_put`, and the link is `https://roden57.github.io/maket/?r=<id>`.
   - The loader in `index.html` fetches the review and sets `window.MC3D_REVIEW` (`REV`), then loads `app.js`.
@@ -47,11 +47,16 @@ The tool is an in-browser 3D massing modeller with sheets (A4–A1) and exports.
 
 ## Supabase (project `maket`, ref `kwoftzpxtytcgahsgjro`, eu-central-1)
 - **Tables:**
-  - `kv(path,id,data)`: private. Reach it only through RPCs that check the password.
-  - `secrets`: a sha256 of the owner password.
-  - `reviews`: public read.
+  - `users(username, hash)`: one row per person.
+  - `kv(path,id,data)`: private, with paths `u/<username>/…`. Reach it only through RPCs that check the user's password.
+  - `reviews`: has an `owner` column. Public read.
   - `notes`: public read and insert, only for an existing review.
-- **RPCs:** `owner_claim`, `kv_get`, `kv_list`, `kv_set`, `kv_del`, `review_put`, `review_del`, `note_del`. All of them are `security definer` and check the password.
+- **RPCs:** each takes `u`, `k` (username and password), and each is `security definer` and checks them through `_uok`.
+  - `user_signup`, `user_login`
+  - `kv_get`, `kv_list`, `kv_set`, `kv_del`
+  - `review_put`, `review_del`, `review_list`
+  - `note_del`
+- The schema is kept in `src/supabase.sql` for reference.
 - The publishable key in `build.py` is meant to be public.
 
 ## User preferences (keep these)

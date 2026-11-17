@@ -50,7 +50,7 @@ if((LS.get('mc3d_mig')||0)<9&&MIG>=8){designs['آخر حالة قبل التحد
 LS.set('mc3d_mig',9);
 let curName=LS.get('mc3d_name')||'سكيجي';
 let imgData=null;try{imgData=localStorage.getItem('mc3d_img')}catch(e){}
-let sel=-1,selSet=new Set(),tool='select',colorMode='mat',showGrid=true,showNames=false,showDims=true,snapStep=1,edgeOn=true,multiMode=false;
+let sel=-1,selSet=new Set(),tool='select',colorMode='fn',showGrid=true,showNames=false,showDims=true,snapStep=1,edgeOn=true,multiMode=false;
 let sec={on:false,axis:'x',pos:0,flip:false},playing=false,whiteBg=false;
 let undoS=[],redoS=[],lastPush=0;
 const snapStr=()=>JSON.stringify({s:state,n:curName});
@@ -239,20 +239,18 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
  if(ids.length>1){tm.textContent='تعديل ('+ids.length+' كتل)';
   box.innerHTML=`<div class="grp"><div class="gb"><div class="col"><div class="fld">الوظيفة <select id="mFn"><option value="__">—</option>${opts(FNS,'__')}</select></div><div class="fld">المادة <select id="mMat"><option value="__">—</option>${opts(MATS,'__')}</select></div></div></div><div class="gc">تغيير للكل</div></div>
   <div class="grp"><div class="gb"><div class="col"><div class="fld">الطوابق للكل <button class="sm" id="mFm">−1</button><button class="sm" id="mFp">+1</button></div><div class="hint">حرّكهن سوا بالسحب أو الأسهم</div></div></div><div class="gc">الارتفاع</div></div>
-  <div class="grp"><div class="gb"><button class="big" id="mMx"><i>⇋</i>عكس أفقي</button><button class="big" id="mMz"><i>⇵</i>عكس عمودي</button><button class="big" id="mLock"><i>🔒</i>قفل/فتح</button><button class="big" id="pDup"><i>⧉</i>نسخ</button><button class="big warn" id="pDel"><i>🗑</i>حذف</button><button class="big" id="pDesel"><i>✕</i>إنهاء</button></div><div class="gc">أوامر</div></div>`;
-  $('mMx').onclick=()=>mirror('x');$('mMz').onclick=()=>mirror('z');$('mLock').onclick=toggleLock;
+  <div class="grp"><div class="gb"><button class="big" id="pDup"><i>⧉</i>نسخ</button><button class="big warn" id="pDel"><i>🗑</i>حذف</button><button class="big" id="pDesel"><i>✕</i>إنهاء</button></div><div class="gc">أوامر · العكس والقفل بكلك يمين</div></div>`;
   $('mFn').onchange=e=>{if(e.target.value==='__')return;snap(true);ids.forEach(i=>state.blocks[i].fn=e.target.value);refresh()};
   $('mMat').onchange=e=>{if(e.target.value==='__')return;snap(true);ids.forEach(i=>state.blocks[i].mat=e.target.value);refresh()};
   $('mFp').onclick=()=>{snap();ids.forEach(i=>state.blocks[i].f++);refresh()};$('mFm').onclick=()=>{snap();ids.forEach(i=>{if(state.blocks[i].f>1)state.blocks[i].f--});refresh()};
   $('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()};return}
  tm.textContent='تعديل الكتلة';const b=state.blocks[ids[0]];
- box.innerHTML=`<div class="grp"><div class="gb"><div class="col"><div class="fld">الاسم <input type="text" id="pName" value="${b.name.replace(/"/g,'&quot;')}"></div><div class="fld">الوظيفة <select id="pFn">${opts(FNS,b.fn||'')}</select></div></div></div><div class="gc">التعريف</div></div>
- <div class="grp"><div class="gb"><div class="col"><div class="fld">الشكل <select id="pShape">${opts(SHAPES,b.shape)}</select></div><div class="fld">المادة <select id="pMat">${opts(MATS,b.mat)}</select></div></div></div><div class="gc">الشكل والمادة</div></div>${shapeExtra(b)}
+ box.innerHTML=`<div class="grp"><div class="gb"><div class="col"><div class="fld">الاسم <input type="text" id="pName" value="${b.name.replace(/"/g,'&quot;')}"></div><div class="fld">الوظيفة <select id="pFn">${opts(FNS,b.fn||'')}</select></div></div>
+  <div class="col"><div class="fld">المادة <select id="pMat">${opts(MATS,b.mat)}</select></div><div class="fld">الشكل <select id="pShape">${opts(SHAPES,b.shape)}</select></div></div></div><div class="gc">التعريف</div></div>
  <div class="grp"><div class="gb"><div class="col">${numRow('pF','الطوابق',b.f,1)}${numRow('pY0','مرفوع',b.y0,1)}</div></div><div class="gc">الارتفاع</div></div>
- <div class="grp"><div class="gb"><div class="col">${numRow('pW','العرض',b.w,1)}${numRow('pD','العمق',b.d,1)}</div><div class="col">${numRow('pX','س',b.x,1)}${numRow('pZ','ص',b.z,1)}</div></div><div class="gc">القياس والموقع (م)</div></div>
- <div class="grp"><div class="gb"><div class="sides">${['R:يمين','L:يسار','T:فوق','B:جوة'].map(s=>{const [k,l]=s.split(':');return `<span>${l}</span>`+[-4,-1,1,4].map(v=>`<button class="sm" data-e="${k}" data-s="${v}">${v>0?'+':'−'}${Math.abs(v)}</button>`).join('')}).join('')}</div></div><div class="gc">مدّ جهة وحدة (حسب المسقط)</div></div>
- <div class="grp"><div class="gb"><div class="col"><div class="fld">زاوية <button class="sm" id="pRm">−15°</button><input type="number" id="pRotA" value="${+(b.rot||0).toFixed(1)}" step="1" style="width:54px"><button class="sm" id="pRp">+15°</button></div><div class="hint">تدوير حر حول المركز</div></div></div><div class="gc">التدوير الحر</div></div>
- <div class="grp"><div class="gb"><button class="big" id="pLock"><i>${b.lock?'🔒':'🔓'}</i>${b.lock?'مقفولة':'قفل'}</button><button class="big" id="pRot"><i>⟳</i>تدوير 90°</button><button class="big" id="pMir"><i>⇋</i>عكس</button><button class="big" id="pSplit"><i>☰</i>تقسيم لطوابق</button><button class="big" id="pDup"><i>⧉</i>نسخ</button><button class="big warn" id="pDel"><i>🗑</i>حذف</button><button class="big" id="pDesel"><i>✕</i>إنهاء</button></div><div class="gc">أوامر · ≈ ${Math.round(areaOf(b)*b.f)} م²</div></div>`;
+ <div class="grp"><div class="gb"><div class="col">${numRow('pW','العرض',b.w,1)}${numRow('pD','العمق',b.d,1)}</div></div><div class="gc">القياس (م) · اسحب المربعات للمد</div></div>
+ <div class="grp"><div class="gb"><div class="col"><div class="fld">زاوية <button class="sm" id="pRm">−15°</button><input type="number" id="pRotA" value="${+(b.rot||0).toFixed(1)}" step="1" style="width:54px"><button class="sm" id="pRp">+15°</button></div></div></div><div class="gc">التدوير</div></div>${shapeExtra(b)}
+ <div class="grp"><div class="gb"><button class="big" id="pLock"><i>${b.lock?'🔒':'🔓'}</i>${b.lock?'مقفولة':'قفل'}</button><button class="big" id="pDup"><i>⧉</i>نسخ</button><button class="big warn" id="pDel"><i>🗑</i>حذف</button><button class="big" id="pDesel"><i>✕</i>إنهاء</button></div><div class="gc">أوامر · ≈ ${Math.round(areaOf(b)*b.f)} م²</div></div>`;
  $('pName').onchange=e=>{snap(true);b.name=e.target.value;refresh()};
  $('pShape').onchange=e=>{snap(true);b.shape=e.target.value;if(PROPS[b.shape]){[b.w,b.d]=PROPS[b.shape];b.f=1}refresh()};
  $('pMat').onchange=e=>{snap(true);b.mat=e.target.value;refresh()};
@@ -261,8 +259,7 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
  Object.entries(map).forEach(([id,k])=>{if(!$(id))return;$(id).onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b[k]=Math.max(min[k],v);refresh()}});
  box.querySelectorAll('[data-n]').forEach(bt=>bt.onclick=()=>{const k=map[bt.dataset.n];snap();if(b[k]===undefined)b[k]=DEFP[k]||0;b[k]=Math.max(min[k],+(b[k]+parseFloat(bt.dataset.s)).toFixed(2));refresh()});
  if($('pFac'))$('pFac').onchange=e=>{snap(true);b.fac=e.target.value;refresh()};if($('pProg'))$('pProg').onclick=openProg;
- box.querySelectorAll('[data-e]').forEach(bt=>bt.onclick=()=>{snap();growSide(b,bt.dataset.e,parseFloat(bt.dataset.s));refresh()});
- $('pLock').onclick=toggleLock;$('pRm').onclick=()=>rotFree(-15);$('pRp').onclick=()=>rotFree(15);$('pRotA').onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b.rot=((v%360)+360)%360;refresh()};$('pMir').onclick=()=>mirror('x');$('pRot').onclick=rot90;$('pSplit').onclick=split;$('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()}}
+ $('pLock').onclick=toggleLock;$('pRm').onclick=()=>rotFree(-15);$('pRp').onclick=()=>rotFree(15);$('pRotA').onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b.rot=((v%360)+360)%360;refresh()};$('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()}}
 function elemList(){const box=$('elBox');if(!box)return;box.innerHTML='';state.blocks.forEach((b,i)=>{const d=document.createElement('div');d.className='chip'+(selSet.has(i)?' on':'')+(b.hidden?' off':'');
  d.innerHTML=`<span class="sw" style="background:${colOf(b)}"></span><span class="nm"></span><button title="إظهار/إخفاء">${b.hidden?'🙈':'👁'}</button><button title="قفل">${b.lock?'🔒':'🔓'}</button>`;d.querySelector('.nm').textContent=b.name;
  d.querySelector('.nm').onclick=ev=>{if(b.hidden){b.hidden=false}if(ev.shiftKey){selSet.add(i);sel=i}else setSel(i);refresh()};
@@ -297,7 +294,7 @@ $('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.c
   LS.set('mc3d_designs',designs);LS.set('mc3d_cur',state);LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;if(n===curName||true)refresh();flash('انحذف نهائياً: '+n+(designs[curName]?' — المفتوح هسه: '+curName:''))})};
 addEventListener('storage',e=>{if(e.key==='mc3d_designs'){syncDesigns();fillDesigns();$('dsel').value=curName}
  if(e.key==='mc3d_sheets'&&typeof sheets!=='undefined'){const d=LS.get('mc3d_sheets');if(d){Object.keys(sheets).forEach(k=>{if(!(k in d)&&k!==curSheet)delete sheets[k]});Object.keys(d).forEach(k=>{if(k!==curSheet)sheets[k]=d[k]});fillSheets()}}});
-const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','طريقة الشغل'],crop:['mCrop','قص اللقطة'],quick:['mQuick','⚡ شيت سريع — اختار شنو تريد'],report:['mReport','تقرير المساحات'],export:['mExport','⬇ تصدير — اختار الصيغة'],input:['mInput',''],notes:['mNotes','🗒 الملاحظات على الكتل'],prog:['mProg','📋 توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','📤 مراجعة المشرف']};
+const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','طريقة الشغل'],crop:['mCrop','قص اللقطة'],quick:['mQuick','⚡ شيت سريع — اختار شنو تريد'],report:['mReport','تقرير المساحات'],export:['mExport','⬇ تصدير — اختار الصيغة'],input:['mInput',''],auth:['mAuth','☁ حسابك بالموقع'],notes:['mNotes','🗒 الملاحظات على الكتل'],prog:['mProg','📋 توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','📤 مراجعة المشرف']};
 function modal(kind){$('modal').style.display='flex';Object.entries(MODALS).forEach(([k,[id]])=>{const e=$(id);if(e)e.style.display=k===kind?'block':'none'});$('modal').querySelector('.box').classList.toggle('wide',kind==='prog');$('mTitle').textContent=(MODALS[kind]||[0,''])[1]}
 $('bIO').onclick=()=>{$('ioText').value=JSON.stringify(state);modal('io')};
 $('mClose').onclick=()=>{$('modal').style.display='none';crop=null};
@@ -478,7 +475,7 @@ function up(e){
 const ctx=document.createElement('div');ctx.id='ctx';document.body.appendChild(ctx);
 function hideCtx(){ctx.style.display='none'}
 el.addEventListener('contextmenu',e=>{e.preventDefault();if(ctxDown&&Math.hypot(e.clientX-ctxDown.x,e.clientY-ctxDown.y)>5)return;ndc(e);const h=ray.intersectObjects(pickables())[0];if(!h)return;const i=h.object.userData.i;if(!selSet.has(i))setSel(i);refresh();
- const b=state.blocks[i],items=[['⧉ نسخ (Ctrl+D)',dup],['📋 نسخ للحافظة (Ctrl+C)',copySel],['⟳ تدوير 90°',rot90],['↻ تدوير 15°',()=>rotFree(15)],['⬆ طابق زيادة',()=>floors(1)],['⬇ طابق أقل',()=>floors(-1)],['⇋ عكس أفقي',()=>mirror('x')],['⇵ عكس عمودي',()=>mirror('z')],[b.lock?'🔓 فتح القفل':'🔒 قفل',toggleLock],['🙈 إخفاء',toggleHide],['🗑 حذف',del]];
+ const b=state.blocks[i],items=[['⧉ نسخ (Ctrl+D)',dup],['📋 نسخ للحافظة (Ctrl+C)',copySel],['⟳ تدوير 90°',rot90],['↻ تدوير 15°',()=>rotFree(15)],['⬆ طابق زيادة',()=>floors(1)],['⬇ طابق أقل',()=>floors(-1)],['⇋ عكس أفقي',()=>mirror('x')],['⇵ عكس عمودي',()=>mirror('z')],...(selSet.size===1&&b.f>1?[['☰ تقسيم لطوابق',split]]:[]),[b.lock?'🔓 فتح القفل':'🔒 قفل',toggleLock],['🙈 إخفاء',toggleHide],['🗑 حذف',del]];
  ctx.innerHTML='';items.forEach(([t,f])=>{const d=document.createElement('div');d.textContent=t;d.onclick=()=>{hideCtx();f()};ctx.appendChild(d)});
  ctx.style.display='block';ctx.style.left=Math.min(e.clientX,innerWidth-190)+'px';ctx.style.top=Math.min(e.clientY,innerHeight-340)+'px'});
 addEventListener('pointerdown',e=>{if(!ctx.contains(e.target))hideCtx()});
@@ -1176,7 +1173,8 @@ function renderNotes(){const L=notesOf(),box=$('notesList');
   bGo.onclick=()=>{const i=blkById(n.bid);$('modal').style.display='none';if(i>=0){setSel(i);refresh();const p=notePos(n);if(p&&!isPlan){O.target.copy(p);}}};
   bDone.onclick=()=>{snap(true);n.done=!n.done;save();pinsBuild();notesBadge();renderNotes()};
   bDel.onclick=()=>{snap(true);L.splice(k,1);save();pinsBuild();notesBadge();renderNotes()};box.appendChild(r)});
- $('ntSend').style.display=REV&&!REV.remote?'':'none';$('ntImp').style.display=REV?'none':''}
+ $('ntSend').style.display=REV&&!REV.remote?'':'none';$('ntImp').style.display=REV?'none':'';$('ntPull').style.display=REV&&!REV.remote?'none':''}
+$('ntPull').onclick=async()=>{const b=$('ntPull');b.disabled=true;try{if(REV){if(REV.remote)await pullRemoteNotesForReviewer()}else await pullNotes(true)}finally{b.disabled=false;renderNotes()}};
 $('ntCopy').onclick=()=>navigator.clipboard.writeText(notesText()).then(()=>flash('انتسخت الملاحظات — الصقها بالواتساب ✓')).catch(()=>{$('ioText').value=notesText();modal('io')});
 $('ntSend').onclick=()=>{const data=JSON.stringify({kind:'mc3d-notes',design:REV?REV.name:curName,key:REV?REV.key:'',by:myName(),u:Date.now(),notes:notesOf()});
  saveBlob('ملاحظات المشرف - '+(REV?REV.name:curName)+'.json',data,'application/json').then(()=>flash('انحفظ ملف الملاحظات — دزه للطالب بالواتساب أو الإيميل ✓')).catch(()=>flash('ما كدرت أحفظ — استخدم "نسخ كنص"'))};
@@ -1212,7 +1210,7 @@ async function unpublishAll(){try{const q=await CL.rdb.collection('review').get(
 if(REV){document.body.classList.add('revmode');const bar=document.createElement('div');bar.id='rvBar';
  bar.innerHTML=`<b>🔍 وضع المراجعة</b><span>تصميم: <b></b> · اضغط على كتلة ثم 📌</span><button id="rvNote">📌 ملاحظة</button><button id="rvNotes">🗒 الملاحظات <span class="cnt"></span></button><button id="rvSend" class="pri">📤 إرسال الملاحظات</button><span class="rvv"><button data-rv="iso">🧊 أيزو</button><button data-rv="top">⬛ مسقط</button><button data-rv="front">▭ واجهة</button><button data-rv="eye">👁 منظور</button><button id="rvFn">🎨 الوظائف</button></span>`;
  bar.querySelector('span b').textContent=REV.name;bar.querySelectorAll('[data-rv]').forEach(x=>x.onclick=()=>view(x.dataset.rv));state.blocks.forEach(b=>b.lock=true);$('titlebar').after(bar);$('rvNote').onclick=()=>askNote(sel);$('rvNotes').onclick=()=>openNotes();$('rvSend').onclick=()=>{openNotes()};
- $('cloudSt').style.display='none';$('rvFn').onclick=()=>{setColor(colorMode==='fn'?'mat':'fn');tg('rvFn',colorMode==='fn')};setTimeout(()=>{fit();flash('أهلاً 👋 هذا تصميم "'+REV.name+'" للمراجعة — اضغط على أي كتلة واكتب ملاحظتك')},800)}
+ $('cloudSt').style.display='none';$('rvFn').onclick=()=>{setColor(colorMode==='fn'?'mat':'fn');tg('rvFn',colorMode==='fn')};if(colorMode!=='fn')setColor('fn');tg('rvFn',true);setTimeout(()=>{fit();flash('أهلاً 👋 هذا تصميم "'+REV.name+'" للمراجعة — اضغط على أي كتلة واكتب ملاحظتك')},800)}
 setTimeout(()=>{pinsBuild();notesBadge()},500);
 {const _r=refresh;refresh=function(){_r.apply(this,arguments);if(typeof pinsBuild==='function'){pinsBuild();notesBadge()}}}
 
@@ -1278,21 +1276,43 @@ const IN_CLAUDE=!!(window.claude&&claude.use);
 async function sbFetch(path,opt){const r=await fetch(SB.url+path,Object.assign({},opt,{headers:Object.assign({apikey:SB.key,'Content-Type':'application/json'},(opt&&opt.headers)||{})}));
  if(!r.ok){let t='';try{t=await r.text()}catch(e){}const er=new Error(t||('HTTP '+r.status));er.code=/denied/.test(t)?'denied':'http_'+r.status;throw er}const t=await r.text();return t?JSON.parse(t):null}
 const sbRpc=(fn,args)=>sbFetch('/rest/v1/rpc/'+fn,{method:'POST',body:JSON.stringify(args)});
-let SBK=LS.get('mc3d_sbk')||null;
+// ---- accounts: each person has username + password; everything in the cloud lives under u/<username>/ ----
+let SBU=LS.get('mc3d_sbu')||null,SBK=LS.get('mc3d_sbk')||null;
+if(SBK&&!SBU&&!REV){SBU='abdullah';LS.set('mc3d_sbu',SBU)} // before accounts there was only one password (Abdullah's)
+const sbA=o=>Object.assign({u:SBU,k:SBK},o||{});
 // Firestore-like adapter so the existing reconcile() works unchanged
 function sbCollection(p){return {
- doc:id=>({async get(){const d=await sbRpc('kv_get',{k:SBK,p,i:id});return {exists:d!==null&&d!==undefined,id,data:()=>d}},
-  async set(v){await sbRpc('kv_set',{k:SBK,p,i:id,d:v})},async delete(){await sbRpc('kv_del',{k:SBK,p,i:id})},
-  onSnapshot(cb,err){let last=null,stop=false;const tick=async()=>{if(stop)return;try{const d=await sbRpc('kv_get',{k:SBK,p,i:id});const j=JSON.stringify(d);if(j!==last){last=j;cb({exists:d!==null,data:()=>d,metadata:{fromCache:false}})}}catch(e){if(err)err(e)}if(!stop)setTimeout(tick,document.hidden?60000:15000)};tick();return()=>{stop=true}}}),
- async get(){const rows=await sbRpc('kv_list',{k:SBK,p})||[];return {docs:rows.map(r=>({id:r.id,data:()=>r.data}))}}}}
-async function sbLogin(after){showInput(SBK?'كلمة سر الحفظ السحابي':'اختار كلمة سر للحفظ السحابي (أول مرة) — احفظها عندك','',async v=>{try{const r=await sbRpc('owner_claim',{k:v});
-  if(r==='short')return flash('كلمة السر لازم 4 حروف أو أكثر');if(r==='bad')return flash('كلمة السر غلط');SBK=v;LS.set('mc3d_sbk',v);flash(r==='new'?'✓ انحفظت كلمة السر — شغلك صار ينحفظ بالسحابة':'✓ تم الدخول');if(after)after()}catch(e){flash('ما وصلت للسحابة — تأكد من الإنترنت')}})}
-async function sbInit(){if(REV)return clStatus('','off');if(!SBK)return clStatus('☁ اضغط حتى تفعّل الحفظ السحابي','off');
- try{const r=await sbRpc('owner_claim',{k:SBK});if(r!=='ok'&&r!=='new'){SBK=null;LS.set('mc3d_sbk',null);return clStatus('☁ اضغط حتى تسجل دخول','off')}}catch(e){return clStatus('☁ ما وصلت للسحابة','err')}
- CL.db={collection:sbCollection};CL.uid='me';CL.owner=true;CL.col=sbCollection('data/users/me');CL.sb=true;
+ doc:id=>({async get(){const d=await sbRpc('kv_get',sbA({p,i:id}));return {exists:d!==null&&d!==undefined,id,data:()=>d}},
+  async set(v){await sbRpc('kv_set',sbA({p,i:id,d:v}))},async delete(){await sbRpc('kv_del',sbA({p,i:id}))},
+  onSnapshot(cb,err){let last=null,stop=false;const tick=async()=>{if(stop)return;try{const d=await sbRpc('kv_get',sbA({p,i:id}));const j=JSON.stringify(d);if(j!==last){last=j;cb({exists:d!==null,data:()=>d,metadata:{fromCache:false}})}}catch(e){if(err)err(e)}if(!stop)setTimeout(tick,document.hidden?60000:15000)};tick();return()=>{stop=true}}}),
+ async get(){const rows=await sbRpc('kv_list',sbA({p}))||[];return {docs:rows.map(r=>({id:r.id,data:()=>r.data}))}}}}
+const LOCAL_KEYS=['mc3d_designs','mc3d_cur','mc3d_name','mc3d_sheets','mc3d_sheetname','mc3d_sheet','mc3d_synced','mc3d_pristine','mc3d_imgup','mc3d_revids','mc3d_ntseen','mc3d_lastbk','mc3d_owner'];
+function clearLocalData(){clearTimeout(saveT);LOCAL_KEYS.forEach(k=>{try{localStorage.removeItem(k)}catch(e){}})}
+function userUI(){const on=!!(SBU&&SBK&&!REV);$('userSt').style.display=on?'':'none';$('userNm').textContent=on?'👤 '+SBU:''}
+function sbForget(){SBU=SBK=null;LS.set('mc3d_sbu',null);LS.set('mc3d_sbk',null);userUI()}
+let authAfter=null;
+function sbLogin(after){authAfter=typeof after==='function'?after:null;$('auU').value=SBU||'';$('auK').value='';$('auMsg').textContent='';modal('auth');setTimeout(()=>$(SBU?'auK':'auU').focus(),50)}
+async function authGo(isNew){const u=$('auU').value.trim().toLowerCase(),k=$('auK').value,msg=t=>{$('auMsg').textContent=t};
+ if(u.length<2||u.length>30||/[\s\/]/.test(u))return msg('اسم المستخدم لازم من 2 لـ 30 حرف وبدون فراغات');if(k.length<4)return msg('كلمة السر لازم 4 حروف أو أكثر');
+ msg('');let r;try{r=await sbRpc(isNew?'user_signup':'user_login',{u,k})}catch(e){return msg('ما وصلت للسحابة — تأكد من الإنترنت')}
+ if(r==='taken')return msg('هذا الاسم مأخوذ — اختار اسم ثاني، أو اضغط "دخول" إذا هو حسابك');if(r==='badname')return msg('اسم المستخدم مو صالح');
+ if(r==='short')return msg('كلمة السر لازم 4 حروف أو أكثر');if(r!=='ok'&&r!=='new')return msg('اسم المستخدم أو كلمة السر غلط');
+ const owner=LS.get('mc3d_owner');SBU=u;SBK=k;LS.set('mc3d_sbu',u);LS.set('mc3d_sbk',k);
+ if(owner&&owner!==u){clearLocalData();LS.set('mc3d_owner',u);flash('⏳ جاري فتح حساب '+u+'…');setTimeout(()=>location.reload(),400);return} // this device held another account's copy
+ LS.set('mc3d_owner',u);$('modal').style.display='none';userUI();flash(r==='new'?'✓ انسوى حسابك "'+u+'" — شغلك صار ينحفظ بالسحابة':'✓ أهلاً '+u);
+ const after=authAfter;authAfter=null;if(!CL.col&&after!==sbInit)sbInit();if(after)after();pullNotes()}
+$('auIn').onclick=()=>authGo(false);$('auNew').onclick=()=>authGo(true);$('auK').onkeydown=e=>{if(e.key==='Enter')authGo(false)};$('auU').onkeydown=e=>{if(e.key==='Enter')$('auK').focus()};
+$('bLogout').onclick=e=>arm(e.currentTarget,async()=>{if(CL.col&&CL.sb){clearTimeout(clT);flash('⏳ جاري حفظ شغلك بالسحابة قبل الخروج…');CL.ok=false;await reconcile(CL.lastMeta?clone(CL.lastMeta):null);
+  for(let t=0;t<40&&CL.busy;t++)await new Promise(r=>setTimeout(r,500));if(!CL.ok)return flash('ما كدرت أحفظ بالسحابة — ما طلعتك حتى ما يضيع شغلك. تأكد من الإنترنت وعيد')}
+ if(CL.unsub)CL.unsub();sbForget();clearLocalData();location.reload()});
+userUI();
+async function sbInit(){if(REV)return clStatus('','off');if(CL.col)return;if(!SBK||!SBU)return clStatus('☁ اضغط حتى تسجل دخول','off');
+ try{const r=await sbRpc('user_login',sbA());if(r!=='ok'){sbForget();return clStatus('☁ اضغط حتى تسجل دخول','off')}}catch(e){return clStatus('☁ ما وصلت للسحابة','err')}
+ if(!LS.get('mc3d_owner'))LS.set('mc3d_owner',SBU);userUI();
+ CL.db={collection:sbCollection};CL.uid=SBU;CL.owner=true;CL.col=sbCollection('data');CL.sb=true;
  if(WAS_FRESH&&!LS.get('mc3d_pristine')){const d={},s={};Object.entries(localDesigns()).forEach(([k,v])=>d[k]=hOf(v));saveSheetLocalOnly();Object.entries(sheets).forEach(([k,v])=>s[k]=hOf(v));LS.set('mc3d_pristine',{d,s})}
  clStatus('☁ جاري الاتصال…','sync');CL.unsub=CL.col.doc('meta').onSnapshot(snap=>{const m=snap.exists?snap.data():null;CL.lastMeta=m?clone(m):null;if(m)CL.lastMetaJ=JSON.stringify({d:m.d||{},s:m.s||{},del:m.del||{d:{},s:{}}});reconcile(m?clone(m):null)},()=>clStatus('☁ انقطع الاتصال','err'));
- setTimeout(pullNotes,3000);setInterval(pullNotes,90000)}
+ setTimeout(()=>pullNotes(),1500)}
 if(!IN_CLAUDE){const _c=$('cloudSt').onclick;$('cloudSt').onclick=()=>{if(CL.col)return reconcile(CL.lastMeta?clone(CL.lastMeta):null);sbLogin(sbInit)}}
 // downloads outside Claude
 if(!IN_CLAUDE){DL={save:({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),8000);return Promise.resolve()}};
@@ -1300,22 +1320,34 @@ if(!IN_CLAUDE){DL={save:({filename,data})=>{const b=data instanceof Blob?data:ne
 // ---- live review link ----
 function revIds(){return LS.get('mc3d_revids')||{}}
 function revIdFor(name){const m=revIds();if(!m[name]){m[name]='r'+Math.random().toString(36).slice(2,10);LS.set('mc3d_revids',m)}return m[name]}
-async function publishLink(){if(!SBK)return sbLogin(publishLink);const id=revIdFor(curName);
- try{await sbRpc('review_put',{k:SBK,i:id,n:curName,s:Object.assign(clone(state),{notes:[]})});const link=SB.pub+'?r='+id;
+async function publishLink(){if(!SBK||!SBU)return sbLogin(publishLink);const id=revIdFor(curName);
+ try{await sbRpc('review_put',sbA({i:id,n:curName,s:Object.assign(clone(state),{notes:[]})}));const link=SB.pub+'?r='+id;
   $('rvInfoT').innerHTML=`✓ انشر "<b></b>" — هذا الرابط للدكاترة (يفتح بأي موبايل أو لابتوب، بدون حساب):<div class="fld" style="margin:8px 0"><input id="rvLink" readonly style="width:min(420px,78vw);direction:ltr" value="${link}"></div>
    <button class="sm pri2" id="rvCopy">📋 نسخ الرابط</button> <a class="sm" id="rvWa" target="_blank" rel="noopener" style="display:inline-block;padding:4px 10px;background:#25d366;color:#fff;border-radius:6px;text-decoration:none">واتساب</a>
    <div class="hint" style="margin-top:8px">ملاحظاتهم توصلك هنا تلقائياً كدبابيس على الكتل. إذا عدلت التصميم، انشره مرة ثانية بنفس الطريقة والرابط يبقى نفسه.</div>`;
   $('rvInfoT').querySelector('b').textContent=curName;$('rvWa').href='https://wa.me/?text='+encodeURIComponent('دكتور، هذا تصميم "'+curName+'" لمشروعي — تكدر تشوفه وتكتب ملاحظاتك على الكتل مباشرة:\n'+link);
   $('rvCopy').onclick=()=>navigator.clipboard.writeText(link).then(()=>flash('انتسخ الرابط ✓')).catch(()=>{$('rvLink').select()});modal('rvinfo')}
- catch(e){if(e.code==='denied'){SBK=null;LS.set('mc3d_sbk',null);return sbLogin(publishLink)}flash('ما كدرت أنشر — '+(IN_CLAUDE?'افتح الموقع العام '+SB.pub+' وانشر منه':'تأكد من الإنترنت'))}}
-async function unpublishLink(){if(!SBK)return sbLogin(unpublishLink);const m=revIds(),id=m[curName];if(!id)return flash('هذا التصميم ما منشور');try{await sbRpc('review_del',{k:SBK,i:id});delete m[curName];LS.set('mc3d_revids',m);flash('انسحب الرابط — ما يفتح بعد')}catch(e){flash('ما كدرت أسحبه')}}
+ catch(e){if(e.code==='denied'){sbForget();return sbLogin(publishLink)}flash('ما كدرت أنشر — '+(IN_CLAUDE?'افتح الموقع العام '+SB.pub+' وانشر منه':'تأكد من الإنترنت'))}}
+async function unpublishLink(){if(!SBK||!SBU)return sbLogin(unpublishLink);const m=revIds(),id=m[curName];if(!id)return flash('هذا التصميم ما منشور');try{await sbRpc('review_del',sbA({i:id}));delete m[curName];LS.set('mc3d_revids',m);flash('انسحب الرابط — ما يفتح بعد')}catch(e){flash('ما كدرت أسحبه')}}
 // student: pull new supervisor notes into the matching designs
-async function pullNotes(){const m=revIds(),ids=Object.values(m);if(!ids.length)return;let rows;try{rows=await sbFetch('/rest/v1/notes?select=*&review_id=in.('+ids.join(',')+')&order=created_at.asc')}catch(e){return}
- const seen=new Set(LS.get('mc3d_ntseen')||[]),byId={};Object.entries(m).forEach(([n,i])=>byId[i]=n);let got=0,who=new Set(),curChanged=false;
- (rows||[]).forEach(r=>{if(seen.has(r.id))return;seen.add(r.id);const n=byId[r.review_id];if(!n)return;const note=Object.assign({},r.data,{id:r.id});
-  if(n===curName){(state.notes=state.notes||[]).push(note);curChanged=true}else if(designs[n]){(designs[n].notes=designs[n].notes||[]).push(note)}else return;got++;if(note.by)who.add(note.by)});
- LS.set('mc3d_ntseen',[...seen]);if(!got)return;if(curChanged)save();LS.set('mc3d_designs',designs);pinsBuild();notesBadge();if(typeof cloudSoon==='function')cloudSoon();
- flash(`📥 وصلتك ${got} ملاحظة جديدة${who.size?' من '+[...who].join('، '):''} — 🗒 الملاحظات`)}
+let ntBusy=false,ntLast=0;
+async function pullNotes(manual){if(REV||ntBusy)return;if(!manual&&Date.now()-ntLast<3000)return;ntBusy=true;ntLast=Date.now();
+ try{if(SBU&&SBK){try{const L=await sbRpc('review_list',sbA()),m=revIds(),have=new Set(Object.values(m));let ch=false; // my links published from another device
+   (L||[]).forEach(r=>{if(!have.has(r.id)&&!(r.name in m)){m[r.name]=r.id;ch=true}});if(ch)LS.set('mc3d_revids',m)}catch(e){}}
+ const m=revIds(),ids=Object.values(m);if(!ids.length){if(manual)flash('ماكو تصاميم منشورة برابط بعد');return}
+ let rows;try{rows=await sbFetch('/rest/v1/notes?select=*&review_id=in.('+ids.map(encodeURIComponent).join(',')+')&order=created_at.asc')}catch(e){if(manual)flash('ما وصلت للسحابة — تأكد من الإنترنت');return}
+ const seen=new Set(LS.get('mc3d_ntseen')||[]),byId={};Object.entries(m).forEach(([n,i])=>byId[i]=n);let got=0,curChanged=false,otherChanged=false;const who=new Set(),per={};
+ (rows||[]).forEach(r=>{if(seen.has(r.id))return;const n=byId[r.review_id];if(!n)return;const tgt=n===curName?state:designs[n];if(!tgt)return; // design not on this device yet: keep it unseen
+  seen.add(r.id);const L=(tgt.notes=tgt.notes||[]);if(L.some(x=>x.id===r.id))return; // already came through cloud sync
+  const note=Object.assign({},r.data,{id:r.id});L.push(note);if(n===curName)curChanged=true;else otherChanged=true;got++;per[n]=(per[n]||0)+1;if(note.by)who.add(note.by)});
+ LS.set('mc3d_ntseen',[...seen]);if(!got){if(manual)flash('ماكو ملاحظات جديدة ✓');return}
+ if(curName)designs[curName]=clone(state);LS.set('mc3d_designs',designs);if(curChanged)save();if(otherChanged&&typeof cloudSoon==='function')cloudSoon();
+ pinsBuild();notesBadge();if($('modal').style.display==='flex'&&$('notesList').offsetParent)renderNotes();
+ const where=Object.entries(per).map(([n,k])=>n===curName?`${k} على هذا التصميم`:`${k} على "${n}"`).join(' · ');
+ flash(`📥 وصلتك ${got} ملاحظة جديدة${who.size?' من '+[...who].join('، '):''} (${where})`+(otherChanged?' — افتح التصميم حتى تشوفها':' — 🗒 الملاحظات'))}
+ finally{ntBusy=false}}
+if(!REV){setTimeout(()=>pullNotes(),2500);setInterval(()=>{if(!document.hidden)pullNotes()},30000);
+ addEventListener('focus',()=>pullNotes());document.addEventListener('visibilitychange',()=>{if(!document.hidden)pullNotes()})}
 // supervisor (review link opened): notes go straight to the database
 async function sendNoteRemote(n){if(!REV||!REV.remote)return;try{await sbFetch('/rest/v1/notes',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({id:n.id,review_id:REV.key,data:n})});n.sent=1;flash('✓ وصلت الملاحظة للطالب')}catch(e){flash('ما وصلت الملاحظة — تأكد من الإنترنت وعيد')}}
 async function pullRemoteNotesForReviewer(){if(!REV||!REV.remote)return;try{const rows=await sbFetch('/rest/v1/notes?select=*&review_id=eq.'+encodeURIComponent(REV.key)+'&order=created_at.asc');const L=notesOf(),have=new Set(L.map(n=>n.id));
