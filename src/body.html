@@ -1,0 +1,176 @@
+<div id="top">
+ <div id="titlebar"><b>النموذج الكتلي 3D</b><span>— المركز التعليمي والتدريبي الطبي</span><span id="curname" style="color:#ffc58a"></span><button id="cloudSt" class="off" title="الحفظ السحابي — اضغط حتى تزامن هسه">☁</button><select id="revSel" style="display:none;font-size:12px"></select>
+  <div class="qa"><button id="qExp" title="تصدير">⬇</button><button id="qHelp" title="طريقة الشغل">❓</button><button id="qShot" title="حفظ صورة">📷</button><button id="qUndo" title="تراجع Ctrl+Z">↶</button><button id="qRedo" title="إعادة Ctrl+Y">↷</button><button id="qSave" title="حفظ">💾</button></div></div>
+ <div id="tabs">
+  <button class="tab" data-t="file">ملف</button>
+  <button class="tab on" data-t="home">الرئيسية</button>
+  <button class="tab" data-t="view">عرض</button>
+  <button class="tab" data-t="site">الموقع</button>
+  <button class="tab" data-t="sun">الشمس</button>
+  <button class="tab" data-t="sec">مقطع</button>
+    <button class="tab" data-t="sheet">اللوحات</button>
+  <button class="tab" data-t="areas">المساحات</button>
+  <button class="tab ctx" data-t="mod" id="tabMod">تعديل الكتلة</button>
+  <button class="tab ctx" data-t="shmod" id="tabShMod">تنسيق اللوحة</button>
+ </div>
+ <div id="ribbon">
+  <div class="pane" id="p_file">
+   <div class="grp"><div class="gb"><button class="big" id="bNew"><i>📄</i>جديد من الصفر</button><button class="big" id="bSketch"><i>✍️</i>السكيج الأول</button><button class="big" id="bSketch2"><i>✍️</i>السكيج الثاني</button><button class="big" id="bSketch3"><i>✍️</i>السكيج الثالث</button></div><div class="gc">بدء</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+     <div class="fld">التصاميم <select id="dsel" style="width:150px"></select><button class="sm" id="bOpen">فتح</button><button class="sm" id="bDelD">حذف</button></div>
+     <div class="fld">الاسم <input type="text" id="dname" placeholder="اسم التصميم"><button class="sm" id="bSave">حفظ باسم</button></div>
+   </div></div><div class="gc">التصاميم المحفوظة</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bBackup"><i>💾</i>حفظ نسخة كاملة</button><button class="big" id="bRestore"><i>📂</i>استرجاع نسخة</button><input type="file" id="restoreFile" accept=".json,application/json" style="display:none"></div><div class="gc">نسخة احتياطية (كل التصاميم واللوحات)</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bReview"><i>📤</i>للمشرف</button><button class="big" id="bNote"><i>📌</i>ملاحظة</button><button class="big" id="bNotes"><i>🗒</i>الملاحظات <span class="cnt"></span></button><button class="big on" id="bPins"><i>📍</i>الدبابيس</button></div><div class="gc">مراجعة وملاحظات</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="b3D"><i>⬇</i>تصدير</button></div><div class="gc">ريفت · أوتوكاد · سكتش أب · PDF</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bIO"><i>📋</i>نسخ / لصق</button><button class="big" id="bShot"><i>📷</i>حفظ صورة</button></div><div class="gc">مشاركة</div></div>
+  </div>
+  <div class="pane on" id="p_home">
+   <div class="grp"><div class="gb"><button class="big on" id="tSel"><i>✋</i>تحديد</button><button class="big" id="tDraw"><i>✏️</i>رسم</button><button class="big" id="tCut"><i>✂️</i>قص الكتلة</button><button class="big" id="tMeas"><i>📐</i>قياس</button></div><div class="gc">أدوات</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+     <div class="fld">الشكل <select id="dShape"></select> المادة <select id="dMat"></select></div>
+     <div class="fld">الوظيفة <select id="dFn"></select> الطوابق <input type="number" id="dF" min="1" max="20" value="2"></div>
+   </div></div><div class="gc">إعدادات الرسم</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+     <div class="fld">المغناطيس <select id="dSnap"><option value="0.5">0.5 م</option><option value="1" selected>1 م</option><option value="2">2 م</option><option value="5">5 م</option></select></div>
+     <div class="fld"><button class="sm on" id="bEdge">التصاق بحواف الكتل</button></div>
+   </div></div><div class="gc">الالتقاط</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bMulti"><i>☰</i>تحديد متعدد</button><button class="big" id="bAll"><i>▦</i>تحديد الكل</button></div><div class="gc">التحديد (أو Shift + ضغط)</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bPlan"><i>📐</i>وضع المسقط</button></div><div class="gc">رسم دقيق</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="tUndo"><i>↶</i>تراجع</button><button class="big" id="tRedo"><i>↷</i>إعادة</button></div><div class="gc">السجل</div></div>
+  </div>
+  <div class="pane" id="p_view">
+   <div class="grp"><div class="gb"><button class="big" data-v="iso"><i>🧊</i>أيزو</button><button class="big" data-v="top"><i>⬛</i>مسقط</button><button class="big" data-v="front"><i>▭</i>واجهة</button><button class="big" data-v="side"><i>▯</i>جانبي</button><button class="big" data-v="eye"><i>👁</i>منظور عين</button></div><div class="gc">زوايا النظر</div></div>
+   <div class="grp"><div class="gb"><button class="big on" id="bGrid"><i>#</i>الشبكة</button><button class="big" id="bNames"><i>🏷</i>الأسماء</button><button class="big on" id="bDims"><i>📏</i>القياسات</button></div><div class="gc">إظهار</div></div>
+   <div class="grp"><div class="gb"><button class="big on" id="cMat"><i>🧱</i>حسب المادة</button><button class="big" id="cFn"><i>🎨</i>حسب الوظيفة</button><button class="big" id="cWhite"><i>⬜</i>موديل أبيض</button><button class="big" id="cXray"><i>👻</i>شفاف</button></div><div class="gc">نمط العرض</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="rqAll"><i>✨</i>إظهار محسّن</button><div class="col"><div class="fld"><button class="sm" id="rqTex">🧱 ملمس المواد</button></div><div class="fld"><button class="sm" id="rqAO">🌫 ظلال ناعمة</button></div><div class="fld"><button class="sm" id="rqSky">🌤 سماء</button></div></div></div><div class="gc">جودة الإظهار</div></div>
+   <div class="grp"><div class="gb"><div class="col"><div class="fld"><select id="vidMode"><option value="orbit">دوران حول المشروع</option><option value="sun">حركة الظلال (يوم)</option></select></div><div class="fld">المدة <select id="vidDur"><option>6</option><option selected>10</option><option>15</option></select> ثانية</div></div><button class="big" id="bVideo"><i>🎬</i>تسجيل فيديو</button></div><div class="gc">فيديو للعرض</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bShot2"><i>📷</i>حفظ صورة</button><div class="col"><div class="fld"><button class="sm" id="bWhite">خلفية بيضاء</button></div></div></div><div class="gc">إخراج</div></div>
+  </div>
+  <div class="pane" id="p_site">
+   <div class="grp"><div class="gb"><div class="col">
+    <div class="fld">العرض <input type="number" id="sW" min="20" max="400"> م</div>
+    <div class="fld">العمق <input type="number" id="sD" min="20" max="400"> م</div>
+   </div><div class="col">
+    <div class="fld">الارتداد <input type="number" id="sSB" min="0" max="30" step="0.5"> م</div>
+    <div class="fld">ارتفاع الطابق <input type="number" id="sFH" min="2.5" max="8" step="0.5"> م</div>
+   </div><div class="col">
+    <div class="fld">اتجاه الشمال <input type="number" id="sN" min="-180" max="180" step="5"> °</div>
+   </div></div><div class="gc">القطعة</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bImg"><i>🛰</i>رفع صورة الموقع</button><input type="file" id="imgFile" accept="image/*" style="display:none">
+    <div class="col">
+     <div class="fld"><button class="sm on" id="bImgShow">إظهار</button> الشفافية <input type="range" id="iOp" min="0.1" max="1" step="0.05"></div>
+     <div class="fld">عرض الصورة <input type="number" id="iW" step="1"> م · تدوير <input type="number" id="iR" step="1" style="width:52px">°</div>
+     <div class="fld">إزاحة س <input type="number" id="iX" step="1" style="width:52px"> ص <input type="number" id="iZ" step="1" style="width:52px"></div>
+    </div>
+    <div class="col">
+     <button class="sm" id="bCal">📏 معايرة بنقطتين</button>
+     <div class="fld" id="calBox" style="display:none">المسافة الحقيقية <input type="number" id="calD" step="0.5" style="width:60px"> م <button class="sm" id="calOk">تطبيق</button></div>
+     <button class="sm" id="bImgDel">حذف الصورة</button>
+    </div></div><div class="gc">صورة الموقع (قمر صناعي)</div></div>
+  </div>
+  <div class="pane" id="p_sun">
+   <div class="grp"><div class="gb"><button class="big" id="bSunOn"><i>☀️</i>شمس حقيقية</button></div><div class="gc">بغداد — باب المعظم</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+    <div class="fld">التاريخ <input type="date" id="sunDate"> <button class="sm" data-d="06-21">21 حزيران</button><button class="sm" data-d="12-21">21 كانون1</button><button class="sm" data-d="03-21">21 آذار</button></div>
+    <div class="fld">الساعة <input type="range" id="sunH" min="5" max="19.5" step="0.25" style="width:200px"> <b id="sunHL"></b></div>
+   </div></div><div class="gc">الزمن</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="bSunPlay"><i>▶</i>حركة اليوم</button><button class="big" id="bWind"><i>🌬</i>الرياح السائدة</button><div class="col" id="sunInfo" style="min-width:230px;font-size:12px;color:#444;line-height:1.6"></div></div><div class="gc">التحليل</div></div>
+  </div>
+  <div class="pane" id="p_sec">
+   <div class="grp"><div class="gb"><button class="big" id="bSec"><i>✂️</i>تفعيل المقطع</button></div><div class="gc">مقطع</div></div>
+   <div class="grp"><div class="gb"><div class="col">
+    <div class="fld">الاتجاه <button class="sm on" id="secX">طولي (س)</button><button class="sm" id="secZ">عرضي (ص)</button><button class="sm" id="secY">أفقي (مسقط طابق)</button><button class="sm" id="secFlip">قلب الجهة</button> <select id="secLvl" style="display:none"></select></div>
+    <div class="fld">الموضع <input type="range" id="secPos" min="-60" max="60" step="0.5" style="width:240px"> <b id="secPL"></b></div>
+   </div></div><div class="gc">إعدادات المقطع</div></div>
+  </div>
+  <div id="elBox" style="display:none"></div>
+  <div class="pane" id="p_sheet">
+   <div class="grp"><div class="gb"><button class="big" id="shOpen"><i>🖼</i>فتح اللوحة</button><div class="col"><div class="fld"><select id="shList" style="width:150px"></select></div><div class="fld"><button class="sm" id="shNew">+ جديدة</button><button class="sm" id="shMoreS">⋯ المزيد</button></div></div></div><div class="gc">اللوحات</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="shQuick"><i>⚡</i>شيت سريع</button><button class="big" id="shShot"><i>📷</i>لقطة</button><button class="big" id="shAddM"><i>➕</i>إضافة ▾</button></div><div class="gc">محتوى</div></div>
+   <div class="grp"><div class="gb"><div class="col"><div class="fld"><select id="shSize"><option>A4</option><option selected>A3</option><option>A2</option><option>A1</option></select><button class="sm" id="shLand">أفقي</button><button class="sm" id="shPort">عمودي</button></div><div class="fld"><button class="sm" id="shFrame">إطار</button><button class="sm" id="shAuto">ترتيب تلقائي</button></div></div></div><div class="gc">الصفحة</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="shExpDlg" style="background:#2F3F9E;color:#fff"><i>⬇</i>تصدير</button></div><div class="gc">PDF · صور · 3D</div></div>
+   <div style="display:none" id="shLegacy">
+    <input type="text" id="shName"><button id="shRen"></button><button id="shDupS"></button><button id="shDelS">حذف</button><button id="shClear">مسح</button>
+    <button id="shUp"></button><input type="file" id="shFile" accept="image/*" multiple><button id="shText"></button><button id="shTitle"></button><button id="shTB"></button><button id="shBox"></button><button id="shLine"></button><button id="shLineV"></button><button id="shNorth"></button><button id="shScale"></button><button id="shLegend"></button>
+    <span id="shCount"></span><button id="shGround" class="on"></button><button id="shNamesB"></button>
+   </div>
+  </div>
+  <div class="pane" id="p_shmod">
+   <div class="grp" id="shSel" style="display:none"><div class="gb"><div class="col">
+     <div class="fld"><input type="text" id="shTxt" placeholder="النص" style="width:170px" title="اكتب هنا وينعدل النص مباشرة"><button class="sm" id="shEditT" title="تعديل على اللوحة (دبل كلك أو Enter)">✎</button><select id="shFont"><option value="Tajawal">Tajawal</option><option value="Cairo">Cairo</option><option value="Amiri">Amiri</option><option value="Noto Naskh Arabic">Noto Naskh Arabic</option><option value="Reem Kufi">Reem Kufi</option></select><button class="sm" id="shMinus">−</button><button class="sm" id="shPlus">+</button><button class="sm" id="shBold">B</button><button class="sm" id="shAlign">⇆</button><input type="color" id="shColor" style="width:28px;height:22px;padding:0;border:1px solid #ccc"><input type="number" id="shSw" step="0.1" min="0" title="سمك الخط / الإطار مم" style="width:50px"><input type="number" id="shRot" step="5" title="تدوير الشمال °" style="width:52px"></div>
+     <div class="fld"><span id="shScaleBox">مقياس 1:<select id="shScaleN"><option>100</option><option>200</option><option>250</option><option>500</option><option>1000</option><option>2000</option></select></span><span id="shLen">1:<input type="number" id="shLenN" style="width:52px"> طول <input type="number" id="shLenL" style="width:44px" placeholder="تلقائي">م</span><button class="sm" id="shCrop">✂ قص</button><button class="sm" id="shTrim">شيل الحواف</button><button class="sm" id="shDupB">نسخ</button><button class="sm" id="shFront">⬆ أمام</button><button class="sm" id="shBack">⬇ خلف</button><button class="sm" id="shLockB">🔒 قفل</button><button class="sm" id="shDel" style="color:#b00">حذف</button><b id="shSelInfo" style="color:#9C3F24"></b></div>
+   </div></div><div class="gc">العنصر المحدد</div></div>
+   <div class="grp" id="shArr"><div class="gb"><div class="col">
+     <div class="fld"><button class="sm" data-al="r" title="محاذاة يمين">⇥</button><button class="sm" data-al="c" title="توسيط أفقي">↔</button><button class="sm" data-al="l" title="محاذاة يسار">⇤</button><button class="sm" data-al="t" title="محاذاة أعلى">⤒</button><button class="sm" data-al="m" title="توسيط عمودي">↕</button><button class="sm" data-al="b" title="محاذاة أسفل">⤓</button></div>
+     <div class="fld"><button class="sm" id="shDistH" title="توزيع أفقي متساوي">⋯ توزيع</button><button class="sm" id="shDistV" title="توزيع عمودي متساوي">⋮ توزيع</button><button class="sm" id="shSame" title="نفس العرض">⇔ نفس الحجم</button><button class="sm" id="shGrp">تجميع</button><button class="sm" id="shUngrp">فك</button></div>
+   </div></div><div class="gc">ترتيب ومحاذاة</div></div>
+   <div class="grp"><div class="gb"><button class="big" id="shDone"><i>✕</i>إنهاء</button></div><div class="gc"></div></div>
+  </div>
+  <div class="pane" id="p_areas"><div class="grp"><div class="gb" id="fnBox"></div><div class="gc">المساحة الطابقية لكل وظيفة مقابل البرنامج (مع 25% حركة)</div></div><div class="grp"><div class="gb"><button class="big" id="bProg"><i>📋</i>توزيع البرنامج</button><button class="big" id="bReport"><i>📊</i>تقرير المساحات</button><button class="big" id="bCompare"><i>⚖️</i>مقارنة التصاميم</button></div><div class="gc">تقارير</div></div></div>
+  <div class="pane" id="p_mod"><div style="display:flex" id="selBox"></div></div>
+ </div>
+</div>
+<div id="v"></div>
+<div id="tour"><div class="tbox"><div class="thead"><b id="tourT"></b><span id="tourN" class="hint"></span></div><div id="tourX"></div><div class="tfoot"><button class="sm" id="tourSkip">تخطي</button><span style="flex:1"></span><button class="sm" id="tourPrev">→ السابق</button><button class="sm pri2" id="tourNext"></button></div></div></div>
+<div id="sheetWrap"><div id="sheetPage"></div></div>
+<div id="shZoomBar"><button class="sm" id="shUndo" title="تراجع">↶</button><button class="sm" id="shZout">−</button><b id="shZL">100%</b><button class="sm" id="shZin">+</button><button class="sm" id="shZfit">ملائمة</button><button class="sm on" id="shGuides">خطوط إرشاد</button><button class="sm" id="shSnapOpt">📷 خيارات اللقطة</button></div>
+<div id="status"></div>
+<div id="msg"></div>
+<div id="lab"></div><div id="mlab"></div><div id="names"></div>
+<div id="modal"><div class="box">
+ <b id="mTitle">نسخ / لصق التصميم</b>
+ <div id="mIO"><div class="hint" style="margin:6px 0;font-size:12px">انسخ النص حتى تحفظه أو تدزه لي، أو الصق تصميم واضغط "استيراد".</div>
+ <textarea id="ioText"></textarea>
+ <div style="display:flex;gap:6px;margin-top:6px"><button class="sm" id="ioCopy">نسخ</button><button class="sm" id="ioImport">استيراد</button></div></div>
+ <div id="mShot" style="display:none"><div class="hint" style="font-size:12px;margin-top:6px">بالموبايل: اضغط مطولاً على الصورة ← حفظ. باللابتوب: كلك يمين ← حفظ الصورة باسم (Save image as).</div><img id="shot" alt="لقطة النموذج"></div>
+ <div id="mCrop" style="display:none"><div class="hint" style="font-size:12px;margin:6px 0">اسحب زوايا المربع حتى تحدد الجزء اللي تريده، أو اسحب المربع نفسه حتى تحركه.</div>
+ <div style="text-align:center"><div id="cropBox"><img id="cropImg" alt="قص"><div id="cropRect"><span data-c="nw"></span><span data-c="ne"></span><span data-c="sw"></span><span data-c="se"></span><span data-c="n"></span><span data-c="s"></span><span data-c="w"></span><span data-c="e"></span></div></div></div>
+ <div style="display:flex;gap:6px;margin-top:8px"><button class="sm" id="cropOk" style="background:#2F3F9E;color:#fff">✂ تطبيق القص</button><button class="sm" id="cropAll">رجوع للكامل</button></div></div>
+ <div id="mReport" style="display:none"><div id="repBody"></div><button class="sm" id="repCSV" style="margin-top:8px;background:#2F7D32;color:#fff">⬇ تنزيل الجدول (Excel / CSV)</button></div>
+ <div id="mExport" style="display:none;font-size:13px;min-width:min(520px,88vw)">
+  <div class="expsec"><b>🖼 اللوحة الحالية</b> <span class="hint" id="expSheetName"></span>
+   <div class="fld" style="margin:6px 0">الصيغة <select id="shFmt"><option value="pdf">PDF (للطباعة)</option><option value="png">PNG (بدون ضغط)</option><option value="jpg">JPG (حجم أصغر)</option></select> الدقة <select id="shDpi"><option value="150">150 DPI</option><option value="200">200 DPI</option><option value="300" selected>300 DPI</option><option value="400">400 DPI</option></select> <button class="sm on" id="shHQ" title="اللقطات من النموذج تنرسم من جديد بدقة الطباعة">HQ</button></div>
+   <div class="fld"><button class="sm pri2" id="shDown" style="display:none">⬇ تنزيل اللوحة</button><button class="sm" id="shAll" style="display:none">📚 كل اللوحات PDF واحد</button><button class="sm" id="shExport">👁 معاينة</button><span class="hint" id="shDownHint"></span></div></div>
+  <div class="expsec"><b>🧊 النموذج ثلاثي الأبعاد</b> <span class="hint">(كلها بملف ZIP واحد)</span>
+   <div class="expgrid">
+    <label class="qchk"><input type="checkbox" class="xf" value="ifc" checked> <b>Revit</b> — IFC <span class="hint">(File ← Open ← IFC)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="dwg3d" checked> <b>AutoCAD 3D</b> — DXF <span class="hint">(أوجه ثلاثية)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="dwg2d" checked> <b>AutoCAD مسقط</b> — DXF 2D <span class="hint">(حدود الكتل والموقع)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="dae" checked> <b>SketchUp</b> — DAE <span class="hint">(File ← Import)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="obj"> <b>OBJ</b> <span class="hint">(بلندر، رينو، لومين، 3ds Max)</span></label>
+    <label class="qchk"><input type="checkbox" class="xf" value="csv" checked> <b>جدول الكتل</b> — CSV <span class="hint">(إكسل)</span></label>
+   </div>
+   <div class="fld" style="margin-top:6px"><button class="sm pri2" id="exp3D">⬇ تنزيل النموذج</button><span class="hint">الوحدات: متر</span></div></div>
+ </div>
+ <div id="mNotes" style="display:none;font-size:13px;min-width:min(520px,88vw)"><div id="notesList" style="max-height:52vh;overflow:auto;margin:8px 0"></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="sm" id="ntCopy">📋 نسخ كنص (واتساب)</button><button class="sm pri2" id="ntSend">📤 حفظ ملف الملاحظات للطالب</button><button class="sm pri2" id="ntImp">📥 استيراد ملاحظات المشرف</button><input type="file" id="ntFile" accept=".json,application/json" style="display:none"></div></div>
+ <div id="mRvInfo" style="display:none;font-size:13px;line-height:2;max-width:560px"><div id="rvInfoT"></div></div>
+ <div id="mProg" style="display:none;font-size:12.5px">
+  <div id="pgSum" style="margin:6px 0"></div>
+  <div class="fld" style="flex-wrap:wrap;gap:6px;margin-bottom:6px"><button class="sm pri2" id="pgAuto">⚡ توزيع تلقائي حسب وظيفة الكتل</button><button class="sm" id="pgAdd">＋ فضاء</button><button class="sm" id="pgFilt">👁 غير الموزع فقط</button>
+   الكفاءة <select id="pgEff"><option value="0.7">70%</option><option value="0.75">75%</option><option value="0.8">80%</option><option value="0.85">85%</option></select>
+   <button class="sm" id="pgSheet">🖼 للوحة</button><button class="sm" id="pgCSV">⬇ Excel</button><button class="sm" id="pgClear">↺ مسح التوزيع</button><button class="sm" id="pgReset">⟲ البرنامج الافتراضي</button></div>
+  <div class="pgWrap"><div><b>الفضاءات</b> <span class="hint">(الاسم · م² · وين ينحط)</span><div id="pgList"></div></div><div><b>سعة الكتل والطوابق</b> <span class="hint">(المساحة × الكفاءة)</span><div id="pgCap"></div></div></div></div>
+ <div id="mInput" style="display:none;font-size:13px"><div class="fld" style="margin:8px 0"><input type="text" id="inpVal" style="width:min(360px,80vw)"></div><button class="sm pri2" id="inpOk">موافق</button></div>
+ <div id="mQuick" style="display:none;font-size:13px">
+ <div class="fld" style="margin:8px 0">التصميم <select id="qDesign" style="width:260px"></select></div>
+ <b>الزوايا</b><div id="qViews" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin:6px 0 10px"></div>
+ <b>الخيارات</b><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin:6px 0 10px">
+  <label class="qchk"><input type="checkbox" id="qGround" checked> أرضية الموقع</label><label class="qchk"><input type="checkbox" id="qFn"> تلوين حسب الوظيفة</label>
+  <label class="qchk"><input type="checkbox" id="qSun"> ظلال الشمس الحقيقية</label><label class="qchk"><input type="checkbox" id="qLegend" checked> مفتاح الألوان (مع التلوين)</label><label class="qchk"><input type="checkbox" id="qTB" checked> جدول عنوان</label><label class="qchk"><input type="checkbox" id="qNames"> أسماء الكتل على اللقطات</label><label class="qchk"><input type="checkbox" id="qNorth" checked> سهم الشمال على المسقط</label><label class="qchk"><input type="checkbox" id="qScale" checked> مقياس رسم مضبوط للمسقط</label></div>
+ <div class="fld" style="margin:6px 0">الحجم <select id="qSize"><option>A4</option><option selected>A3</option><option>A2</option><option>A1</option></select> الاتجاه <select id="qOrient"><option value="land">أفقي</option><option value="port">عمودي</option></select> الترتيب <select id="qLayout"><option value="big">لقطة كبيرة + صغار</option><option value="grid">شبكة متساوية</option></select></div>
+ <div class="fld" style="margin:6px 0">العنوان <input type="text" id="qTitle" placeholder="(اسم التصميم تلقائياً)" style="width:260px"></div>
+ <button class="sm" id="qGo" style="background:#2F3F9E;color:#fff;padding:6px 16px;margin-top:6px">⚡ أنشئ الشيت</button></div>
+ <div id="mHelp" style="display:none;font-size:13px;line-height:1.9;max-height:60vh;overflow:auto"><button class="sm pri2" id="bTour" style="margin-bottom:6px">🧭 ابدي الجولة التعريفية</button><br>
+ <b>التحديد والتحريك</b><br>• ضغطة على الكتلة = تحديد (ما تتحرك بالغلط)<br>• بعد التحديد: اسحبها حتى تتحرك<br>• المربعات البرتقالية على الحواف: اسحبها حتى تمد أو تقلص الجهة<br>• المخروط الأزرق فوك: اسحبه للأعلى أو الأسفل حتى تغير الطوابق<br>• Shift + ضغط = تحديد أكثر من كتلة<br>• كلك يمين على الكتلة = قائمة أوامر (نسخ، تدوير، عكس، قفل، إخفاء، حذف)
+ <br><b>الكاميرا</b><br>• بالـ3D: سحب بالفراغ = تدوير، كلك يمين وسحب = تحريك، العجلة = تكبير<br>• <b>وضع المسقط</b>: مسقط حقيقي بدون منظور، السحب يحرك اللوحة مثل الأوتوكاد — الأدق للرسم
+ <br><b>الرسم</b><br>• ✏️ رسم ← اسحب على الأرض. الرسم يلتصق بالشبكة وبحواف الكتل
+ <br><b>حماية الشغل</b><br>• كل تصميم ينحفظ تلقائياً<br>• اقفل الفناء والكتل اللي خلصت منها 🔒 حتى ما تتحرك بالغلط<br>• ↶ تراجع يرجع أي خطأ
+ <br><b>الجديد</b><br>• <b>أشكال جديدة</b>: كتلة بفناء وسطي، كتلة ببوابة (ممر)، سقف جملون، سقف مائل — إعداداتها بتبويب تعديل الكتلة<br>• <b>عناصر الواجهة</b>: شبابيك، كاسرات عمودية/أفقية، مشربية (تعديل الكتلة ← الواجهة)<br>• <b>توزيع البرنامج</b>: المساحات ← 📋 توزيع البرنامج — تحدد وظيفة الكتل وتضغط ⚡ توزيع تلقائي<br>• <b>إظهار محسّن</b>: عرض ← ✨ (ملمس + ظلال ناعمة + سماء) — اللقطات للوحات تطلع بنفس الجودة<br>• <b>الملاحظات</b>: كلك يمين على كتلة ← 📌 ملاحظة هنا، أو ملف ← 📌<br>• <b>المشرف</b>: ملف ← 📤 للمشرف ← ملف مراجعة يفتح بأي متصفح، والمشرف يرجعلك ملف ملاحظات تستورده<br><b>العرض والتحليل</b><br>• عرض ← نمط العرض: موديل أبيض (مثل الماكيت) أو شفاف<br>• مقطع ← أفقي (مسقط طابق): تختار الطابق وتشوف مسقطه الكتلي<br>• الشمس ← الرياح السائدة: أسهم الرياح الشمالية الغربية لبغداد<br>• عرض ← تسجيل فيديو: دوران حول المشروع أو حركة الظلال، ينزل ملف فيديو<br>• المساحات ← تقرير المساحات ومقارنة التصاميم، وتنزيل الجدول للإكسل<br>• ملف ← حفظ نسخة كاملة: ملف واحد بيه كل التصاميم واللوحات (احتفظ بيه احتياط)
+ <br><b>أدوات جديدة</b><br>• التدوير الحر: بتعديل الكتلة (زاوية) أو Shift+R يدوّر 15°<br>• مضلع حر: اختار الشكل "مضلع حر" وارسم نقطة نقطة، وسكّره على أول نقطة أو Enter<br>• ✂️ قص الكتلة: اسحب خط عبرها<br>• ملف ← تصدير 3D: ملف للسكتش أب (DAE) وللريفت (OBJ)<br>• اللوحات: من تحدد عنصر يطلع تبويب "تنسيق اللوحة" بيه كل أدوات التنسيق والمحاذاة
+ <br><b>الاختصارات</b><br>V تحديد · B رسم · M قياس · Ctrl+C / Ctrl+V نسخ ولصق · Ctrl+D تكرار · R تدوير · L قفل · H إخفاء · Delete حذف · الأسهم تحريك · PageUp/PageDown طوابق · Ctrl+Z تراجع</div>
+ <div style="margin-top:8px"><button class="sm" id="mClose">إغلاق</button></div>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
