@@ -9936,7 +9936,7 @@ function sheetPanel(){const its=selItems(),it=its.length===1?its[0]:null,show=(i
  $('shLockB').textContent=its.length&&its.every(i=>i.lock)?L('فتح القفل','Unlock'):L('قفل','Lock');$('shSelInfo').textContent=its.length>1?its.length+' '+L('عناصر','items'):'';
  $('shLand').classList.toggle('on',sheet.orient==='land');$('shPort').classList.toggle('on',sheet.orient==='port');$('shFrame').classList.toggle('on',sheet.frame);$('shSize').value=sheet.size;
  $('shCount').textContent=sheet.items.filter(i=>i.type==='img').length+' '+L('صور','images')}
-function openSheet(on){sheetOpen=on;document.body.classList.toggle('sheet-mode',on);$('shZoomBar').style.display=on?'flex':'none';if(!on){$('tabShMod').style.display='none'}else if(selSet.size){clearSel();refresh()}sw.style.display=on?'block':'none';$('shOpen').innerHTML=on?`<i><svg class="ic"><use href="#i-cube"/></svg></i>${L('رجوع للنموذج','Back to 3D')}`:`<i><svg class="ic"><use href="#i-sheet"/></svg></i>${L('فتح اللوحة','Open Sheet')}`;$('shOpen').classList.toggle('on',on);if(on)layoutSheet()}
+function openSheet(on){sheetOpen=on;if(on)setTimeout(()=>{if(typeof refreshSheetDiagrams==='function')refreshSheetDiagrams()},60);document.body.classList.toggle('sheet-mode',on);$('shZoomBar').style.display=on?'flex':'none';if(!on){$('tabShMod').style.display='none'}else if(selSet.size){clearSel();refresh()}sw.style.display=on?'block':'none';$('shOpen').innerHTML=on?`<i><svg class="ic"><use href="#i-cube"/></svg></i>${L('رجوع للنموذج','Back to 3D')}`:`<i><svg class="ic"><use href="#i-sheet"/></svg></i>${L('فتح اللوحة','Open Sheet')}`;$('shOpen').classList.toggle('on',on);if(on)layoutSheet()}
 // ---- interaction: select, move (snap+guides), resize ----
 function guideTargets(excl){const xs=[0,PW()/2,PW()],ys=[0,PH()/2,PH()];if(sheet.frame){xs.push(8,PW()-8);ys.push(8,PH()-8)}
  sheet.items.forEach(i=>{if(excl.has(i.id))return;xs.push(i.x,i.x+i.w/2,i.x+i.w);ys.push(i.y,i.y+i.h/2,i.y+i.h)});return {xs,ys}}
@@ -10356,7 +10356,10 @@ function popMenu(btn,items){const r=btn.getBoundingClientRect();ctx.innerHTML=''
 let inpCb=null;function showInput(title,val,cb){$('inpVal').value=val||'';inpCb=cb;modal('input');$('mTitle').textContent=title;setTimeout(()=>$('inpVal').focus(),50)}
 $('inpOk').onclick=()=>{const v=$('inpVal').value.trim();$('modal').style.display='none';if(inpCb&&v)inpCb(v);inpCb=null};$('inpVal').onkeydown=e=>{if(e.key==='Enter')$('inpOk').click()};
 $('shMoreS').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('✎ تسمية اللوحة','✎ Rename Sheet'),()=>showInput(L('اسم اللوحة','Sheet Name'),curSheet,v=>{$('shName').value=v;$('shRen').click()})],[L('نسخ اللوحة','Duplicate Sheet'),()=>$('shDupS').click()],[L('مسح محتوى اللوحة','Clear Sheet'),()=>{const b=$('shClear');b.click();b.click()}],[L('حذف اللوحة','Delete Sheet'),()=>{const b=$('shDelS');b.click();b.click()}]])};
-$('shAddM').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('صورة من جهازك','Upload Image'),()=>$('shUp').click()],[L('T نص','T Text'),()=>$('shText').click()],[L('عنوان اللوحة','Sheet Title'),()=>$('shTitle').click()],[L('▤ جدول عنوان','▤ Title Block'),()=>$('shTB').click()],[L('▭ إطار','▭ Frame Box'),()=>$('shBox').click()],[L('— خط أفقي','— Horizontal Line'),()=>$('shLine').click()],[L('| خط عمودي','| Vertical Line'),()=>$('shLineV').click()],[L('سهم الشمال','North Arrow'),()=>$('shNorth').click()],[L('مقياس رسم','Scale Bar'),()=>$('shScale').click()],[L('مفتاح ألوان الوظائف','Zone Color Legend'),()=>$('shLegend').click()]])};
+$('shAddM').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('صورة من جهازك','Upload Image'),()=>$('shUp').click()],[L('T نص','T Text'),()=>$('shText').click()],[L('عنوان اللوحة','Sheet Title'),()=>$('shTitle').click()],[L('▤ جدول عنوان','▤ Title Block'),()=>$('shTB').click()],[L('▭ إطار','▭ Frame Box'),()=>$('shBox').click()],[L('— خط أفقي','— Horizontal Line'),()=>$('shLine').click()],[L('| خط عمودي','| Vertical Line'),()=>$('shLineV').click()],[L('سهم الشمال','North Arrow'),()=>$('shNorth').click()],[L('مقياس رسم','Scale Bar'),()=>$('shScale').click()],[L('مفتاح ألوان الوظائف','Zone Color Legend'),()=>$('shLegend').click()],
+ [L('◉ المخطط الفقاعي للزونات','◉ Zoning Bubble Diagram'),()=>addAnToSheet('bubble')],[L('▦ جدول البرنامج والمساحات','▦ Program & Areas Table'),()=>addAnToSheet('prog')],
+ [L('☀ مسار الشمس والحمل الحراري','☀ Sun Path & Heat Load'),()=>addAnToSheet('solar')],[L('≋ حركة الرياح','≋ Wind Flow'),()=>addAnToSheet('wind')],[L('◍ خريطة الضوضاء','◍ Noise Map'),()=>addAnToSheet('noise')],
+ [L('▤ تسلسل تكوّن الكتلة (من زاوية الكاميرا الحالية)','▤ Massing Evolution (current camera)'),()=>addAnToSheet('morph')]])};
 $('shSnapOpt').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[(shGround?'☑':'☐')+' '+L('أرضية الموقع باللقطة','Include Site Ground'),()=>$('shGround').click()],[(shNames?'☑':'☐')+' '+L('أسماء الكتل باللقطة','Include Mass Labels'),()=>$('shNamesB').click()]])};
 function openExport(){$('expSheetName').textContent='('+curSheet+' · '+sheet.size+')';['shDown','shAll'].forEach(id=>$(id).style.display=DL?'':'none');$('exp3D').disabled=!DL;$('exp3D').title=DL?'':L('التنزيل غير متاح في هذا العرض','Download unavailable in this view');modal('export')}
 $('shExpDlg').onclick=openExport;$('b3D').onclick=openExport;$('qExp').onclick=openExport;
@@ -11338,6 +11341,112 @@ function initAnStudio(){
  if($('anMorphNext'))$('anMorphNext').onclick=()=>{AN.morphI++;renderAnStudio()};
 }
 initAnStudio();
+
+// ---------- analysis diagrams as sheet images ----------
+// item.an = diagram kind, item.ak = model key it was drawn from; 2D diagrams redraw themselves when the sheet opens
+const SH_AN={
+ bubble:['المخطط الفقاعي للزونات','Zoning Bubble Diagram'],prog:['جدول البرنامج والمساحات','Program & Areas'],
+ solar:['مسار الشمس والحمل الحراري الصيفي','Sun Path & Summer Heat Load'],wind:['حركة الرياح والتهوية','Wind Flow & Ventilation'],
+ noise:['خريطة الضوضاء','Site Noise Map'],morph:['تسلسل تكوّن الكتلة','Massing Evolution']
+};
+const shFont=(px,w)=>`${w||500} ${Math.round(px)}px Tajawal, "IBM Plex Sans Arabic", Arial, sans-serif`;
+const shRtl=()=>!L(0,1);
+const anModelKey=()=>stateKey({b:state.blocks,s:state.site,f:state.fh,p:state.prog&&state.prog.sp});
+function svgToCanvas(svg,scale){return new Promise(res=>{
+ const vb=svg.viewBox.baseVal,w=vb.width,h=vb.height,cl=svg.cloneNode(true);
+ cl.setAttribute('xmlns','http://www.w3.org/2000/svg');cl.setAttribute('width',w*scale);cl.setAttribute('height',h*scale);cl.removeAttribute('style');cl.removeAttribute('class');
+ cl.setAttribute('font-family','Tajawal, "IBM Plex Sans Arabic", Arial, sans-serif');
+ const src=new XMLSerializer().serializeToString(cl).replace(/var\(--font-mono\)/g,'monospace');
+ const img=new Image();
+ img.onload=()=>{const c=document.createElement('canvas');c.width=Math.round(w*scale);c.height=Math.round(h*scale);const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);res(c)};
+ img.onerror=()=>res(null);img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(src);
+})}
+// frame a diagram: title on top, optional colour key ([[colour,label],...]) underneath
+function shFrame(body,title,key){
+ const W=body.width,pad=Math.round(W*.03),th=Math.round(W*.06),kh=key&&key.length?Math.round(W*.05):0;
+ const c=document.createElement('canvas');c.width=W;c.height=th+body.height+kh+pad;const g=c.getContext('2d');
+ g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);const rtl=shRtl();g.direction=rtl?'rtl':'ltr';
+ g.fillStyle='#0f172a';g.font=shFont(th*.55,700);g.textBaseline='middle';g.textAlign=rtl?'right':'left';g.fillText(title,rtl?W-pad:pad,th/2);
+ g.strokeStyle='#cbd5e1';g.lineWidth=Math.max(1,W/800);g.beginPath();g.moveTo(pad,th-2);g.lineTo(W-pad,th-2);g.stroke();
+ g.drawImage(body,0,th);
+ if(kh){let x=rtl?W-pad:pad;const y=th+body.height+kh/2,sq=kh*.42;g.font=shFont(kh*.42);
+  key.forEach(([col,lb])=>{const tw=g.measureText(lb).width;const sx=rtl?x-sq:x;g.fillStyle=col;g.fillRect(sx,y-sq/2,sq,sq);g.fillStyle='#334155';g.textAlign=rtl?'right':'left';g.fillText(lb,rtl?sx-sq*.4:sx+sq*1.4,y);x+=(rtl?-1:1)*(sq*2+tw+pad)});}
+ return c;
+}
+function shProgTable(){
+ const P=prog(),eff=P.eff||.8,rows=[];let tq=0,td=0;
+ ['pub','main','spec','adm','circ'].forEach(fn=>{const req=FNS[fn].t||0;let g=0;state.blocks.forEach(b=>{if(!b.hidden&&counts(b)&&(b.fn||'')===fn)g+=areaOf(b)*Math.max(1,+b.f||1)});const des=Math.round(g*eff);if(!req&&!des)return;tq+=req;td+=des;rows.push([fn,req,des])});
+ const W=1600,rh=64,hh=74,pad=40,c=document.createElement('canvas');c.width=W;c.height=hh+rh*(rows.length+1)+pad;const g=c.getContext('2d');
+ g.fillStyle='#fff';g.fillRect(0,0,W,c.height);const rtl=shRtl();g.direction=rtl?'rtl':'ltr';g.textBaseline='middle';
+ const cols=rtl?[W-pad,W*.52,W*.34,W*.16]:[pad,W*.48,W*.66,W*.84],al=rtl?'right':'left';
+ const head=[L('الوظيفة','Function'),L('المطلوب (صافي م²)','Required (net m²)'),L('المصمم (صافي م²)','Designed (net m²)'),L('التحقق','Match')];
+ g.fillStyle='#f1f5f9';g.fillRect(pad/2,0,W-pad,hh);g.fillStyle='#0f172a';g.font=shFont(26,700);head.forEach((t,i)=>{g.textAlign=al;g.fillText(t,cols[i],hh/2)});
+ const row=(y,cells,bold,col)=>{g.font=shFont(26,bold?700:500);cells.forEach((t,i)=>{g.fillStyle=i===3?col:'#0f172a';g.textAlign=al;g.fillText(t,cols[i]+(i===0&&!bold?(rtl?-44:44):0),y)})};
+ rows.forEach(([fn,req,des],i)=>{const y=hh+rh*i+rh/2,p=req?des/req:0,col=!req?'#64748b':p>=.9&&p<=1.15?'#15803d':p<.9?'#b91c1c':'#b45309';
+  g.fillStyle=FNS[fn].c;g.fillRect(rtl?cols[0]-28:cols[0],y-14,28,28);
+  row(y,[fnName(fn),req.toLocaleString('en'),des.toLocaleString('en'),req?Math.round(p*100)+'%':'—'],false,col);
+  g.strokeStyle='#e2e8f0';g.lineWidth=2;g.beginPath();g.moveTo(pad/2,hh+rh*(i+1));g.lineTo(W-pad/2,hh+rh*(i+1));g.stroke()});
+ const yT=hh+rh*rows.length+rh/2,pT=tq?td/tq:0;
+ row(yT,[L('المجموع','Total'),tq.toLocaleString('en'),td.toLocaleString('en'),tq?Math.round(pT*100)+'%':'—'],true,pT>=.9&&pT<=1.15?'#15803d':'#b91c1c');
+ return shFrame(c,L(SH_AN.prog[0],SH_AN.prog[1])+` · ${L('كفاءة','efficiency')} ${Math.round(eff*100)}%`,[['#15803d',L('مطابق (90–115%)','Match (90–115%)')],['#b91c1c',L('أقل من المطلوب','Below target')],['#b45309',L('أكثر من المطلوب','Above target')]]);
+}
+// one 3D frame per massing step from the current camera, all cropped to the same box
+function shRawShot(){const pr=R.getPixelRatio(),st=prepRender(true);R.setPixelRatio(2);fit();draw(C);let c=null;try{c=readCanvas()}catch(e){}R.setPixelRatio(pr);endRender(st);return c}
+async function shMorphStrip(){
+ const r=anGet('morph');if(!r||!r.steps.length)return null;
+ if(el.clientWidth<80||el.clientHeight<80)return null; // 3D view not visible: nothing to capture
+ const keep={cm:anColorMap,gh:anGhost,s3:AN.s3},raw=[];
+ for(let i=0;i<r.steps.length;i++){const {prev,cur}=anMorphSets(r,i);anGhost=cur;anColorMap={};cur.forEach(k=>{if(!prev.has(k))anColorMap[k]='#f59e0b'});build();const c=shRawShot();if(c)raw.push(c);await new Promise(z=>setTimeout(z,0))}
+ anColorMap=keep.cm;anGhost=keep.gh;AN.s3=keep.s3;build();draw(C);
+ if(!raw.length)return null;
+ const box=trimBox(raw[raw.length-1])||{x0:0,y0:0,x1:1,y1:1},fr=raw.map(c=>cropCanvas(c,box));
+ const n=fr.length,per=n>4?Math.ceil(n/2):n,rows=Math.ceil(n/per),FW=640,FH=Math.round(FW*fr[0].height/fr[0].width),cap=110,gap=24;
+ const W=per*FW+(per+1)*gap,c=document.createElement('canvas');c.width=W;c.height=rows*(FH+cap)+gap;const g=c.getContext('2d');
+ g.fillStyle='#fff';g.fillRect(0,0,W,c.height);const rtl=shRtl();g.direction=rtl?'rtl':'ltr';
+ fr.forEach((f,i)=>{const col=i%per,row=Math.floor(i/per),x=rtl?W-gap-(col+1)*FW-col*gap:gap+col*(FW+gap),y=gap/2+row*(FH+cap);
+  g.drawImage(f,x,y,FW,FH);const st=r.steps[i];
+  g.fillStyle='#1e40af';g.beginPath();g.arc(rtl?x+FW-26:x+26,y+FH+34,22,0,7);g.fill();g.fillStyle='#fff';g.font=shFont(24,700);g.textAlign='center';g.textBaseline='middle';g.fillText(String(i+1),rtl?x+FW-26:x+26,y+FH+35);
+  g.fillStyle='#0f172a';g.font=shFont(25,700);g.textAlign=rtl?'right':'left';g.fillText(anShort(L(st.titleAr,st.titleEn),34),rtl?x+FW-58:x+58,y+FH+34);
+  g.fillStyle='#64748b';g.font=shFont(20);g.fillText(st.metricBadge||'',rtl?x+FW-58:x+58,y+FH+72)});
+ return shFrame(c,L(SH_AN.morph[0],SH_AN.morph[1])+' — '+L(r.partiAr,r.partiEn),[['#f59e0b',L('المضاف في هذه المرحلة','Added in this step')],['#cbd5e1',L('لم يُضف بعد','Not yet added')]]);
+}
+async function anSheetCanvas(kind){
+ if(!window.MC3D_ANALYSIS)return null;
+ if(kind==='prog')return shProgTable();
+ if(kind==='morph')return shMorphStrip();
+ if(kind==='bubble'){const z=anGet('zones'),pm=AN.zb;AN.zb='zones';anBubbleSvg(z);const c=await svgToCanvas($('anBubbleSvg'),6);AN.zb=pm;if(curTab==='mass')renderAnStudio();
+  return c&&shFrame(c,L(SH_AN.bubble[0],SH_AN.bubble[1]),z.zones.filter(q=>q.area>0).map(q=>[anFnCol(q.fn),anFnName(q.fn)]))}
+ const res=anGet(kind);anEnvSvg(kind,res);const c=await svgToCanvas($('anEnvSvg'),6);if(curTab==='mass')renderAnStudio();if(!c)return null;
+ const key=kind==='solar'?[[AN_HEAT[0],L('محمي','Sheltered')],[AN_HEAT[1],L('متوسط','Moderate')],[AN_HEAT[2],L('حمل حراري عالٍ','High heat load')]]
+  :kind==='wind'?[[AN_WIND.windward,L('معرّضة للرياح','Windward')],[AN_WIND.channel,L('ممر تسريع','Wind corridor')],[AN_WIND.sheltered,L('محمية','Sheltered')]]
+  :[[AN_HEAT[0],'≤ 55 dB'],[AN_HEAT[1],'~60 dB'],[AN_HEAT[2],'≥ 70 dB']];
+ return shFrame(c,L(SH_AN[kind][0],SH_AN[kind][1]),key);
+}
+function shPutImage(it,c,kind){
+ const data=kind==='morph'?c.toDataURL('image/jpeg',.92):c.toDataURL('image/png'),id=uid();
+ imgSrc[id]=data;IDB.put(id,data);it.src=id;const ar=c.height/c.width;it.h=+(it.w*ar).toFixed(1);it.ak=anModelKey();
+}
+async function addAnToSheet(kind){
+ flash(L('جارٍ تجهيز المخطط…','Preparing diagram…'));
+ const c=await anSheetCanvas(kind);
+ if(!c)return flash(L('تعذّر تجهيز المخطط — أضف كتلاً أولاً','Could not build the diagram — add blocks first'));
+ sPush();
+ const ex=sheet.items.find(i=>i.type==='img'&&i.an===kind);
+ if(ex){shPutImage(ex,c,kind);saveSheet();renderSheet();flash(L('حُدّث المخطط في اللوحة ✓','Diagram updated on the sheet ✓'));return}
+ const data=kind==='morph'?c.toDataURL('image/jpeg',.92):c.toDataURL('image/png');
+ const it=addImgItem({data,ar:c.height/c.width},null,L(SH_AN[kind][0],SH_AN[kind][1]));
+ it.an=kind;it.ak=anModelKey();
+ if(kind==='morph'||kind==='prog'){const W=PW();it.w=+Math.min(W-40,kind==='morph'?W*.8:W*.45).toFixed(1);it.h=+(it.w*c.height/c.width).toFixed(1)}
+ saveSheet();setSSel([it.id]);renderSheet();
+ flash(L('أُضيف إلى اللوحة: ','Added to sheet: ')+L(SH_AN[kind][0],SH_AN[kind][1])+(kind==='morph'?L(' — لتحديثه أضفه مرة ثانية',' — add it again to refresh it'):L(' — يتحدث وحده عند تعديل الكتل',' — refreshes itself when the model changes')));
+}
+// redraw 2D diagrams whose model changed (called when the sheet opens)
+let shAnBusy=false;
+async function refreshSheetDiagrams(){
+ if(shAnBusy||!sheet||!sheet.items)return;const k=anModelKey(),stale=sheet.items.filter(i=>i.type==='img'&&i.an&&i.an!=='morph'&&i.ak!==k);
+ if(!stale.length)return;shAnBusy=true;
+ try{for(const it of stale){const c=await anSheetCanvas(it.an);if(c)shPutImage(it,c,it.an)}saveSheet();if(sheetOpen)renderSheet()}finally{shAnBusy=false}
+}
 // ---- sky & fog ----
 const skyTex=(()=>{const c=document.createElement('canvas');c.width=4;c.height=256;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#8fb4dc');gr.addColorStop(.6,'#d4e2ee');gr.addColorStop(1,'#efeee8');g.fillStyle=gr;g.fillRect(0,0,4,256);return new THREE.CanvasTexture(c)})();
 const FOG=new THREE.Fog('#eceee9',200,900);
