@@ -3253,6 +3253,7 @@ body.revmode #toolRail{display:none}
         <option value="med">قالب: صحي / طبي</option>
         <option value="empty">قالب: فارغ (مخصص)</option>
       </select>
+      <button class="sm" id="pgFns" title="يقترح وظيفة لكل كتلة حسب قربها من المدخل ومساحات البرنامج">اقتراح وظائف الكتل</button>
       <button class="sm pri2" id="pgAuto">توزيع تلقائي</button>
       <button class="sm" id="pgAdd">＋ فضاء</button>
       <button class="sm" id="pgFilt">غير الموزع فقط</button>
@@ -7595,6 +7596,7 @@ body.revmode #toolRail{display:none}
     ['#pgPreset option[value="office"]', 'Preset: Commercial & Office'],
     ['#pgPreset option[value="med"]', 'Preset: Healthcare / Medical'],
     ['#pgPreset option[value="empty"]', 'Preset: Blank (Custom)'],
+    ['#pgFns', 'Suggest Block Functions'],
     ['#pgAuto', 'Auto Allocate'],
     ['#pgAdd', '+ Space'],
     ['#pgFilt', 'Unallocated Only'],
@@ -11258,6 +11260,45 @@ function progAuto(){const P=prog(),S0=slots(),use=progUse(),rem={};S0.forEach(s=
  Object.keys(FNS).forEach(fn=>{const Lst=P.sp.filter(x=>(LEGACY_FN[x.fn]||x.fn)===fn&&!(x.bid&&S0.some(s=>s.bid===x.bid&&s.fl===x.fl))).sort((a,b)=>b.a-a.a);const C=S0.filter(s=>(s.b.fn||'')===fn);
   Lst.forEach(x=>{x.fn=LEGACY_FN[x.fn]||x.fn;const best=C.find(s=>rem[s.key]>=x.a);if(best){x.bid=best.bid;x.fl=best.fl;rem[best.key]-=x.a;placed++}else{x.bid='';miss[fn]=(miss[fn]||0)+1}})});
  return {placed,miss}}
+// Suggest a function for every architectural block: joints -> circulation; blocks sharing a name form one wing;
+// wings are ranked by distance from the entrance and filled in the order public -> admin -> education -> specialised
+// training (deepest / quietest), each up to its share of the program.
+function suggestFns(){
+ const P=prog();syncFnTargets();
+ const arch=state.blocks.map((b,i)=>({b,i})).filter(({b})=>!b.hidden&&!isFlat(b)&&!isProp(b)&&b.mat!=='context'&&b.shape!=='riwaq');
+ const isJoint=b=>b.mat==='joint'||/مفصل|رابط|link|joint|core/i.test(b.name||'');
+ const isEntry=b=>/مدخل|استقبال|بهو|entrance|entry|lobby/i.test(b.name||'');
+ const area=b=>areaOf(b)*Math.max(1,+b.f||1);
+ const res={};arch.forEach(({b,i})=>{if(isJoint(b))res[i]='circ'});
+ const wings={};arch.forEach(({b,i})=>{if(res[i])return;const k=(b.name||'').trim()||('#'+i);(wings[k]=wings[k]||{k,idx:[],a:0,sx:0,sz:0,entry:false});const w=wings[k];w.idx.push(i);const a=area(b);w.a+=a;w.sx+=b.x*a;w.sz+=b.z*a;if(isEntry(b))w.entry=true});
+ const W=Object.values(wings);W.forEach(w=>{w.x=w.a?w.sx/w.a:0;w.z=w.a?w.sz/w.a:0});
+ // entrance point: an entrance-named wing, else the middle of the first street edge, else the south edge
+ let ex=0,ez=(+state.site.d||100)/2;const eb=arch.filter(({b})=>isEntry(b)).map(({b})=>b);
+ if(eb.length){ex=eb.reduce((s,b)=>s+b.x,0)/eb.length;ez=eb.reduce((s,b)=>s+b.z,0)/eb.length}else{const st=state.site.streets||{},sw=(+state.site.w||100)/2,sd=(+state.site.d||100)/2;if(st.s){ex=0;ez=sd}else if(st.n){ex=0;ez=-sd}else if(st.e){ex=sw;ez=0}else if(st.w){ex=-sw;ez=0}}
+ W.forEach(w=>{w.dist=w.entry?-1:Math.hypot(w.x-ex,w.z-ez)});W.sort((a,b)=>a.dist-b.dist);
+ // block sequence: wing by wing (nearest wing first), and inside a wing nearest block first
+ const seq=[];W.forEach(w=>{w.idx.map(i=>({i,w,a:area(state.blocks[i]),d:Math.hypot(state.blocks[i].x-ex,state.blocks[i].z-ez)})).sort((p,q)=>p.d-q.d).forEach(u=>seq.push(u))});
+ const order=['pub','adm','main','spec'],eff=P.eff||.8,K=order.length,n=seq.length;
+ const need=order.map(fn=>(FNS[fn].t||FNS_T0[fn]||1)/eff),needT=need.reduce((s,x)=>s+x,0),have=seq.reduce((s,u)=>s+u.a,0);
+ const cap=need.map(x=>x/needT*have);
+ // split the sequence into K consecutive groups whose areas best match cap (dynamic programming)
+ const pre=[0];seq.forEach(u=>pre.push(pre[pre.length-1]+u.a));
+ const cost=(g,a,b)=>{const s=pre[b]-pre[a];return (s-cap[g])*(s-cap[g])/Math.max(1,cap[g])};
+ const best=Array.from({length:K+1},()=>Array(n+1).fill(Infinity)),cut=Array.from({length:K+1},()=>Array(n+1).fill(0));best[0][0]=0;
+ for(let g=1;g<=K;g++)for(let b=0;b<=n;b++)for(let a=0;a<=b;a++){const c=best[g-1][a]+cost(g-1,a,b);if(c<best[g][b]){best[g][b]=c;cut[g][b]=a}}
+ let b=n;for(let g=K;g>=1;g--){const a=cut[g][b];for(let j=a;j<b;j++){res[seq[j].i]=order[g-1]}b=a}
+ W.forEach(w=>{w.fns=[...new Set(w.idx.map(i=>res[i]))]});
+ return {res,wings:W};
+}
+function applySuggestFns(){
+ const {res,wings}=suggestFns(),n=Object.keys(res).length;
+ if(!n){flash(L('لا توجد كتل معمارية لتحديد وظائفها','No architectural blocks to assign'));return}
+ snap(true);Object.entries(res).forEach(([i,fn])=>{state.blocks[+i].fn=fn});
+ refresh();
+ const by={};wings.forEach(w=>w.fns.forEach(fn=>{(by[fn]=by[fn]||[]).push(w.k)}));
+ flash(L('حُدّدت وظائف ','Functions set for ')+n+L(' كتلة — ',' blocks — ')+['pub','adm','main','spec'].filter(f=>by[f]).map(f=>fnName(f).split(' ')[0]+': '+by[f].join('، ')).join(' · ')+L(' (تراجع بـ Ctrl+Z)',' (Ctrl+Z to undo)'));
+ if($('modal')&&$('modal').style.display==='flex'&&$('pgList'))renderProg();
+}
 let progFilter='all';
 function spName(x){return (L(0,1)&&x.nen)?x.nen:x.n}
 function renderProg(){const P=prog(),S0=slots(),use=progUse(),valid=new Set(S0.map(s=>s.key));
@@ -11288,6 +11329,7 @@ if($('pgPreset'))$('pgPreset').onchange=e=>{const val=e.target.value;if(!PROG_PR
  else{P.preset=val;save();flash(L('اخترت القالب — انقر "تحميل القالب" مرتين لتطبيقه','Preset selected — double-click "Load Preset" to replace current spaces'))}};
 $('pgEff').onchange=e=>{snap(true);prog().eff=parseFloat(e.target.value);save();renderProg()};
 $('pgAuto').onclick=()=>{snap(true);const r=progAuto();save();renderProg();panel();const m=Object.entries(r.miss).map(([fn,n])=>fnName(fn).split(' ')[0]+': '+n);flash(L(`وُزِّع ${r.placed} فضاء`,`Allocated ${r.placed} space(s)`)+(m.length?L(' · لم يُعثر على مكان لـ ',' · Unplaced: ')+m.join('، '):' ✓'))};
+if($('pgFns'))$('pgFns').onclick=e=>arm(e.currentTarget,applySuggestFns);
 $('pgClear').onclick=e=>arm(e.currentTarget,()=>{snap(true);prog().sp.forEach(x=>x.bid='');save();renderProg();panel()});
 $('pgReset').onclick=e=>arm(e.currentTarget,()=>{snap(true);state.prog=progSeed($('pgPreset')?$('pgPreset').value:'general');save();renderProg();panel();flash(L('تم تحميل القالب ✓','Program preset loaded ✓'))});
 $('pgFilt').onclick=()=>{progFilter=progFilter==='all'?'free':'all';$('pgFilt').textContent=progFilter==='all'?L('غير الموزع فقط','Unallocated Only'):L('عرض الكل','Show All');renderProg()};

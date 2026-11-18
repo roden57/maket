@@ -451,6 +451,7 @@
     ['#pgPreset option[value="office"]', 'Preset: Commercial & Office'],
     ['#pgPreset option[value="med"]', 'Preset: Healthcare / Medical'],
     ['#pgPreset option[value="empty"]', 'Preset: Blank (Custom)'],
+    ['#pgFns', 'Suggest Block Functions'],
     ['#pgAuto', 'Auto Allocate'],
     ['#pgAdd', '+ Space'],
     ['#pgFilt', 'Unallocated Only'],
