@@ -15,12 +15,14 @@ The tool is an in-browser 3D massing modeller with sheets (A4–A1) and exports.
   - Title bar and ribbon tabs: ملف، الرئيسية، عرض، الموقع، الشمس، مقطع، اللوحات، المساحات.
   - Contextual tabs: `mod` (تعديل الكتلة) and `shmod` (تنسيق اللوحة).
   - The `#modal` sections.
-- **`src/app.src.js`:** all logic, one file. It uses no framework: three.js r128 from cdnjs plus OrbitControls from jsdelivr. The placeholders `__INIT__`, `__SK2__`, `__SK3__` and `__SK4__` are filled from the sketch JSONs.
+- **`src/app.src.js`:** the main logic. It uses no framework: three.js r128 from cdnjs, OrbitControls from jsdelivr, d3 7.9.0 from cdnjs. Since the Nov 2026 update it no longer uses the `__INIT__`/`__SK2__`/`__SK3__`/`__SK4__` placeholders (the 4 original sketches were dropped); build.py still fills them if they come back.
+- **Helper modules at the repo root** (`areas-logic.js`, `shadow-heatmap-logic.js`, `section-logic.js`, `site-logic.js`, `facade-logic.js`, `mass-logic.js`, `analysis-studio-logic.js`, `snap-guides-logic.js`, `i18n.js`, `occupancy-chart.js`, `unsaved-logic.js`): hand-edited sources, each with a `*.test.js`. Their load order is the `MODULES` list in `build.py`; a new module must be added there, not as a `<script>` in `body.html`.
 - **`src/*.json`:** the student's original sketches.
-- **`build.py`:** run `python3 build.py`. It writes:
-  - `index.html` and `app.js` (the public site);
-  - `dist/claude-artifact.html` (the single-file version used inside Claude).
-- **Do not edit `index.html` or `app.js` by hand.** They are generated, so edit `src/` and rebuild.
+- **`build.py`:** run `python build.py`. It writes:
+  - `index.html` and `app.js` (the public site; module tags get a cache-busting `?v=`);
+  - `dist/claude-artifact.html` (the single-file version used inside Claude, with modules inlined).
+- **Do not edit `index.html` or `app.js` by hand.** They are generated, so edit `src/` and rebuild. (A Nov 2026 AI Studio update edited them directly and `src/` went stale; that was repaired by copying them back into `src/`.)
+- The user's machine (Windows) has Git and Python 3.12 (`python`, not `python3`) since 2026-11-18, but no Node, so `node --check` is not available locally.
 
 ## Main concepts in app.src.js
 - **Block:** `{id,name,shape,mat,fn,x,z,w,d,f,y0,ry,rot,pts?,hidden,lock,t?,gw?,gf?,rh?,fac?}`.
