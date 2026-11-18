@@ -6858,6 +6858,8 @@ body.revmode #toolRail{display:none}
 
   return {
     isAnalyzable,
+    getObb,
+    getBlockHeight,
     computeSolarAnalysis,
     computeWindAnalysis,
     computeNoiseAnalysis,
@@ -8768,10 +8770,11 @@ function bh(b){if(b.shape==='tree')return b.w*1.3;if(b.shape==='person')return 1
  if(isFlat(b))return b.mat==='asphalt'?0.1:0.3;if(b.shape==='riwaq')return Math.max(3,b.f*state.fh-0.5);return b.f*state.fh+roofH(b)}
 const WHITE={green:'#dfe8d6',water:'#d3e4ee',asphalt:'#c4c4c4',paving:'#ecebe6',glass:'#d6e8f3',context:'#d9d9d9'};
 const getMassAnalysis=()=>{if(!window.MC3D_MASS)return null;if(!massAnalysisCache)massAnalysisCache=MC3D_MASS.analyzeProjectMasses(state.blocks,state.fh);return massAnalysisCache};
-const colOf=b=>{if(massOverlay!=='none'&&window.MC3D_MASS&&MC3D_MASS.isMassAnalyzable(b)){const an=getMassAnalysis();const idx=state.blocks.indexOf(b);const it=an&&(idx>=0?an.byIndex[idx]:an.items.find(x=>x.id===b.id));const oc=it?MC3D_MASS.getMassOverlayColor(it,massOverlay,an):null;if(oc)return oc}if(colorMode==='white')return WHITE[b.mat]||'#f7f6f2';if(colorMode==='fn'&&!isFlat(b)&&!isProp(b)&&b.mat!=='context')return FNS[b.fn||''].c;return MATS[b.mat].c};
+let anColorMap=null,anGhost=null; // analysis studio 3D overlay: block index -> colour; Set of indices kept solid (others ghosted)
+const colOf=b=>{if(anColorMap){const ai=state.blocks.indexOf(b);if(anColorMap[ai])return anColorMap[ai]}if(massOverlay!=='none'&&window.MC3D_MASS&&MC3D_MASS.isMassAnalyzable(b)){const an=getMassAnalysis();const idx=state.blocks.indexOf(b);const it=an&&(idx>=0?an.byIndex[idx]:an.items.find(x=>x.id===b.id));const oc=it?MC3D_MASS.getMassOverlayColor(it,massOverlay,an):null;if(oc)return oc}if(colorMode==='white')return WHITE[b.mat]||'#f7f6f2';if(colorMode==='fn'&&!isFlat(b)&&!isProp(b)&&b.mat!=='context')return FNS[b.fn||''].c;return MATS[b.mat].c};
 function M(c,glass,map){const o={color:map?'#ffffff':c,clippingPlanes:clipArr,clipShadows:true};if(map)o.map=map;if(glass)return new THREE.MeshPhysicalMaterial(Object.assign(o,{transparent:true,opacity:.45,roughness:.05,metalness:.1,depthWrite:false}));if(clipArr.length)o.side=THREE.DoubleSide;return new THREE.MeshLambertMaterial(o)}
 const LM=(c,op)=>new THREE.LineBasicMaterial({color:c,clippingPlanes:clipArr,transparent:op!==undefined,opacity:op===undefined?1:op});
-const matOf=b=>{if(colorMode==='xray'&&!isFlat(b)){const m=M(colOf(b),true);m.opacity=.3;return m}return M(colOf(b),b.mat==='glass',(RQ.tex&&colorMode==='mat'&&massOverlay==='none')?texOf(b.mat):null)};
+const matOf=b=>{if(anGhost&&!isFlat(b)&&!anGhost.has(state.blocks.indexOf(b))){const m=M('#cbd5e1',true);m.opacity=.14;return m}if(colorMode==='xray'&&!isFlat(b)){const m=M(colOf(b),true);m.opacity=.3;return m}return M(colOf(b),b.mat==='glass',(RQ.tex&&colorMode==='mat'&&massOverlay==='none')?texOf(b.mat):null)};
 const bg=new THREE.Group();S.add(bg);let meshes=[];
 function propGroup(b,grp,h){const add=(g,c,y)=>{const m=new THREE.Mesh(g,M(colorMode==='white'?'#e9e9e5':c));m.position.y=y;m.castShadow=true;grp.add(m);return m};
  if(b.shape==='tree'){add(new THREE.CylinderGeometry(.15,.22,h*.4,8),'#7a5a3a',-h/2+h*.2);const cr=add(new THREE.SphereGeometry(b.w/2,14,10),'#6f9e5b',h/2-b.w/2);cr.scale.y=.9}
@@ -8859,6 +8862,7 @@ let lastSelPanel=-2,curTab='home',userTab='home';
 const paneLeaveTimers=new WeakMap();
 function showTab(t){
  curTab=t;
+ setTimeout(()=>{if(typeof anOnTab==='function')anOnTab()},0);
  if(typeof openSheet==='function'&&t!=='sheet'&&t!=='shmod'&&sheetOpen)openSheet(false);
  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
  const ribbon=$('ribbon');
@@ -10804,6 +10808,7 @@ function renderMassStudio(){
    });
   }
  }
+ if(typeof renderAnStudio==='function')renderAnStudio();
 }
 function initMassStudio(){
  if(!window.MC3D_MASS||!$('p_mass'))return;
@@ -10815,6 +10820,267 @@ function initMassStudio(){
  });
 }
 initMassStudio();
+
+// ---------- analysis studio: environment / zones / morphology (uses MC3D_ANALYSIS) ----------
+var AN={sub:'geom',env:'solar',zb:'zones',morphI:0,show3d:{env:true,zones:true,morph:true},cache:{},sig:'',s3:''};
+const anEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const anShort=(s,n)=>{s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s};
+function anRamp(t,stops){t=Math.max(0,Math.min(1,+t||0));const n=stops.length-1,i=Math.min(n-1,Math.floor(t*n)),f=t*n-i;
+ const h=x=>[1,3,5].map(k=>parseInt(x.slice(k,k+2),16)),A=h(stops[i]),B=h(stops[i+1]);
+ return '#'+A.map((v,k)=>Math.round(v+(B[k]-v)*f).toString(16).padStart(2,'0')).join('')}
+const AN_HEAT=['#10b981','#f59e0b','#dc2626'];
+const AN_WIND={windward:'#0284c7',channel:'#7c3aed',sheltered:'#94a3b8'};
+const AN_OUT='#84cc16';
+const anFnName=fn=>fn==='outdoor'?L('فراغ خارجي','Outdoor'):dn('fns',fn,(FNS[fn]||FNS['']).n);
+const anFnCol=fn=>fn==='outdoor'?AN_OUT:(FNS[fn]||FNS['']).c;
+const anKpi=(lbl,val,sub)=>`<div class="hm-kpi"><span class="hm-kpi-lbl">${lbl}</span><span class="hm-kpi-val">${val}</span><span class="hm-kpi-sub">${sub||''}</span></div>`;
+const anRec=(txt,cls)=>`<div class="an-rec-line${cls?' '+cls:''}">${txt}</div>`;
+const anFace=k=>({N:L('الشمالية','North'),S:L('الجنوبية','South'),E:L('الشرقية','East'),W:L('الغربية','West'),Roof:L('السطح','Roof')})[k]||k;
+function anGet(kind){
+ const A=window.MC3D_ANALYSIS;if(!A)return null;
+ const sig=JSON.stringify([state.blocks,state.site,state.fh]);
+ if(sig!==AN.sig){AN.sig=sig;AN.cache={}}
+ if(!AN.cache[kind]){const inp={blocks:state.blocks,site:state.site,fh:state.fh};
+  AN.cache[kind]=kind==='solar'?A.computeSolarAnalysis(inp):kind==='wind'?A.computeWindAnalysis(inp):kind==='noise'?A.computeNoiseAnalysis(inp):kind==='zones'?A.computeZoningAndBubbles(inp):A.computeMorphologyEvolution(inp)}
+ return AN.cache[kind];
+}
+function anEnvColor(kind,it){
+ if(kind==='solar')return anRamp(it.summerLoad/100,AN_HEAT);
+ if(kind==='wind')return AN_WIND[it.status]||'#94a3b8';
+ return anRamp((it.peakDb-45)/30,AN_HEAT);
+}
+// plan drawing helpers (site-local x/z, north = -z)
+function anPlan(W,D,box){const s=Math.min(box.w/(W+10),box.h/(D+10)),cx=box.x+box.w/2,cy=box.y+box.h/2;
+ return {s,P:(x,z)=>[+(cx+x*s).toFixed(1),+(cy+z*s).toFixed(1)]}}
+const anPoly=(b,P)=>MC3D_ANALYSIS.getObb(b).corners.map(c=>P(c[0],c[1]).join(',')).join(' ');
+function anSiteRect(W,D,P,fill){const a=P(-W/2,-D/2),b=P(W/2,D/2);
+ return `<rect x="${a[0]}" y="${a[1]}" width="${(b[0]-a[0]).toFixed(1)}" height="${(b[1]-a[1]).toFixed(1)}" fill="${fill||'#f8fafc'}" stroke="#94a3b8" stroke-width=".8" stroke-dasharray="3 2"/>`}
+const anNorth=(x,y,deg)=>`<g transform="translate(${x},${y}) rotate(${(+deg||0).toFixed(1)})"><path d="M0,-8 L3.6,4 L0,1.4 L-3.6,4Z" fill="#0f172a"/><text x="0" y="-10" text-anchor="middle" font-size="6.5" font-weight="700" fill="#0f172a">N</text></g>`;
+const anPlanBlocks=(state_)=>state_.blocks.map((b,i)=>({b,i})).filter(({b})=>!b.hidden&&!isProp(b)&&b.mat!=='context');
+function anBindPlan(svg){svg.querySelectorAll('[data-pi]').forEach(g=>{g.style.cursor='pointer';g.onclick=()=>{const i=parseInt(g.dataset.pi);if(!isNaN(i))focusMassBlocks([i])}})}
+
+// ----- environment -----
+function anEnvSvg(kind,res){
+ const svg=$('anEnvSvg');if(!svg)return;
+ const W=Math.max(10,+state.site.w||100),D=Math.max(10,+state.site.d||100);
+ const {P,s}=anPlan(W,D,{x:4,y:6,w:134,h:120});
+ let o=`<defs><marker id="anArr" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L6,3L0,6Z" fill="#0284c7"/></marker>
+ <linearGradient id="anNoiseG" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="${AN_HEAT[0]}"/><stop offset=".5" stop-color="${AN_HEAT[1]}"/><stop offset="1" stop-color="${AN_HEAT[2]}"/></linearGradient></defs>`;
+ o+=anSiteRect(W,D,P);
+ if(kind==='noise'&&res.dbGrid){
+  const cw=W/res.cols,ch=D/res.rows;
+  for(let iz=0;iz<res.rows;iz++)for(let ix=0;ix<res.cols;ix++){const db=res.dbGrid[iz*res.cols+ix],p=P(-W/2+ix*cw,-D/2+iz*ch);
+   o+=`<rect x="${p[0]}" y="${p[1]}" width="${(cw*s+.3).toFixed(2)}" height="${(ch*s+.3).toFixed(2)}" fill="${anRamp((db-45)/30,AN_HEAT)}" opacity=".42"/>`}
+  (res.sources||[]).forEach(src=>{const v=src.side==='n'||src.side==='s';const c=src.lineCoord;
+   const a=v?P(-W/2-4,c):P(c,-D/2-4),b=v?P(W/2+4,c):P(c,D/2+4);
+   o+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#475569" stroke-width="3.2" stroke-linecap="round"/><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#fff" stroke-width=".6" stroke-dasharray="3 3"/>`});
+ }
+ if(kind==='wind'){
+  (res.wakeZones||[]).forEach(wz=>{const p=P(wz.cx,wz.cz);o+=`<ellipse cx="${p[0]}" cy="${p[1]}" rx="${(wz.width/2*s).toFixed(1)}" ry="${(wz.length/2*s).toFixed(1)}" transform="rotate(${(-wz.angleRad*180/Math.PI).toFixed(1)} ${p[0]} ${p[1]})" fill="#94a3b8" opacity=".2"/>`});
+ }
+ anPlanBlocks(state).forEach(({b,i})=>{
+  const it=res.byIndex&&res.byIndex[i];
+  const fill=isFlat(b)?(b.mat==='green'?'#dcfce7':b.mat==='water'?'#dbeafe':'#f1f5f9'):(it?anEnvColor(kind,it):'#e2e8f0');
+  const on=selSet.has(i);
+  o+=`<polygon ${it?`data-pi="${i}"`:''} points="${anPoly(b,P)}" fill="${fill}" fill-opacity="${isFlat(b)?1:.92}" stroke="${on?'#ff8f00':'#334155'}" stroke-width="${on?1.6:.45}"><title>${anEsc(b.name)}</title></polygon>`;
+ });
+ if(kind==='wind'){
+  (res.streamlines||[]).forEach(pts=>{o+=`<polyline points="${pts.map(q=>P(q[0],q[2]).join(',')).join(' ')}" fill="none" stroke="#0284c7" stroke-width=".9" opacity=".7" marker-end="url(#anArr)"/>`});
+  (res.corridors||[]).forEach(c=>{const p=P(c.cx,c.cz);o+=`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="#7c3aed" stroke="#fff" stroke-width=".8"><title>${L('ممر تسريع','Wind corridor')} ×${c.speedFactor}</title></circle>`});
+ }
+ o+=anNorth(14,18,state.site.north);
+ // right-hand panel
+ const cx=203,cy=60;
+ if(kind==='solar'){
+  const r=48,n=(+state.site.north||0)*Math.PI/180;
+  o+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="#cbd5e1" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="${r*2/3}" fill="none" stroke="#e2e8f0" stroke-width=".6"/><circle cx="${cx}" cy="${cy}" r="${r/3}" fill="none" stroke="#e2e8f0" stroke-width=".6"/>`;
+  [['N',0],['E',90],['S',180],['W',270]].forEach(([k,a])=>{const t=a*Math.PI/180+n,x=cx+Math.sin(t)*(r+6),y=cy-Math.cos(t)*(r+6);o+=`<text x="${x.toFixed(1)}" y="${(y+2.4).toFixed(1)}" text-anchor="middle" font-size="6.5" font-weight="${k==='N'?700:500}" fill="#475569">${k}</text>`});
+  const cols={summer:'#dc2626',equinox:'#f59e0b',winter:'#0284c7'};
+  (res.arcSamples||[]).forEach(a=>{const pts=a.dirs.map(d=>{const alt=Math.asin(Math.max(-1,Math.min(1,d.y))),h=Math.hypot(d.x,d.z)||1,rr=r*(1-alt/(Math.PI/2));return [(cx+d.x/h*rr).toFixed(1),(cy+d.z/h*rr).toFixed(1)]});
+   if(pts.length>1)o+=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${cols[a.id]}" stroke-width="1.6" stroke-linecap="round"/>`;
+   pts.forEach(p=>{o+=`<circle cx="${p[0]}" cy="${p[1]}" r="1.1" fill="${cols[a.id]}"/>`})});
+  o+=`<g font-size="6.6" text-anchor="middle"><text x="${cx-34}" y="124" fill="#dc2626">${L('٢١ حزيران','Jun 21')}</text><text x="${cx}" y="124" fill="#d97706">${L('الاعتدال','Equinox')}</text><text x="${cx+34}" y="124" fill="#0284c7">${L('٢١ كانون١','Dec 21')}</text></g>`;
+ }else if(kind==='wind'){
+  const r=38,f=res.flowDir||{x:0,z:1};
+  o+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#fff" stroke="#cbd5e1" stroke-width=".8"/>`;
+  const n=(+state.site.north||0)*Math.PI/180;
+  [['N',0],['E',90],['S',180],['W',270]].forEach(([k,a])=>{const t=a*Math.PI/180+n,x=cx+Math.sin(t)*(r+6),y=cy-Math.cos(t)*(r+6);o+=`<text x="${x.toFixed(1)}" y="${(y+2.4).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="#475569">${k}</text>`});
+  o+=`<line x1="${(cx-f.x*r*.85).toFixed(1)}" y1="${(cy-f.z*r*.85).toFixed(1)}" x2="${(cx+f.x*r*.7).toFixed(1)}" y2="${(cy+f.z*r*.7).toFixed(1)}" stroke="#0284c7" stroke-width="3" marker-end="url(#anArr)"/>`;
+  o+=`<text x="${cx}" y="114" text-anchor="middle" font-size="7.2" fill="#0f172a" font-weight="600">${L('الرياح السائدة من','Prevailing wind from')} ${Math.round(res.windDeg)}°</text>`;
+  o+=`<text x="${cx}" y="125" text-anchor="middle" font-size="6.6" fill="#64748b">${L('الخطوط = مسار الهواء · الظل الرمادي = منطقة محمية','Lines = airflow · grey = wind shadow')}</text>`;
+ }else{
+  const x=cx-6,y0=14,h=92,sm=res.summary;const yOf=db=>y0+h*(1-Math.max(0,Math.min(1,(db-45)/30)));
+  o+=`<rect x="${x}" y="${y0}" width="12" height="${h}" rx="2" fill="url(#anNoiseG)"/>`;
+  [45,55,65,75].forEach(db=>{o+=`<text x="${x-4}" y="${(yOf(db)+2.3).toFixed(1)}" text-anchor="end" font-size="6.5" fill="#475569" font-family="var(--font-mono)">${db}</text>`});
+  [[sm.avgDb,L('المعدل','avg')],[sm.maxDb,L('الأعلى','max')]].forEach(([db,lb])=>{const y=yOf(db);o+=`<path d="M${x+13},${y.toFixed(1)} l5,-3 v6z" fill="#0f172a"/><text x="${x+21}" y="${(y+2.3).toFixed(1)}" font-size="6.8" fill="#0f172a">${lb} ${db} dB</text>`});
+  o+=`<text x="${cx}" y="124" text-anchor="middle" font-size="6.6" fill="#64748b">${L('الشارع = مصدر الضوضاء','Street = noise source')} · 55 dB ${L('حد الهدوء','quiet limit')}</text>`;
+ }
+ svg.innerHTML=o;anBindPlan(svg);
+}
+function anRenderEnv(){
+ const kind=AN.env,res=anGet(kind);if(!res)return;
+ document.querySelectorAll('#anEnvTabs [data-env]').forEach(b=>b.classList.toggle('on',b.dataset.env===kind));
+ if($('anEnv3dBtn'))$('anEnv3dBtn').classList.toggle('on',AN.show3d.env);
+ const sm=res.summary,items=res.items||[];
+ // legend
+ const ttl=$('anEnvLegendTitle'),unit=$('anEnvLegendUnit'),bar=$('anEnvLegendBar'),ticks=$('anEnvLegendTicks');
+ if(bar){
+  if(kind==='solar'){ttl.textContent=L('الحمل الحراري الصيفي على الغلاف','Summer heat load on envelope');unit.textContent='%';bar.style.background=`linear-gradient(90deg,${AN_HEAT.join(',')})`;ticks.innerHTML=`<span>${L('محمي','Sheltered')}</span><span>45%</span><span>68%+</span>`}
+  else if(kind==='wind'){ttl.textContent=L('حالة الكتلة بالنسبة للرياح','Block wind exposure');unit.textContent='';bar.style.background=`linear-gradient(90deg,${AN_WIND.windward} 0 33%,${AN_WIND.channel} 33% 66%,${AN_WIND.sheltered} 66%)`;ticks.innerHTML=`<span>${L('معرّضة','Windward')}</span><span>${L('ممر تسريع','Channel')}</span><span>${L('محمية','Sheltered')}</span>`}
+  else{ttl.textContent=L('مستوى الضوضاء','Noise level');unit.textContent='dB';bar.style.background=`linear-gradient(90deg,${AN_HEAT.join(',')})`;ticks.innerHTML=`<span>45</span><span>60</span><span>75</span>`}
+ }
+ if($('anEnvDiagTitle'))$('anEnvDiagTitle').textContent=kind==='solar'?L('المسقط الشمسي ومسار الشمس','Solar plan & sun path'):kind==='wind'?L('مسقط حركة الرياح','Wind flow plan'):L('خريطة الضوضاء على الموقع','Site noise map');
+ anEnvSvg(kind,res);
+ // KPIs
+ let k='';
+ if(kind==='solar')k=anKpi(L('التعرض الشمسي','Solar exposure'),sm.avgSolarScore+'%',L('معدل الكتل','avg'))+anKpi(L('الحمل الصيفي','Summer load'),sm.avgSummerLoad+'%',L('أقل = أفضل','lower is better'))+anKpi(L('الكسب الشتوي','Winter gain'),sm.avgWinterGain+'%',L('أعلى = أفضل','higher is better'))+anKpi(L('ارتفاع الشمس','Sun altitude'),Math.round(sm.peakSunAltDeg)+'°',L('صيفاً ظهراً','summer noon'));
+ else if(kind==='wind')k=anKpi(L('التهوية الطبيعية','Ventilation'),sm.ventilationScore+'%',L('مؤشر','score'))+anKpi(L('كتل معرّضة','Windward'),sm.windwardCount,L('كتلة','blocks'))+anKpi(L('كتل محمية','Sheltered'),sm.shelteredCount,L('كتلة','blocks'))+anKpi(L('ممرات تسريع','Corridors'),sm.corridorCount,L('فنتوري','Venturi'));
+ else k=anKpi(L('معدل الضوضاء','Avg noise'),sm.avgDb,'dB')+anKpi(L('الأعلى','Peak'),sm.maxDb,'dB')+anKpi(L('مساحة هادئة','Quiet area'),sm.quietAreaPct+'%','≤ 55 dB')+anKpi(L('تعارضات','Conflicts'),sm.conflictCount,L('كتل حساسة','sensitive'));
+ if($('anEnvKpis'))$('anEnvKpis').innerHTML=k;
+ // recommendations
+ const nm=a=>a.slice(0,3).map(x=>anEsc(x.name)).join('، ')+(a.length>3?'…':'');
+ let r='';
+ if(!items.length)r=anRec(L('أضف كتلاً معمارية حتى يظهر التحليل.','Add architectural blocks to see the analysis.'));
+ else if(kind==='solar'){
+  const hi=items.filter(x=>x.riskLevel==='high');
+  if(hi.length)r+=anRec(`${L('حمل حراري صيفي عالٍ على','High summer heat load on')} ${hi.length} ${L('كتل','blocks')} (${nm(hi)}) — ${L('أضف كاسرات شمس أو مشربيات، وقلّل الزجاج على واجهاتها المكشوفة.','add shading / mashrabiya and reduce glazing on exposed faces.')}`,'warn');
+  const west=items.filter(x=>x.dominantFace==='W');
+  if(west.length)r+=anRec(`${L('الواجهة الغربية هي الأكثر تعرضاً في','West is the most exposed facade on')} ${west.length} ${L('كتل — شمس بعد الظهر في بغداد هي الأقسى، فاحمِها بعمق أو بكتل خدمية.','blocks — afternoon sun is the harshest; protect it with depth or service blocks.')}`,'warn');
+  if(!hi.length)r+=anRec(L('لا توجد كتل بحمل حراري صيفي عالٍ ✓ التظليل الذاتي بين الكتل جيد.','No block has a high summer load ✓ mutual shading works well.'),'good');
+  r+=anRec(sm.avgWinterGain>=50?`${L('كسب شمسي شتوي جيد','Good winter solar gain')} (${sm.avgWinterGain}%) ${L('— يساعد على التدفئة الطبيعية.','— helps passive heating.')}`:`${L('الكسب الشتوي منخفض','Low winter gain')} (${sm.avgWinterGain}%) ${L('— افتح الواجهات الجنوبية أكثر للشمس الشتوية.','— open south faces more to winter sun.')}`,sm.avgWinterGain>=50?'good':'');
+ }else if(kind==='wind'){
+  if(sm.ventilationScore>=60)r+=anRec(`${L('تهوية طبيعية جيدة','Good natural ventilation')} (${sm.ventilationScore}%) ✓`,'good');
+  else r+=anRec(`${L('التهوية الطبيعية ضعيفة','Weak natural ventilation')} (${sm.ventilationScore}%) — ${L('افتح فجوات أو أفنية باتجاه الرياح السائدة.','open gaps or courtyards toward the prevailing wind.')}`,'warn');
+  if(sm.corridorCount)r+=anRec(`${sm.corridorCount} ${L('ممر تسريع بين الكتل (تأثير فنتوري) — مفيد للتهوية، لكن ظلّله واحمه من الغبار صيفاً.','wind corridors between blocks (Venturi) — good for airflow, but shade them and guard against summer dust.')}`);
+  const sh=items.filter(x=>x.status==='sheltered');
+  if(sh.length&&sh.length>=items.length/2)r+=anRec(`${L('أغلب الكتل في ظل الرياح','Most blocks sit in a wind shadow')} (${nm(sh)}) — ${L('راجع تباعد الكتل.','review block spacing.')}`,'warn');
+ }else{
+  if(!sm.streetCount)r+=anRec(L('لم تُحدَّد شوارع حول الموقع — حدّدها من تبويب الموقع حتى يكون تحليل الضوضاء دقيقاً.','No streets set around the site — set them in the Site tab for an accurate noise map.'),'warn');
+  if(res.conflicts&&res.conflicts.length)r+=anRec(`${res.conflicts.length} ${L('كتل حساسة (تعليمية/تخصصية) قرب ضوضاء الشارع','sensitive blocks near street noise')} (${nm(res.conflicts)}) — ${L('أبعدها أو اجعل كتل الإدارة والخدمات حاجزاً صوتياً.','move them back or use admin/service blocks as a noise buffer.')}`,'warn');
+  else if(sm.streetCount)r+=anRec(L('الفضاءات الحساسة بعيدة عن ضوضاء الشارع ✓','Sensitive spaces are clear of street noise ✓'),'good');
+  if(sm.streetCount)r+=anRec(`${sm.quietAreaPct}% ${L('من الموقع هادئ (≤ 55 dB) — مناسب للقاعات والمختبرات.','of the site is quiet (≤ 55 dB) — suits lecture halls and labs.')}`,sm.quietAreaPct>=40?'good':'');
+ }
+ if($('anEnvInsights'))$('anEnvInsights').innerHTML=r;
+ // per-block list
+ const list=$('anEnvList');
+ if(list){
+  const val=it=>kind==='solar'?it.summerLoad:kind==='wind'?it.exposurePct:it.peakDb;
+  const rows=[...items].sort((a,b)=>val(b)-val(a));
+  const risk={high:L('عالٍ','High'),moderate:L('متوسط','Moderate'),sheltered:L('محمي','Sheltered')};
+  const wst={windward:L('معرّضة','Windward'),channel:L('ممر تسريع','Channel'),sheltered:L('محمية','Sheltered')};
+  const nz={noisy:L('صاخبة','Noisy'),moderate:L('متوسطة','Moderate'),quiet:L('هادئة','Quiet')};
+  list.innerHTML=rows.length?rows.map(it=>{
+   const head=kind==='solar'?`${it.summerLoad}% · ${risk[it.riskLevel]}`:kind==='wind'?`${wst[it.status]}`:`${it.peakDb} dB · ${nz[it.zone]}`;
+   const met=kind==='solar'?`<span>${L('شتاءً','Winter')} ${it.winterGain}%</span><span>${L('الأكثر تعرضاً','Most exposed')}: ${anFace(it.dominantFace)}</span>`:kind==='wind'?`<span>${L('تعرّض','Exposure')} ${it.exposurePct}%</span><span>${L('حماية','Shelter')} ${it.shelterPct}%</span>`:`<span>${L('المعدل','Avg')} ${it.avgDb} dB</span>${it.sensitiveConflict?`<span style="color:#b91c1c">${L('وظيفة حساسة!','Sensitive use!')}</span>`:''}`;
+   return `<button type="button" class="mass-row${selSet.has(it.idx)?' on':''}" data-mi="${it.idx}"><div class="mass-row-top"><span class="mass-row-name"><span class="mass-row-dot" style="background:${anEnvColor(kind,it)}"></span>${anEsc(it.name)}</span><span style="font-family:var(--font-mono);font-size:10.5px;color:var(--acc)">${head}</span></div><div class="mass-row-metrics">${met}</div></button>`;
+  }).join(''):`<div class="hint">${L('لا توجد كتل لتقييمها.','No blocks to rate.')}</div>`;
+  list.querySelectorAll('.mass-row').forEach(rw=>{rw.onclick=()=>{const i=parseInt(rw.dataset.mi);if(!isNaN(i))focusMassBlocks([i])}});
+ }
+}
+
+// ----- zones & bubble diagram -----
+const AN_PRIV=p=>({1:L('عام','Public'),2:L('انتقالي','Transitional'),3:L('شبه خاص','Semi-private'),4:L('خاص','Private'),5:L('مقيّد','Restricted')})[p]||'';
+function anBubbleSvg(res){
+ const svg=$('anBubbleSvg');if(!svg)return;
+ const byZ=AN.zb==='zones',bubs=byZ?res.bubblesByZone:res.bubblesByMass;
+ if(!bubs.length){svg.innerHTML=`<text x="132" y="97" text-anchor="middle" font-size="10" fill="#94a3b8">${L('لا توجد كتل لرسم المخطط','No blocks to diagram')}</text>`;return}
+ const key=b=>byZ?b.fn:b.idx,map={};bubs.forEach(b=>{map[key(b)]=b});
+ const links=(byZ?res.zoneLinks.map(l=>[map[l.fnA],map[l.fnB],l.strength]):res.links.map(l=>[map[l.a],map[l.b],l.strength])).filter(l=>l[0]&&l[1]);
+ let o='';
+ links.forEach(([a,b,st])=>{const strong=st==='strong';o+=`<line x1="${a.bx.toFixed(1)}" y1="${a.by.toFixed(1)}" x2="${b.bx.toFixed(1)}" y2="${b.by.toFixed(1)}" stroke="${strong?'#334155':'#94a3b8'}" stroke-width="${strong?2.2:1}" ${strong?'':'stroke-dasharray="3 2"'} stroke-linecap="round"/>`});
+ bubs.forEach(b=>{
+  const idxs=byZ?b.indices:[b.idx],on=idxs.some(i=>selSet.has(i));
+  const nm=byZ?anFnName(b.fn):anShort(b.name,12);
+  const sub=byZ?`${Math.round(b.area).toLocaleString('en')} ${L('م²','m²')}`:'';
+  o+=`<g class="an-bub" data-ix="${idxs.join(',')}"><title>${anEsc(byZ?anFnName(b.fn):b.name)} · ${Math.round(b.area).toLocaleString('en')} ${L('م²','m²')}</title>
+  <circle cx="${b.bx.toFixed(1)}" cy="${b.by.toFixed(1)}" r="${b.br.toFixed(1)}" fill="${anFnCol(b.fn)}" fill-opacity=".82" stroke="${on?'#ff8f00':'#fff'}" stroke-width="${on?2.4:1.4}"/>
+  <text x="${b.bx.toFixed(1)}" y="${(b.by+(sub?-1:2.6)).toFixed(1)}" text-anchor="middle" font-size="${byZ?7.6:6.6}" font-weight="700" fill="#0f172a" stroke="#fff" stroke-width="2.2" paint-order="stroke">${anEsc(nm)}</text>
+  ${sub?`<text x="${b.bx.toFixed(1)}" y="${(b.by+8).toFixed(1)}" text-anchor="middle" font-size="6.4" fill="#0f172a" stroke="#fff" stroke-width="2" paint-order="stroke" font-family="var(--font-mono)">${sub}</text>`:''}</g>`;
+ });
+ o+=`<g font-size="6.4" fill="#475569"><line x1="8" y1="186" x2="22" y2="186" stroke="#334155" stroke-width="2.2"/><text x="25" y="188.3">${L('اتصال مباشر','Direct link')}</text><line x1="78" y1="186" x2="92" y2="186" stroke="#94a3b8" stroke-dasharray="3 2"/><text x="95" y="188.3">${L('قريب','Near')}</text></g>`;
+ svg.innerHTML=o;
+ svg.querySelectorAll('.an-bub').forEach(g=>{g.onclick=()=>focusMassBlocks(g.dataset.ix.split(',').map(Number))});
+}
+function anRenderZones(){
+ const res=anGet('zones');if(!res)return;
+ document.querySelectorAll('#anBubbleModeSeg [data-zb]').forEach(b=>b.classList.toggle('on',b.dataset.zb===AN.zb));
+ if($('anZones3dBtn'))$('anZones3dBtn').classList.toggle('on',AN.show3d.zones);
+ anBubbleSvg(res);
+ const arch=res.zones.filter(z=>!z.isOutdoor),un=arch.find(z=>z.fn===''),unPct=un?un.sharePct:0;
+ if($('anZoneKpis'))$('anZoneKpis').innerHTML=anKpi(L('المساحة الطابقية','Floor area'),res.totalArchArea.toLocaleString('en'),L('م²','m²'))+anKpi(L('الزونات','Zones'),arch.filter(z=>z.fn!=='').length,L('وظيفة','uses'))+anKpi(L('روابط مباشرة','Direct links'),res.strongLinkCount,L('بين الكتل','between blocks'))+anKpi(L('بدون وظيفة','Unassigned'),unPct+'%',L('من المساحة','of area'));
+ const list=$('anZoneList');if(!list)return;
+ let h='';
+ if(unPct>=30)h+=anRec(`${unPct}% ${L('من المساحة بدون وظيفة — اختر كل كتلة وحدّد وظيفتها من تبويب تعديل الكتلة حتى تظهر الزونات والخصوصية بدقة.','of the area has no function — select each block and set its function in Edit Mass so zones show correctly.')}`,'warn');
+ h+=res.zones.map(z=>{
+  const t=(FNS[z.fn]&&FNS[z.fn].t)||0,on=z.indices.some(i=>selSet.has(i));
+  const tgt=t&&!z.isOutdoor?`<span>${L('المطلوب','Target')} ${t.toLocaleString('en')} ${L('م²','m²')} · ${Math.round(z.area/t*100)}%</span>`:'';
+  return `<button type="button" class="mass-row${on?' on':''}" data-ix="${z.indices.join(',')}"><div class="mass-row-top"><span class="mass-row-name"><span class="mass-row-dot" style="background:${anFnCol(z.fn)}"></span>${anEsc(anFnName(z.fn))}</span><span style="font-family:var(--font-mono);font-size:10.5px;color:var(--acc)">${z.area.toLocaleString('en')} ${L('م²','m²')}</span></div>
+  <div class="mass-row-metrics"><span>${AN_PRIV(z.privacy)}</span><span>${z.count} ${L('كتل','blocks')}</span>${z.isOutdoor?'':`<span>${z.sharePct}%</span>`}${tgt}</div>
+  ${z.isOutdoor?'':`<div style="height:4px;border-radius:2px;background:#e2e8f0;margin-top:4px;overflow:hidden"><div style="height:100%;width:${Math.min(100,z.sharePct)}%;background:${anFnCol(z.fn)}"></div></div>`}</button>`;
+ }).join('');
+ list.innerHTML=h;
+ list.querySelectorAll('[data-ix]').forEach(rw=>{rw.onclick=()=>focusMassBlocks(rw.dataset.ix.split(',').map(Number))});
+}
+
+// ----- morphology / massing evolution -----
+function anMorphDiag(step,prev){
+ const W=Math.max(10,+state.site.w||100),D=Math.max(10,+state.site.d||100),{P}=anPlan(W,D,{x:2,y:2,w:52,h:44});
+ const cur=new Set(step.highlightIndices||[]);let o=step.showEnvelope?anSiteRect(W,D,P,'#fff'):'';
+ anPlanBlocks(state).forEach(({b,i})=>{
+  if(isFlat(b)){if(step.showCourtyardVoid&&cur.has(i))o+=`<polygon points="${anPoly(b,P)}" fill="#bbf7d0" stroke="#16a34a" stroke-width=".5"/>`;return}
+  const isNew=cur.has(i)&&!prev.has(i),was=prev.has(i)||cur.has(i);
+  o+=`<polygon points="${anPoly(b,P)}" fill="${isNew?'#f59e0b':was?'#64748b':'none'}" stroke="${was?'#0f172a':'#e2e8f0'}" stroke-width=".4"/>`;
+ });
+ return `<svg class="an-morph-diag" viewBox="0 0 56 48" aria-hidden="true">${o}</svg>`;
+}
+function anMorphSets(res,i){const prev=new Set();for(let k=0;k<i;k++)(res.steps[k].highlightIndices||[]).forEach(x=>prev.add(x));const cur=new Set(prev);(res.steps[i]?res.steps[i].highlightIndices:[]).forEach(x=>cur.add(x));return {prev,cur}}
+function anRenderMorph(){
+ const res=anGet('morph');if(!res)return;
+ const n=res.steps.length;AN.morphI=Math.max(0,Math.min(n-1,AN.morphI));
+ if($('anPartiTitle'))$('anPartiTitle').textContent=L(res.partiAr,res.partiEn)||'—';
+ if($('anPartiDesc'))$('anPartiDesc').textContent=L(res.partiReasonAr,res.partiReasonEn)||'—';
+ if($('anMorphCounter'))$('anMorphCounter').textContent=n?`${AN.morphI+1} / ${n}`:'0 / 0';
+ if($('anMorphPrev'))$('anMorphPrev').disabled=AN.morphI<=0;
+ if($('anMorphNext'))$('anMorphNext').disabled=AN.morphI>=n-1;
+ if($('anMorph3dBtn'))$('anMorph3dBtn').classList.toggle('on',AN.show3d.morph);
+ const box=$('anMorphSteps');if(!box)return;
+ box.innerHTML=n?res.steps.map((st,i)=>{const {prev}=anMorphSets(res,i);
+  return `<button type="button" class="an-morph-step${i===AN.morphI?' on':''}" data-si="${i}">${anMorphDiag(st,prev)}<span class="an-morph-txt"><span class="an-morph-head"><span>${st.stepNum}. ${anEsc(L(st.titleAr,st.titleEn))}</span><span class="an-morph-meta">${anEsc(st.metricBadge||'')}</span></span><span class="an-morph-desc">${anEsc(L(st.descAr,st.descEn))}</span></span></button>`}).join('')
+  :`<div class="hint">${L('أضف كتلاً حتى تظهر مراحل التشكيل.','Add blocks to see the massing steps.')}</div>`;
+ box.querySelectorAll('[data-si]').forEach(b=>{b.onclick=()=>{AN.morphI=+b.dataset.si;renderAnStudio()}});
+}
+
+// ----- 3D overlay + wiring -----
+function anSync3d(){
+ let cm=null,gh=null;
+ if(curTab==='mass'&&window.MC3D_ANALYSIS&&!(typeof sheetOpen!=='undefined'&&sheetOpen)){
+  if(AN.sub==='env'&&AN.show3d.env){const r=anGet(AN.env);cm={};r.items.forEach(it=>{cm[it.idx]=anEnvColor(AN.env,it)})}
+  else if(AN.sub==='zones'&&AN.show3d.zones){const r=anGet('zones');cm={};r.nodes.forEach(nd=>{if(!nd.isOutdoor)cm[nd.idx]=anFnCol(nd.fn)})}
+  else if(AN.sub==='morph'&&AN.show3d.morph){const r=anGet('morph');if(r.steps.length){const {prev,cur}=anMorphSets(r,Math.min(AN.morphI,r.steps.length-1));gh=cur;cm={};cur.forEach(i=>{if(!prev.has(i))cm[i]='#f59e0b'})}}
+ }
+ const sig=JSON.stringify([cm,gh?[...gh]:null]);
+ if(sig===AN.s3)return;
+ AN.s3=sig;anColorMap=cm;anGhost=gh;build();renderNames(true);
+}
+function renderAnStudio(){
+ if(!AN||!window.MC3D_ANALYSIS||!$('anSecEnv'))return;
+ document.querySelectorAll('#anSubTabs [data-an]').forEach(b=>{const on=b.dataset.an===AN.sub;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false')});
+ [['geom','anSecGeom'],['env','anSecEnv'],['zones','anSecZones'],['morph','anSecMorph']].forEach(([k,id])=>{if($(id))$(id).classList.toggle('on',k===AN.sub)});
+ if(curTab==='mass'){if(AN.sub==='env')anRenderEnv();else if(AN.sub==='zones')anRenderZones();else if(AN.sub==='morph')anRenderMorph()}
+ anSync3d();
+}
+function anOnTab(){if(!AN)return;if(curTab==='mass')renderAnStudio();else anSync3d()}
+function initAnStudio(){
+ if(!window.MC3D_ANALYSIS||!$('anSubTabs'))return;
+ document.querySelectorAll('#anSubTabs [data-an]').forEach(b=>{b.onclick=()=>{AN.sub=b.dataset.an;if(AN.sub!=='geom'&&massOverlay!=='none'){massOverlay='none';syncMassOverlayUI(null)}renderAnStudio();if(AN.sub==='geom')renderMassStudio()}});
+ document.querySelectorAll('#anEnvTabs [data-env]').forEach(b=>{b.onclick=()=>{AN.env=b.dataset.env;renderAnStudio()}});
+ document.querySelectorAll('#anBubbleModeSeg [data-zb]').forEach(b=>{b.onclick=()=>{AN.zb=b.dataset.zb;renderAnStudio()}});
+ [['anEnv3dBtn','env'],['anZones3dBtn','zones'],['anMorph3dBtn','morph']].forEach(([id,k])=>{if($(id))$(id).onclick=()=>{AN.show3d[k]=!AN.show3d[k];renderAnStudio()}});
+ if($('anEnvSiteBtn'))$('anEnvSiteBtn').onclick=()=>showTab('site');
+ if($('anMorphPrev'))$('anMorphPrev').onclick=()=>{AN.morphI--;renderAnStudio()};
+ if($('anMorphNext'))$('anMorphNext').onclick=()=>{AN.morphI++;renderAnStudio()};
+}
+initAnStudio();
 // ---- sky & fog ----
 const skyTex=(()=>{const c=document.createElement('canvas');c.width=4;c.height=256;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#8fb4dc');gr.addColorStop(.6,'#d4e2ee');gr.addColorStop(1,'#efeee8');g.fillStyle=gr;g.fillRect(0,0,4,256);return new THREE.CanvasTexture(c)})();
 const FOG=new THREE.Fog('#eceee9',200,900);

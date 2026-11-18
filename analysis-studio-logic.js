@@ -1096,6 +1096,8 @@
 
   return {
     isAnalyzable,
+    getObb,
+    getBlockHeight,
     computeSolarAnalysis,
     computeWindAnalysis,
     computeNoiseAnalysis,
