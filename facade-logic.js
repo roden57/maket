@@ -18,8 +18,21 @@
     hfins: { ar: 'كاسرات أفقية', en: 'Horizontal Shading', defaultWwr: 56, defaultDepth: 0.7, defaultSpacing: 3.5, baseShade: 52 },
     grid: { ar: 'إطار شبكي', en: 'Egg-Crate Grid', defaultWwr: 50, defaultDepth: 0.6, defaultSpacing: 3.0, baseShade: 60 },
     mash: { ar: 'مشربية', en: 'Mashrabiya Screen', defaultWwr: 44, defaultDepth: 0.45, defaultSpacing: 3.8, baseShade: 68 },
-    balcony: { ar: 'شرفات متكررة', en: 'Recessed Balconies', defaultWwr: 55, defaultDepth: 1.25, defaultSpacing: 4.2, baseShade: 62 }
+    balcony: { ar: 'شرفات متكررة', en: 'Recessed Balconies', defaultWwr: 55, defaultDepth: 1.25, defaultSpacing: 4.2, baseShade: 62 },
+    ribbon: { ar: 'شريط زجاجي أفقي', en: 'Ribbon Window', defaultWwr: 40, defaultDepth: 0.3, defaultSpacing: 3.2, baseShade: 18 },
+    slit: { ar: 'فتحات طولية ضيقة', en: 'Vertical Slits', defaultWwr: 25, defaultDepth: 0.35, defaultSpacing: 1.8, baseShade: 40 }
   };
+
+  // Simple ground-floor illustration elements (drawn on the sides chosen in cfg.ground.sides)
+  const GROUND_TYPES = {
+    '': { ar: 'بدون', en: 'None' },
+    colon: { ar: 'رواق أعمدة', en: 'Colonnade' },
+    entry: { ar: 'مدخل بمظلة', en: 'Canopy Entrance' }
+  };
+
+  // Climate facade for Baghdad: element per orientation of each side
+  const CLIMATE_BY_DIR = { N: 'win', E: 'fins', S: 'hfins', W: 'mash' };
+  const SIDE_KEYS = ['f', 'b', 'r', 'l'];
 
   const FACADE_TONES = {
     slate: { ar: 'رمادي معدني', en: 'Slate Metal', dark: '#273647', lite: '#e2e8f0', glass: '#4c7a9c', wood: '#8a5a32' },
@@ -71,7 +84,19 @@
     const meta = FACADE_TYPES[facType] || FACADE_TYPES.win;
     const src = raw && typeof raw === 'object' ? raw : {};
     const rs = src.sides && typeof src.sides === 'object' ? src.sides : {};
+    const sideFac = {};
+    if (src.sideFac && typeof src.sideFac === 'object') {
+      SIDE_KEYS.forEach(k => { if (FACADE_TYPES[src.sideFac[k]] !== undefined) sideFac[k] = src.sideFac[k]; });
+    }
+    const g = src.ground && typeof src.ground === 'object' ? src.ground : {};
+    const gs = g.sides && typeof g.sides === 'object' ? g.sides : { f: true };
+    const ground = {
+      type: GROUND_TYPES[g.type] && g.type ? g.type : '',
+      sides: { f: !!gs.f, b: !!gs.b, r: !!gs.r, l: !!gs.l }
+    };
     return {
+      sideFac,
+      ground,
       spacing: +clamp(src.spacing, 1.5, 8.0, meta.defaultSpacing || 3.2).toFixed(2),
       wwr: Math.round(clamp(src.wwr, 20, 85, meta.defaultWwr || 45)),
       depth: +clamp(src.depth, 0.1, 1.8, meta.defaultDepth || 0.45).toFixed(2),
@@ -209,7 +234,9 @@
 
   function generateFacadeBoxes(opts) {
     const b = opts && opts.block;
-    if (!b || !b.fac || !FACADE_TYPES[b.fac] || !isBlockFacadeEligible(b)) {
+    const hasGround = !!(b && b.facCfg && b.facCfg.ground && GROUND_TYPES[b.facCfg.ground.type] && b.facCfg.ground.type);
+    const hasSideFac = !!(b && b.facCfg && b.facCfg.sideFac && Object.values(b.facCfg.sideFac).some(Boolean));
+    if (!b || (!(b.fac && FACADE_TYPES[b.fac]) && !hasGround && !hasSideFac) || !isBlockFacadeEligible(b)) {
       return { dark: [], lite: [], wood: [], glass: [], palette: FACADE_TONES.slate };
     }
 
@@ -235,10 +262,13 @@
     const glass = [];
 
     const faces = [];
-    if (cfg.sides.f) faces.push([-W, D, 1, 0, 0, 1, w]);
-    if (cfg.sides.b) faces.push([W, -D, -1, 0, 0, -1, w]);
-    if (cfg.sides.r) faces.push([W, D, 0, -1, 1, 0, d]);
-    if (cfg.sides.l) faces.push([-W, -D, 0, 1, -1, 0, d]);
+    const FACE_GEO = {
+      f: [-W, D, 1, 0, 0, 1, w],
+      b: [W, -D, -1, 0, 0, -1, w],
+      r: [W, D, 0, -1, 1, 0, d],
+      l: [-W, -D, 0, 1, -1, 0, d]
+    };
+    SIDE_KEYS.forEach(k => { if (cfg.sides[k]) faces.push(FACE_GEO[k].concat([k])); });
 
     if (b.shape === 'court' && faces.length > 0) {
       const t = Math.max(1, Number(opts.courtDepth) || Math.min(w, d) * 0.25);
@@ -257,8 +287,12 @@
     const wwrSqrt = Math.sqrt(wwrFrac);
 
     for (let fi = 0; fi < faces.length; fi++) {
-      const [ox, oz, dx, dz, nx, nz, len] = faces[fi];
+      const [ox, oz, dx, dz, nx, nz, len, sideKey] = faces[fi];
       if (len < 0.8) continue;
+      const fac = (sideKey && cfg.sideFac[sideKey]) || b.fac || '';
+      // a side with its own element type uses that type's own spacing / depth
+      const tm = FACADE_TYPES[fac] || FACADE_TYPES.win;
+      const C = (sideKey && cfg.sideFac[sideKey]) ? Object.assign({}, cfg, { spacing: tm.defaultSpacing || cfg.spacing, depth: tm.defaultDepth || cfg.depth }) : cfg;
       const ang = Math.atan2(-dz, dx);
 
       const pushBox = (s, off, y, sx, sy, sz, arr) => {
@@ -271,7 +305,7 @@
         arr.push([x, y, z, sx, sy, sz, ang]);
       };
 
-      const nBays = Math.max(1, Math.round(len / cfg.spacing));
+      const nBays = Math.max(1, Math.round(len / C.spacing));
       const bayW = len / nBays;
       const winW = Math.max(0.45, Math.min(bayW - 0.24, bayW * wwrSqrt * 0.94));
       const bandH = Math.max(0.75, Math.min(fh - 0.32, fh * (0.36 + 0.56 * wwrFrac)));
@@ -284,46 +318,46 @@
         if (y0 + fh > -H + hw + 0.01) break;
         const winY = y0 + fh * 0.52;
 
-        if (b.fac === 'win') {
-          const sillOff = Math.max(0.12, cfg.depth * 0.55);
+        if (fac === 'win') {
+          const sillOff = Math.max(0.12, C.depth * 0.55);
           for (let i = 0; i < nBays; i++) {
             const s = (i + 0.5) * bayW;
             pushBox(s, 0.05, winY, winW, bandH, 0.1, glass);
-            pushBox(s, sillOff, y0 + fh * 0.52 - bandH / 2 - 0.05, winW + 0.16, 0.09, Math.max(0.14, cfg.depth), lite);
-            pushBox(s, sillOff * 0.85, y0 + fh * 0.52 + bandH / 2 + 0.05, winW + 0.16, 0.09, Math.max(0.12, cfg.depth * 0.8), dark);
+            pushBox(s, sillOff, y0 + fh * 0.52 - bandH / 2 - 0.05, winW + 0.16, 0.09, Math.max(0.14, C.depth), lite);
+            pushBox(s, sillOff * 0.85, y0 + fh * 0.52 + bandH / 2 + 0.05, winW + 0.16, 0.09, Math.max(0.12, C.depth * 0.8), dark);
           }
-        } else if (b.fac === 'curtain') {
+        } else if (fac === 'curtain') {
           const spanLen = Math.max(0.5, len - 0.2);
           pushBox(len / 2, 0.05, winY, spanLen, bandH, 0.1, glass);
-          pushBox(len / 2, 0.09 + cfg.depth * 0.25, y0 + 0.14, len - 0.04, 0.24, Math.max(0.12, cfg.depth * 0.6), dark);
-        } else if (b.fac === 'fins') {
+          pushBox(len / 2, 0.09 + C.depth * 0.25, y0 + 0.14, len - 0.04, 0.24, Math.max(0.12, C.depth * 0.6), dark);
+        } else if (fac === 'fins') {
           for (let i = 0; i < nBays; i++) {
             pushBox((i + 0.5) * bayW, 0.05, winY, Math.max(0.4, bayW - 0.22), bandH, 0.09, glass);
           }
-        } else if (b.fac === 'hfins') {
+        } else if (fac === 'hfins') {
           const spanLen = Math.max(0.5, len - 0.35);
           pushBox(len / 2, 0.04, winY, spanLen, bandH, 0.09, glass);
-          const bladeCount = cfg.depth >= 0.7 ? 3 : 2;
+          const bladeCount = C.depth >= 0.7 ? 3 : 2;
           for (let bi = 0; bi < bladeCount; bi++) {
             const frac = bladeCount === 1 ? 0.6 : 0.38 + (bi / (bladeCount - 1)) * 0.5;
-            pushBox(len / 2, cfg.depth * 0.52, y0 + fh * frac, len - 0.12, 0.08, Math.max(0.2, cfg.depth), lite);
+            pushBox(len / 2, C.depth * 0.52, y0 + fh * frac, len - 0.12, 0.08, Math.max(0.2, C.depth), lite);
           }
-        } else if (b.fac === 'grid') {
+        } else if (fac === 'grid') {
           for (let i = 0; i < nBays; i++) {
             pushBox((i + 0.5) * bayW, 0.05, winY, Math.max(0.4, bayW - 0.28), bandH, 0.09, glass);
           }
-          pushBox(len / 2, cfg.depth * 0.5, y0 + 0.1, len, 0.16, Math.max(0.2, cfg.depth), lite);
-        } else if (b.fac === 'mash') {
+          pushBox(len / 2, C.depth * 0.5, y0 + 0.1, len, 0.16, Math.max(0.2, C.depth), lite);
+        } else if (fac === 'mash') {
           for (let i = 0; i < nBays; i++) {
             const s = (i + 0.5) * bayW;
             const scrW = Math.max(0.6, Math.min(bayW - 0.18, bayW * (0.58 + 0.34 * wwrFrac)));
             const scrH = Math.max(1.0, fh - 0.55);
             pushBox(s, 0.04, winY, scrW * 0.92, scrH * 0.92, 0.08, glass);
-            pushBox(s, Math.max(0.14, cfg.depth * 0.55), winY, scrW, scrH, Math.max(0.16, cfg.depth * 0.65), wood);
-            pushBox(s, Math.max(0.16, cfg.depth * 0.62), y0 + fh * 0.52 + scrH / 2 + 0.05, scrW + 0.1, 0.09, Math.max(0.2, cfg.depth * 0.7), dark);
+            pushBox(s, Math.max(0.14, C.depth * 0.55), winY, scrW, scrH, Math.max(0.16, C.depth * 0.65), wood);
+            pushBox(s, Math.max(0.16, C.depth * 0.62), y0 + fh * 0.52 + scrH / 2 + 0.05, scrW + 0.1, 0.09, Math.max(0.2, C.depth * 0.7), dark);
           }
-        } else if (b.fac === 'balcony') {
-          const proj = Math.max(0.45, cfg.depth);
+        } else if (fac === 'balcony') {
+          const proj = Math.max(0.45, C.depth);
           for (let i = 0; i < nBays; i++) {
             const s = (i + 0.5) * bayW;
             const balW = Math.max(0.8, bayW * 0.84);
@@ -332,27 +366,75 @@
             pushBox(s, proj - 0.06, y0 + 0.68, balW, 0.92, 0.07, glass);
             pushBox(s, proj - 0.06, y0 + 1.15, balW + 0.04, 0.07, 0.1, dark);
           }
+        } else if (fac === 'ribbon') {
+          // one continuous horizontal glass band per floor, with a thin projecting sill
+          const rH = Math.max(0.6, Math.min(fh - 0.6, fh * (0.2 + 0.6 * wwrFrac)));
+          pushBox(len / 2, 0.05, winY, Math.max(0.5, len - 0.6), rH, 0.1, glass);
+          pushBox(len / 2, Math.max(0.1, C.depth * 0.5), winY - rH / 2 - 0.06, Math.max(0.5, len - 0.4), 0.12, Math.max(0.15, C.depth), lite);
+        } else if (fac === 'slit') {
+          // narrow full-height vertical openings with deep reveals
+          const sW = Math.max(0.35, Math.min(0.9, bayW * (0.18 + 0.4 * wwrFrac)));
+          const sH = Math.max(1.2, fh - 0.7);
+          for (let i = 0; i < nBays; i++) {
+            const s = (i + 0.5) * bayW;
+            pushBox(s, 0.04, winY, sW, sH, 0.09, glass);
+            pushBox(s - sW / 2 - 0.06, C.depth * 0.5, winY, 0.12, sH + 0.12, Math.max(0.15, C.depth), lite);
+            pushBox(s + sW / 2 + 0.06, C.depth * 0.5, winY, 0.12, sH + 0.12, Math.max(0.15, C.depth), lite);
+          }
         }
       }
 
-      if ((b.fac === 'curtain' || b.fac === 'fins' || b.fac === 'grid') && contH > 0.4) {
-        const finCount = b.fac === 'curtain' ? nBays : nBays;
-        const finW = b.fac === 'curtain' ? 0.1 : 0.13;
-        const finD = b.fac === 'curtain' ? Math.max(0.16, cfg.depth) : Math.max(0.24, cfg.depth);
-        const finTarget = b.fac === 'curtain' ? dark : lite;
+      if ((fac === 'curtain' || fac === 'fins' || fac === 'grid') && contH > 0.4) {
+        const finCount = fac === 'curtain' ? nBays : nBays;
+        const finW = fac === 'curtain' ? 0.1 : 0.13;
+        const finD = fac === 'curtain' ? Math.max(0.16, C.depth) : Math.max(0.24, C.depth);
+        const finTarget = fac === 'curtain' ? dark : lite;
         for (let i = 0; i <= finCount; i++) {
           pushBox(i * bayW, finD * 0.5, contMidY, finW, contH, finD, finTarget);
         }
       }
-      if (b.fac === 'grid' && contH > 0.4) {
-        pushBox(len / 2, cfg.depth * 0.5, -H + hw - 0.08, len, 0.16, Math.max(0.2, cfg.depth), lite);
+      if (fac === 'grid' && contH > 0.4) {
+        pushBox(len / 2, C.depth * 0.5, -H + hw - 0.08, len, 0.16, Math.max(0.2, C.depth), lite);
       }
+    }
+
+    // ground-floor elements: colonnade (portico along the side) or a canopy entrance (centred on the side)
+    if (cfg.ground.type) {
+      const gH = Math.min(fh, Math.max(3, hw));
+      SIDE_KEYS.forEach(k => {
+        if (!cfg.ground.sides[k]) return;
+        const [ox, oz, dx, dz, nx, nz, len] = FACE_GEO[k];
+        if (len < 2) return;
+        const ang = Math.atan2(-dz, dx);
+        const put = (s, off, y, sx, sy, sz, arr) => {
+          if (sx <= 0.01 || sy <= 0.01 || sz <= 0.01) return;
+          arr.push([ox + dx * s + nx * off, y, oz + dz * s + nz * off, sx, sy, sz, ang]);
+        };
+        if (cfg.ground.type === 'colon') {
+          const proj = 2.8;
+          const n = Math.max(2, Math.round(len / 4) + 1);
+          const step = (len - 0.6) / (n - 1);
+          for (let i = 0; i < n; i++) put(0.3 + i * step, proj - 0.25, -H + gH / 2, 0.4, gH, 0.4, lite);
+          put(len / 2, proj / 2, -H + gH + 0.18, len, 0.36, proj + 0.05, lite);
+        } else if (cfg.ground.type === 'entry') {
+          const ew = Math.max(3, Math.min(9, len * 0.5));
+          const proj = 3.4;
+          const cH = Math.min(gH, 3.6);
+          put(len / 2, 0.07, -H + cH * 0.45, ew * 0.72, cH * 0.9, 0.12, glass);
+          put(len / 2, proj / 2, -H + cH + 0.15, ew, 0.3, proj, dark);
+          put(len / 2 - ew / 2 + 0.25, proj - 0.25, -H + cH / 2, 0.22, cH, 0.22, dark);
+          put(len / 2 + ew / 2 - 0.25, proj - 0.25, -H + cH / 2, 0.22, cH, 0.22, dark);
+        }
+      });
     }
 
     return { dark, lite, wood, glass, palette };
   }
 
   return {
+    GROUND_TYPES,
+    CLIMATE_BY_DIR,
+    SIDE_KEYS,
     RECTISH_SHAPES,
     FLAT_MATS,
     FACADE_TYPES,

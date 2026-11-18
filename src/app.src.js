@@ -299,7 +299,7 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
     for(let k=1;k<sx;k++){const xx=-b.w/2+k*b.w/sx;pts.push(xx,-h/2,z,xx,h/2,z,xx,-h/2,-z,xx,h/2,-z)}
     for(let k=1;k<sz;k++){const zz=-b.d/2+k*b.d/sz;pts.push(x,-h/2,zz,x,h/2,zz,-x,-h/2,zz,-x,h/2,zz)}}
    if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM(b.mat==='glass'?'#1f4e79':'#e7a07c',b.mat==='glass'?.8:.6)))}}
-  if(b.fac&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray')facade(b,h,grp)}
+  if((b.fac||(b.facCfg&&((b.facCfg.ground&&b.facCfg.ground.type)||(b.facCfg.sideFac&&Object.values(b.facCfg.sideFac).some(Boolean)))))&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray')facade(b,h,grp)}
  grp.rotation.y=-((b.shape==='riwaq'?0:rotOf(b))+(b.rot||0))*Math.PI/180;
  pick.userData.i=i;grp.position.set(b.x,b.y0+h/2,b.z);return [grp,pick]}
 let groups=[],handles=[];const hG=new THREE.Group();S.add(hG);
@@ -1829,7 +1829,16 @@ function worldUV(g,b){const map=texOf(b.mat);if(!map)return;const s=map.userData
  const uv=new Float32Array(pos.count*2);for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i)+yo,z=pos.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));let u,v;
   if(ny>.7){u=x;v=z}else if(nx>nz){u=z;v=y}else{u=x;v=y}uv[i*2]=u/s;uv[i*2+1]=v/s}g.setAttribute('uv',new THREE.BufferAttribute(uv,2))}
 // ---- facade elements & Facade Studio ----
-const FACS={'':'بدون',win:'شبابيك (إيقاع)',curtain:'ستائر زجاجية',fins:'كاسرات عمودية',hfins:'كاسرات أفقية',grid:'إطار شبكي',mash:'مشربية',balcony:'شرفات متكررة'};
+const FACS={'':'بدون',win:'شبابيك (إيقاع)',curtain:'ستائر زجاجية',fins:'كاسرات عمودية',hfins:'كاسرات أفقية',grid:'إطار شبكي',mash:'مشربية',balcony:'شرفات متكررة',ribbon:'شريط زجاجي أفقي',slit:'فتحات طولية ضيقة'};
+const hasSideFac=b=>!!(b&&b.facCfg&&b.facCfg.sideFac&&Object.values(b.facCfg.sideFac).some(Boolean));
+// compass direction (N/E/S/W) that each local side f/b/r/l of a block faces, using the site north
+function facSideDirs(b){
+ const o=MC3D_ANALYSIS.getObb(b),n=(+state.site.north||0)*Math.PI/180,N=[Math.sin(n),-Math.cos(n)],E=[Math.cos(n),Math.sin(n)];
+ const loc={f:o.uz,b:[-o.uz[0],-o.uz[1]],r:o.ux,l:[-o.ux[0],-o.ux[1]]},out={};
+ Object.entries(loc).forEach(([k,v])=>{const deg=(Math.atan2(v[0]*E[0]+v[1]*E[1],v[0]*N[0]+v[1]*N[1])*180/Math.PI+360)%360;out[k]=['N','E','S','W'][Math.round(deg/90)%4]});
+ return out;
+}
+const FAC_DIR_NAME=d=>({N:L('شمالية','North'),E:L('شرقية','East'),S:L('جنوبية','South'),W:L('غربية','West')})[d]||d;
 function boxesGeo(list){const P=[],Nn=[],U=[];list.forEach(([cx,cy,cz,sx,sy,sz,ang])=>{const g=new THREE.BoxGeometry(sx,sy,sz).toNonIndexed();g.rotateY(ang);g.translate(cx,cy,cz);
   P.push(...g.attributes.position.array);Nn.push(...g.attributes.normal.array);U.push(...g.attributes.uv.array);g.dispose()});
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));return g}
@@ -1859,7 +1868,9 @@ const FAC_MINI_SVG={
  hfins:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M4 7.5h16M4 11h16M4 14.5h16M4 18h16"/></svg>',
  grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/></svg>',
  mash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M6 6l12 12M18 6L6 18M12 4v16M4 12h16" stroke-opacity="0.8"/></svg>',
- balcony:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M4 10.5h16M4 16.5h16" stroke-width="2"/><rect x="6" y="6" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/><rect x="6" y="12" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/></svg>'
+ balcony:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M4 10.5h16M4 16.5h16" stroke-width="2"/><rect x="6" y="6" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/><rect x="6" y="12" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/></svg>',
+ ribbon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><rect x="5" y="6.5" width="14" height="3" fill="currentColor" fill-opacity="0.25"/><rect x="5" y="14" width="14" height="3" fill="currentColor" fill-opacity="0.25"/></svg>',
+ slit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><rect x="6.5" y="6" width="1.8" height="12" fill="currentColor" fill-opacity="0.3"/><rect x="11.1" y="6" width="1.8" height="12" fill="currentColor" fill-opacity="0.3"/><rect x="15.7" y="6" width="1.8" height="12" fill="currentColor" fill-opacity="0.3"/></svg>'
 };
 let facScope='sel',facZone='main',facFocusIdx=-1;
 function facEligibleIndices(){
@@ -1983,7 +1994,7 @@ function renderFacadeStudio(){
    const curTargets=facTargetIndices();
    const activeIdx=curTargets.length?curTargets[0]:elig[0];
    $('facBlockSel').innerHTML=elig.map(i=>{
-    const b=state.blocks[i],t=b.fac?dn('facs',b.fac,FACS[b.fac]||''):L('بدون','None');
+    const b=state.blocks[i],t=hasSideFac(b)?L('مناخية تلقائية','Auto climate'):b.fac?dn('facs',b.fac,FACS[b.fac]||''):L('بدون','None');
     return `<option value="${i}" ${i===activeIdx?'selected':''}>${b.name.replace(/</g,'&lt;')} (${t})</option>`;
    }).join('');
   }
@@ -2007,9 +2018,10 @@ function renderFacadeStudio(){
  // Render 8 type cards
  const grid=$('facTypeGrid');
  if(grid){
+  const auto=hasSideFac(rep);
   grid.innerHTML=Object.entries(MC3D_FACADE.FACADE_TYPES).map(([k,m])=>{
    const lbl=dn('facs',k,m.ar);
-   return `<button type="button" class="fac-type-card${k===activeFac?' on':''}" data-ft="${k}" title="${lbl}">${FAC_MINI_SVG[k]||''}<span>${lbl}</span></button>`;
+   return `<button type="button" class="fac-type-card${!auto&&k===activeFac?' on':''}" data-ft="${k}" title="${lbl}">${FAC_MINI_SVG[k]||''}<span>${lbl}</span></button>`;
   }).join('');
   grid.querySelectorAll('.fac-type-card').forEach(btn=>{
    btn.onclick=()=>{
@@ -2018,17 +2030,26 @@ function renderFacadeStudio(){
      const hadFac=!!b.fac;
      b.fac=ft;
      if(ft&&(!b.facCfg||!hadFac)){
-      b.facCfg=MC3D_FACADE.normalizeFacadeConfig({tone:cfg.tone,sides:cfg.sides,baseGround:cfg.baseGround},ft);
+      b.facCfg=MC3D_FACADE.normalizeFacadeConfig({tone:cfg.tone,sides:cfg.sides,baseGround:cfg.baseGround,ground:cfg.ground},ft);
      }
+     if(b.facCfg)b.facCfg.sideFac={}; // one type chosen for all sides replaces the climate mix
     });
    };
   });
+  if($('facAutoBtn'))$('facAutoBtn').classList.toggle('on',auto);
  }
 
- // Directional side toggles
+ // Directional side toggles, named by compass direction
+ const dirs=rep&&window.MC3D_ANALYSIS?facSideDirs(rep):null;
  [['facSideF','f'],['facSideB','b'],['facSideR','r'],['facSideL','l']].forEach(([id,sk])=>{
-  if($(id))$(id).classList.toggle('on',!!cfg.sides[sk]);
+  if(!$(id))return;
+  $(id).classList.toggle('on',!!cfg.sides[sk]);
+  if(dirs){const sf=cfg.sideFac[sk]||activeFac;$(id).textContent=FAC_DIR_NAME(dirs[sk]);$(id).title=sf?dn('facs',sf,FACS[sf]||''):''}
  });
+ // Ground-floor element
+ document.querySelectorAll('#facGrTypes [data-fg]').forEach(btn=>btn.classList.toggle('on',btn.dataset.fg===cfg.ground.type));
+ document.querySelectorAll('#facGrSides [data-fgs]').forEach(btn=>{const k=btn.dataset.fgs;btn.classList.toggle('on',!!cfg.ground.sides[k]);if(dirs)btn.textContent=FAC_DIR_NAME(dirs[k])});
+ if($('facGrSidesRow'))$('facGrSidesRow').style.display=cfg.ground.type?'':'none';
 
  // Sliders & readouts
  const um=L('م','m'),u2=L('م²','m²');
@@ -2124,11 +2145,42 @@ function initFacadeStudio(){
   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac);
   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{baseGround:!cur.baseGround}),b.fac);
  });
+ // one-click climate facade: each side gets the element that suits its orientation (Baghdad)
+ if($('facAutoBtn'))$('facAutoBtn').onclick=()=>{
+  if(!window.MC3D_ANALYSIS)return;
+  mutateFacadeTargets(b=>{
+   const dirs=facSideDirs(b),sf={};
+   MC3D_FACADE.SIDE_KEYS.forEach(k=>{sf[k]=MC3D_FACADE.CLIMATE_BY_DIR[dirs[k]]});
+   if(!b.fac)b.fac='win';
+   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac);
+   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{sideFac:sf,sides:{f:true,b:true,r:true,l:true}}),b.fac);
+  });
+  flash(L('واجهة مناخية ✓ جنوبية: كاسرات أفقية · شرقية: كاسرات عمودية · غربية: مشربية · شمالية: شبابيك','Climate facade ✓ South: horizontal louvres · East: vertical fins · West: mashrabiya · North: windows'));
+ };
+ document.querySelectorAll('#facGrTypes [data-fg]').forEach(btn=>{
+  btn.onclick=()=>mutateFacadeTargets(b=>{
+   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac||'win');
+   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{ground:Object.assign({},cur.ground,{type:btn.dataset.fg})}),b.fac||'win');
+  });
+ });
+ document.querySelectorAll('#facGrSides [data-fgs]').forEach(btn=>{
+  btn.onclick=()=>mutateFacadeTargets(b=>{
+   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac||'win');
+   const s=Object.assign({},cur.ground.sides);s[btn.dataset.fgs]=!s[btn.dataset.fgs];
+   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{ground:{type:cur.ground.type,sides:s}}),b.fac||'win');
+  });
+ });
  if($('facApplyAllBtn'))$('facApplyAllBtn').onclick=()=>{
   const elig=facEligibleIndices();if(!elig.length)return;
   const targets=facTargetIndices();
   const rep=targets.length?state.blocks[targets[0]]:state.blocks[elig[0]];
-  if(!rep||!rep.fac)return flash(L('اختر نظام واجهة أولاً لتعميمه','Select a facade system first'));
+  if(!rep||!(rep.fac||(rep.facCfg&&rep.facCfg.ground&&rep.facCfg.ground.type)))return flash(L('اختر نظام واجهة أولاً لتعميمه','Select a facade system first'));
+  if(hasSideFac(rep)){ // climate mix depends on each block's own orientation: recompute per block
+   snap(true);
+   elig.forEach(i=>{const b=state.blocks[i],dirs=facSideDirs(b),sf={};MC3D_FACADE.SIDE_KEYS.forEach(k=>{sf[k]=MC3D_FACADE.CLIMATE_BY_DIR[dirs[k]]});
+    b.fac=rep.fac||'win';b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign(clone(rep.facCfg),{sideFac:sf}),b.fac)});
+   refresh();return flash(L(`طُبِّقت الواجهة المناخية على ${elig.length} كتل ✓`,`Climate facade applied to ${elig.length} blocks ✓`));
+  }
   snap(true);
   const srcCfg=MC3D_FACADE.normalizeFacadeConfig(rep.facCfg,rep.fac);
   elig.forEach(i=>{state.blocks[i].fac=rep.fac;state.blocks[i].facCfg=clone(srcCfg)});

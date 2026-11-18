@@ -2731,6 +2731,7 @@ body.revmode #toolRail{display:none}
             <button type="button" class="fac-preset-btn" data-fp="heritageMash">مشربية تراثية</button>
             <button type="button" class="fac-preset-btn" data-fp="resBalcony">شرفات سكنية</button>
           </div>
+          <button type="button" class="sm pri2" id="facAutoBtn" style="width:100%" title="كل واجهة تأخذ العنصر المناسب لاتجاهها: جنوب كاسرات أفقية، شرق كاسرات عمودية، غرب مشربية، شمال شبابيك">⚡ واجهة مناخية تلقائية (حسب الاتجاه)</button>
         </div>
       </div>
 
@@ -2769,6 +2770,23 @@ body.revmode #toolRail{display:none}
             <div class="fac-tone-swatches" id="facToneBtns"></div>
           </div>
           <button type="button" class="sm on" id="facGroundBtn" style="width:100%">شامل الطابق الأرضي</button>
+          <div class="fld-stack">
+            <span id="facGrLbl">عنصر الطابق الأرضي</span>
+            <div class="fac-sides-grid" id="facGrTypes" role="group" aria-label="عنصر الطابق الأرضي">
+              <button type="button" class="fac-side-btn" data-fg="">بدون</button>
+              <button type="button" class="fac-side-btn" data-fg="colon">رواق أعمدة</button>
+              <button type="button" class="fac-side-btn" data-fg="entry">مدخل بمظلة</button>
+            </div>
+          </div>
+          <div class="fld-stack" id="facGrSidesRow" style="display:none">
+            <span id="facGrSidesLbl">على الواجهة</span>
+            <div class="fac-sides-grid" id="facGrSides" role="group" aria-label="واجهات عنصر الطابق الأرضي">
+              <button type="button" class="fac-side-btn" data-fgs="f">أمام</button>
+              <button type="button" class="fac-side-btn" data-fgs="b">خلف</button>
+              <button type="button" class="fac-side-btn" data-fgs="r">يمين</button>
+              <button type="button" class="fac-side-btn" data-fgs="l">يسار</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -4926,8 +4944,21 @@ body.revmode #toolRail{display:none}
     hfins: { ar: 'كاسرات أفقية', en: 'Horizontal Shading', defaultWwr: 56, defaultDepth: 0.7, defaultSpacing: 3.5, baseShade: 52 },
     grid: { ar: 'إطار شبكي', en: 'Egg-Crate Grid', defaultWwr: 50, defaultDepth: 0.6, defaultSpacing: 3.0, baseShade: 60 },
     mash: { ar: 'مشربية', en: 'Mashrabiya Screen', defaultWwr: 44, defaultDepth: 0.45, defaultSpacing: 3.8, baseShade: 68 },
-    balcony: { ar: 'شرفات متكررة', en: 'Recessed Balconies', defaultWwr: 55, defaultDepth: 1.25, defaultSpacing: 4.2, baseShade: 62 }
+    balcony: { ar: 'شرفات متكررة', en: 'Recessed Balconies', defaultWwr: 55, defaultDepth: 1.25, defaultSpacing: 4.2, baseShade: 62 },
+    ribbon: { ar: 'شريط زجاجي أفقي', en: 'Ribbon Window', defaultWwr: 40, defaultDepth: 0.3, defaultSpacing: 3.2, baseShade: 18 },
+    slit: { ar: 'فتحات طولية ضيقة', en: 'Vertical Slits', defaultWwr: 25, defaultDepth: 0.35, defaultSpacing: 1.8, baseShade: 40 }
   };
+
+  // Simple ground-floor illustration elements (drawn on the sides chosen in cfg.ground.sides)
+  const GROUND_TYPES = {
+    '': { ar: 'بدون', en: 'None' },
+    colon: { ar: 'رواق أعمدة', en: 'Colonnade' },
+    entry: { ar: 'مدخل بمظلة', en: 'Canopy Entrance' }
+  };
+
+  // Climate facade for Baghdad: element per orientation of each side
+  const CLIMATE_BY_DIR = { N: 'win', E: 'fins', S: 'hfins', W: 'mash' };
+  const SIDE_KEYS = ['f', 'b', 'r', 'l'];
 
   const FACADE_TONES = {
     slate: { ar: 'رمادي معدني', en: 'Slate Metal', dark: '#273647', lite: '#e2e8f0', glass: '#4c7a9c', wood: '#8a5a32' },
@@ -4979,7 +5010,19 @@ body.revmode #toolRail{display:none}
     const meta = FACADE_TYPES[facType] || FACADE_TYPES.win;
     const src = raw && typeof raw === 'object' ? raw : {};
     const rs = src.sides && typeof src.sides === 'object' ? src.sides : {};
+    const sideFac = {};
+    if (src.sideFac && typeof src.sideFac === 'object') {
+      SIDE_KEYS.forEach(k => { if (FACADE_TYPES[src.sideFac[k]] !== undefined) sideFac[k] = src.sideFac[k]; });
+    }
+    const g = src.ground && typeof src.ground === 'object' ? src.ground : {};
+    const gs = g.sides && typeof g.sides === 'object' ? g.sides : { f: true };
+    const ground = {
+      type: GROUND_TYPES[g.type] && g.type ? g.type : '',
+      sides: { f: !!gs.f, b: !!gs.b, r: !!gs.r, l: !!gs.l }
+    };
     return {
+      sideFac,
+      ground,
       spacing: +clamp(src.spacing, 1.5, 8.0, meta.defaultSpacing || 3.2).toFixed(2),
       wwr: Math.round(clamp(src.wwr, 20, 85, meta.defaultWwr || 45)),
       depth: +clamp(src.depth, 0.1, 1.8, meta.defaultDepth || 0.45).toFixed(2),
@@ -5117,7 +5160,9 @@ body.revmode #toolRail{display:none}
 
   function generateFacadeBoxes(opts) {
     const b = opts && opts.block;
-    if (!b || !b.fac || !FACADE_TYPES[b.fac] || !isBlockFacadeEligible(b)) {
+    const hasGround = !!(b && b.facCfg && b.facCfg.ground && GROUND_TYPES[b.facCfg.ground.type] && b.facCfg.ground.type);
+    const hasSideFac = !!(b && b.facCfg && b.facCfg.sideFac && Object.values(b.facCfg.sideFac).some(Boolean));
+    if (!b || (!(b.fac && FACADE_TYPES[b.fac]) && !hasGround && !hasSideFac) || !isBlockFacadeEligible(b)) {
       return { dark: [], lite: [], wood: [], glass: [], palette: FACADE_TONES.slate };
     }
 
@@ -5143,10 +5188,13 @@ body.revmode #toolRail{display:none}
     const glass = [];
 
     const faces = [];
-    if (cfg.sides.f) faces.push([-W, D, 1, 0, 0, 1, w]);
-    if (cfg.sides.b) faces.push([W, -D, -1, 0, 0, -1, w]);
-    if (cfg.sides.r) faces.push([W, D, 0, -1, 1, 0, d]);
-    if (cfg.sides.l) faces.push([-W, -D, 0, 1, -1, 0, d]);
+    const FACE_GEO = {
+      f: [-W, D, 1, 0, 0, 1, w],
+      b: [W, -D, -1, 0, 0, -1, w],
+      r: [W, D, 0, -1, 1, 0, d],
+      l: [-W, -D, 0, 1, -1, 0, d]
+    };
+    SIDE_KEYS.forEach(k => { if (cfg.sides[k]) faces.push(FACE_GEO[k].concat([k])); });
 
     if (b.shape === 'court' && faces.length > 0) {
       const t = Math.max(1, Number(opts.courtDepth) || Math.min(w, d) * 0.25);
@@ -5165,8 +5213,12 @@ body.revmode #toolRail{display:none}
     const wwrSqrt = Math.sqrt(wwrFrac);
 
     for (let fi = 0; fi < faces.length; fi++) {
-      const [ox, oz, dx, dz, nx, nz, len] = faces[fi];
+      const [ox, oz, dx, dz, nx, nz, len, sideKey] = faces[fi];
       if (len < 0.8) continue;
+      const fac = (sideKey && cfg.sideFac[sideKey]) || b.fac || '';
+      // a side with its own element type uses that type's own spacing / depth
+      const tm = FACADE_TYPES[fac] || FACADE_TYPES.win;
+      const C = (sideKey && cfg.sideFac[sideKey]) ? Object.assign({}, cfg, { spacing: tm.defaultSpacing || cfg.spacing, depth: tm.defaultDepth || cfg.depth }) : cfg;
       const ang = Math.atan2(-dz, dx);
 
       const pushBox = (s, off, y, sx, sy, sz, arr) => {
@@ -5179,7 +5231,7 @@ body.revmode #toolRail{display:none}
         arr.push([x, y, z, sx, sy, sz, ang]);
       };
 
-      const nBays = Math.max(1, Math.round(len / cfg.spacing));
+      const nBays = Math.max(1, Math.round(len / C.spacing));
       const bayW = len / nBays;
       const winW = Math.max(0.45, Math.min(bayW - 0.24, bayW * wwrSqrt * 0.94));
       const bandH = Math.max(0.75, Math.min(fh - 0.32, fh * (0.36 + 0.56 * wwrFrac)));
@@ -5192,46 +5244,46 @@ body.revmode #toolRail{display:none}
         if (y0 + fh > -H + hw + 0.01) break;
         const winY = y0 + fh * 0.52;
 
-        if (b.fac === 'win') {
-          const sillOff = Math.max(0.12, cfg.depth * 0.55);
+        if (fac === 'win') {
+          const sillOff = Math.max(0.12, C.depth * 0.55);
           for (let i = 0; i < nBays; i++) {
             const s = (i + 0.5) * bayW;
             pushBox(s, 0.05, winY, winW, bandH, 0.1, glass);
-            pushBox(s, sillOff, y0 + fh * 0.52 - bandH / 2 - 0.05, winW + 0.16, 0.09, Math.max(0.14, cfg.depth), lite);
-            pushBox(s, sillOff * 0.85, y0 + fh * 0.52 + bandH / 2 + 0.05, winW + 0.16, 0.09, Math.max(0.12, cfg.depth * 0.8), dark);
+            pushBox(s, sillOff, y0 + fh * 0.52 - bandH / 2 - 0.05, winW + 0.16, 0.09, Math.max(0.14, C.depth), lite);
+            pushBox(s, sillOff * 0.85, y0 + fh * 0.52 + bandH / 2 + 0.05, winW + 0.16, 0.09, Math.max(0.12, C.depth * 0.8), dark);
           }
-        } else if (b.fac === 'curtain') {
+        } else if (fac === 'curtain') {
           const spanLen = Math.max(0.5, len - 0.2);
           pushBox(len / 2, 0.05, winY, spanLen, bandH, 0.1, glass);
-          pushBox(len / 2, 0.09 + cfg.depth * 0.25, y0 + 0.14, len - 0.04, 0.24, Math.max(0.12, cfg.depth * 0.6), dark);
-        } else if (b.fac === 'fins') {
+          pushBox(len / 2, 0.09 + C.depth * 0.25, y0 + 0.14, len - 0.04, 0.24, Math.max(0.12, C.depth * 0.6), dark);
+        } else if (fac === 'fins') {
           for (let i = 0; i < nBays; i++) {
             pushBox((i + 0.5) * bayW, 0.05, winY, Math.max(0.4, bayW - 0.22), bandH, 0.09, glass);
           }
-        } else if (b.fac === 'hfins') {
+        } else if (fac === 'hfins') {
           const spanLen = Math.max(0.5, len - 0.35);
           pushBox(len / 2, 0.04, winY, spanLen, bandH, 0.09, glass);
-          const bladeCount = cfg.depth >= 0.7 ? 3 : 2;
+          const bladeCount = C.depth >= 0.7 ? 3 : 2;
           for (let bi = 0; bi < bladeCount; bi++) {
             const frac = bladeCount === 1 ? 0.6 : 0.38 + (bi / (bladeCount - 1)) * 0.5;
-            pushBox(len / 2, cfg.depth * 0.52, y0 + fh * frac, len - 0.12, 0.08, Math.max(0.2, cfg.depth), lite);
+            pushBox(len / 2, C.depth * 0.52, y0 + fh * frac, len - 0.12, 0.08, Math.max(0.2, C.depth), lite);
           }
-        } else if (b.fac === 'grid') {
+        } else if (fac === 'grid') {
           for (let i = 0; i < nBays; i++) {
             pushBox((i + 0.5) * bayW, 0.05, winY, Math.max(0.4, bayW - 0.28), bandH, 0.09, glass);
           }
-          pushBox(len / 2, cfg.depth * 0.5, y0 + 0.1, len, 0.16, Math.max(0.2, cfg.depth), lite);
-        } else if (b.fac === 'mash') {
+          pushBox(len / 2, C.depth * 0.5, y0 + 0.1, len, 0.16, Math.max(0.2, C.depth), lite);
+        } else if (fac === 'mash') {
           for (let i = 0; i < nBays; i++) {
             const s = (i + 0.5) * bayW;
             const scrW = Math.max(0.6, Math.min(bayW - 0.18, bayW * (0.58 + 0.34 * wwrFrac)));
             const scrH = Math.max(1.0, fh - 0.55);
             pushBox(s, 0.04, winY, scrW * 0.92, scrH * 0.92, 0.08, glass);
-            pushBox(s, Math.max(0.14, cfg.depth * 0.55), winY, scrW, scrH, Math.max(0.16, cfg.depth * 0.65), wood);
-            pushBox(s, Math.max(0.16, cfg.depth * 0.62), y0 + fh * 0.52 + scrH / 2 + 0.05, scrW + 0.1, 0.09, Math.max(0.2, cfg.depth * 0.7), dark);
+            pushBox(s, Math.max(0.14, C.depth * 0.55), winY, scrW, scrH, Math.max(0.16, C.depth * 0.65), wood);
+            pushBox(s, Math.max(0.16, C.depth * 0.62), y0 + fh * 0.52 + scrH / 2 + 0.05, scrW + 0.1, 0.09, Math.max(0.2, C.depth * 0.7), dark);
           }
-        } else if (b.fac === 'balcony') {
-          const proj = Math.max(0.45, cfg.depth);
+        } else if (fac === 'balcony') {
+          const proj = Math.max(0.45, C.depth);
           for (let i = 0; i < nBays; i++) {
             const s = (i + 0.5) * bayW;
             const balW = Math.max(0.8, bayW * 0.84);
@@ -5240,27 +5292,75 @@ body.revmode #toolRail{display:none}
             pushBox(s, proj - 0.06, y0 + 0.68, balW, 0.92, 0.07, glass);
             pushBox(s, proj - 0.06, y0 + 1.15, balW + 0.04, 0.07, 0.1, dark);
           }
+        } else if (fac === 'ribbon') {
+          // one continuous horizontal glass band per floor, with a thin projecting sill
+          const rH = Math.max(0.6, Math.min(fh - 0.6, fh * (0.2 + 0.6 * wwrFrac)));
+          pushBox(len / 2, 0.05, winY, Math.max(0.5, len - 0.6), rH, 0.1, glass);
+          pushBox(len / 2, Math.max(0.1, C.depth * 0.5), winY - rH / 2 - 0.06, Math.max(0.5, len - 0.4), 0.12, Math.max(0.15, C.depth), lite);
+        } else if (fac === 'slit') {
+          // narrow full-height vertical openings with deep reveals
+          const sW = Math.max(0.35, Math.min(0.9, bayW * (0.18 + 0.4 * wwrFrac)));
+          const sH = Math.max(1.2, fh - 0.7);
+          for (let i = 0; i < nBays; i++) {
+            const s = (i + 0.5) * bayW;
+            pushBox(s, 0.04, winY, sW, sH, 0.09, glass);
+            pushBox(s - sW / 2 - 0.06, C.depth * 0.5, winY, 0.12, sH + 0.12, Math.max(0.15, C.depth), lite);
+            pushBox(s + sW / 2 + 0.06, C.depth * 0.5, winY, 0.12, sH + 0.12, Math.max(0.15, C.depth), lite);
+          }
         }
       }
 
-      if ((b.fac === 'curtain' || b.fac === 'fins' || b.fac === 'grid') && contH > 0.4) {
-        const finCount = b.fac === 'curtain' ? nBays : nBays;
-        const finW = b.fac === 'curtain' ? 0.1 : 0.13;
-        const finD = b.fac === 'curtain' ? Math.max(0.16, cfg.depth) : Math.max(0.24, cfg.depth);
-        const finTarget = b.fac === 'curtain' ? dark : lite;
+      if ((fac === 'curtain' || fac === 'fins' || fac === 'grid') && contH > 0.4) {
+        const finCount = fac === 'curtain' ? nBays : nBays;
+        const finW = fac === 'curtain' ? 0.1 : 0.13;
+        const finD = fac === 'curtain' ? Math.max(0.16, C.depth) : Math.max(0.24, C.depth);
+        const finTarget = fac === 'curtain' ? dark : lite;
         for (let i = 0; i <= finCount; i++) {
           pushBox(i * bayW, finD * 0.5, contMidY, finW, contH, finD, finTarget);
         }
       }
-      if (b.fac === 'grid' && contH > 0.4) {
-        pushBox(len / 2, cfg.depth * 0.5, -H + hw - 0.08, len, 0.16, Math.max(0.2, cfg.depth), lite);
+      if (fac === 'grid' && contH > 0.4) {
+        pushBox(len / 2, C.depth * 0.5, -H + hw - 0.08, len, 0.16, Math.max(0.2, C.depth), lite);
       }
+    }
+
+    // ground-floor elements: colonnade (portico along the side) or a canopy entrance (centred on the side)
+    if (cfg.ground.type) {
+      const gH = Math.min(fh, Math.max(3, hw));
+      SIDE_KEYS.forEach(k => {
+        if (!cfg.ground.sides[k]) return;
+        const [ox, oz, dx, dz, nx, nz, len] = FACE_GEO[k];
+        if (len < 2) return;
+        const ang = Math.atan2(-dz, dx);
+        const put = (s, off, y, sx, sy, sz, arr) => {
+          if (sx <= 0.01 || sy <= 0.01 || sz <= 0.01) return;
+          arr.push([ox + dx * s + nx * off, y, oz + dz * s + nz * off, sx, sy, sz, ang]);
+        };
+        if (cfg.ground.type === 'colon') {
+          const proj = 2.8;
+          const n = Math.max(2, Math.round(len / 4) + 1);
+          const step = (len - 0.6) / (n - 1);
+          for (let i = 0; i < n; i++) put(0.3 + i * step, proj - 0.25, -H + gH / 2, 0.4, gH, 0.4, lite);
+          put(len / 2, proj / 2, -H + gH + 0.18, len, 0.36, proj + 0.05, lite);
+        } else if (cfg.ground.type === 'entry') {
+          const ew = Math.max(3, Math.min(9, len * 0.5));
+          const proj = 3.4;
+          const cH = Math.min(gH, 3.6);
+          put(len / 2, 0.07, -H + cH * 0.45, ew * 0.72, cH * 0.9, 0.12, glass);
+          put(len / 2, proj / 2, -H + cH + 0.15, ew, 0.3, proj, dark);
+          put(len / 2 - ew / 2 + 0.25, proj - 0.25, -H + cH / 2, 0.22, cH, 0.22, dark);
+          put(len / 2 + ew / 2 - 0.25, proj - 0.25, -H + cH / 2, 0.22, cH, 0.22, dark);
+        }
+      });
     }
 
     return { dark, lite, wood, glass, palette };
   }
 
   return {
+    GROUND_TYPES,
+    CLIMATE_BY_DIR,
+    SIDE_KEYS,
     RECTISH_SHAPES,
     FLAT_MATS,
     FACADE_TYPES,
@@ -7422,10 +7522,12 @@ body.revmode #toolRail{display:none}
     ['[data-fp="resBalcony"]', 'Balconies'],
     ['#facSystemGrp .gc', 'Facade System & Parameters'],
     ['#facSidesLbl', 'Active Elevations'],
-    ['#facSideF', 'Front +Z'],
-    ['#facSideB', 'Back -Z'],
-    ['#facSideR', 'Right +X'],
-    ['#facSideL', 'Left -X'],
+    ['#facAutoBtn', '⚡ Auto Climate Facade (by orientation)'],
+    ['#facGrLbl', 'Ground-Floor Element'],
+    ['#facGrSidesLbl', 'On Side'],
+    ['#facGrTypes [data-fg=""]', 'None'],
+    ['#facGrTypes [data-fg="colon"]', 'Colonnade'],
+    ['#facGrTypes [data-fg="entry"]', 'Canopy Entrance'],
     ['#facSpacingLbl', 'Bay Spacing'],
     ['#facWwrLbl', 'Window Ratio'],
     ['#facDepthLbl', 'Projection'],
@@ -7799,7 +7901,9 @@ body.revmode #toolRail{display:none}
       hfins: 'Horizontal Fins',
       grid: 'Egg-Crate Grid',
       mash: 'Mashrabiya',
-      balcony: 'Balconies'
+      balcony: 'Balconies',
+      ribbon: 'Ribbon Window',
+      slit: 'Vertical Slits'
     },
     modals: {
       io: 'Copy / Paste JSON Design',
@@ -8802,7 +8906,7 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
     for(let k=1;k<sx;k++){const xx=-b.w/2+k*b.w/sx;pts.push(xx,-h/2,z,xx,h/2,z,xx,-h/2,-z,xx,h/2,-z)}
     for(let k=1;k<sz;k++){const zz=-b.d/2+k*b.d/sz;pts.push(x,-h/2,zz,x,h/2,zz,-x,-h/2,zz,-x,h/2,zz)}}
    if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM(b.mat==='glass'?'#1f4e79':'#e7a07c',b.mat==='glass'?.8:.6)))}}
-  if(b.fac&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray')facade(b,h,grp)}
+  if((b.fac||(b.facCfg&&((b.facCfg.ground&&b.facCfg.ground.type)||(b.facCfg.sideFac&&Object.values(b.facCfg.sideFac).some(Boolean)))))&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray')facade(b,h,grp)}
  grp.rotation.y=-((b.shape==='riwaq'?0:rotOf(b))+(b.rot||0))*Math.PI/180;
  pick.userData.i=i;grp.position.set(b.x,b.y0+h/2,b.z);return [grp,pick]}
 let groups=[],handles=[];const hG=new THREE.Group();S.add(hG);
@@ -10332,7 +10436,16 @@ function worldUV(g,b){const map=texOf(b.mat);if(!map)return;const s=map.userData
  const uv=new Float32Array(pos.count*2);for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i)+yo,z=pos.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));let u,v;
   if(ny>.7){u=x;v=z}else if(nx>nz){u=z;v=y}else{u=x;v=y}uv[i*2]=u/s;uv[i*2+1]=v/s}g.setAttribute('uv',new THREE.BufferAttribute(uv,2))}
 // ---- facade elements & Facade Studio ----
-const FACS={'':'بدون',win:'شبابيك (إيقاع)',curtain:'ستائر زجاجية',fins:'كاسرات عمودية',hfins:'كاسرات أفقية',grid:'إطار شبكي',mash:'مشربية',balcony:'شرفات متكررة'};
+const FACS={'':'بدون',win:'شبابيك (إيقاع)',curtain:'ستائر زجاجية',fins:'كاسرات عمودية',hfins:'كاسرات أفقية',grid:'إطار شبكي',mash:'مشربية',balcony:'شرفات متكررة',ribbon:'شريط زجاجي أفقي',slit:'فتحات طولية ضيقة'};
+const hasSideFac=b=>!!(b&&b.facCfg&&b.facCfg.sideFac&&Object.values(b.facCfg.sideFac).some(Boolean));
+// compass direction (N/E/S/W) that each local side f/b/r/l of a block faces, using the site north
+function facSideDirs(b){
+ const o=MC3D_ANALYSIS.getObb(b),n=(+state.site.north||0)*Math.PI/180,N=[Math.sin(n),-Math.cos(n)],E=[Math.cos(n),Math.sin(n)];
+ const loc={f:o.uz,b:[-o.uz[0],-o.uz[1]],r:o.ux,l:[-o.ux[0],-o.ux[1]]},out={};
+ Object.entries(loc).forEach(([k,v])=>{const deg=(Math.atan2(v[0]*E[0]+v[1]*E[1],v[0]*N[0]+v[1]*N[1])*180/Math.PI+360)%360;out[k]=['N','E','S','W'][Math.round(deg/90)%4]});
+ return out;
+}
+const FAC_DIR_NAME=d=>({N:L('شمالية','North'),E:L('شرقية','East'),S:L('جنوبية','South'),W:L('غربية','West')})[d]||d;
 function boxesGeo(list){const P=[],Nn=[],U=[];list.forEach(([cx,cy,cz,sx,sy,sz,ang])=>{const g=new THREE.BoxGeometry(sx,sy,sz).toNonIndexed();g.rotateY(ang);g.translate(cx,cy,cz);
   P.push(...g.attributes.position.array);Nn.push(...g.attributes.normal.array);U.push(...g.attributes.uv.array);g.dispose()});
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));return g}
@@ -10362,7 +10475,9 @@ const FAC_MINI_SVG={
  hfins:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M4 7.5h16M4 11h16M4 14.5h16M4 18h16"/></svg>',
  grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/></svg>',
  mash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M6 6l12 12M18 6L6 18M12 4v16M4 12h16" stroke-opacity="0.8"/></svg>',
- balcony:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M4 10.5h16M4 16.5h16" stroke-width="2"/><rect x="6" y="6" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/><rect x="6" y="12" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/></svg>'
+ balcony:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M4 10.5h16M4 16.5h16" stroke-width="2"/><rect x="6" y="6" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/><rect x="6" y="12" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/></svg>',
+ ribbon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><rect x="5" y="6.5" width="14" height="3" fill="currentColor" fill-opacity="0.25"/><rect x="5" y="14" width="14" height="3" fill="currentColor" fill-opacity="0.25"/></svg>',
+ slit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><rect x="6.5" y="6" width="1.8" height="12" fill="currentColor" fill-opacity="0.3"/><rect x="11.1" y="6" width="1.8" height="12" fill="currentColor" fill-opacity="0.3"/><rect x="15.7" y="6" width="1.8" height="12" fill="currentColor" fill-opacity="0.3"/></svg>'
 };
 let facScope='sel',facZone='main',facFocusIdx=-1;
 function facEligibleIndices(){
@@ -10486,7 +10601,7 @@ function renderFacadeStudio(){
    const curTargets=facTargetIndices();
    const activeIdx=curTargets.length?curTargets[0]:elig[0];
    $('facBlockSel').innerHTML=elig.map(i=>{
-    const b=state.blocks[i],t=b.fac?dn('facs',b.fac,FACS[b.fac]||''):L('بدون','None');
+    const b=state.blocks[i],t=hasSideFac(b)?L('مناخية تلقائية','Auto climate'):b.fac?dn('facs',b.fac,FACS[b.fac]||''):L('بدون','None');
     return `<option value="${i}" ${i===activeIdx?'selected':''}>${b.name.replace(/</g,'&lt;')} (${t})</option>`;
    }).join('');
   }
@@ -10510,9 +10625,10 @@ function renderFacadeStudio(){
  // Render 8 type cards
  const grid=$('facTypeGrid');
  if(grid){
+  const auto=hasSideFac(rep);
   grid.innerHTML=Object.entries(MC3D_FACADE.FACADE_TYPES).map(([k,m])=>{
    const lbl=dn('facs',k,m.ar);
-   return `<button type="button" class="fac-type-card${k===activeFac?' on':''}" data-ft="${k}" title="${lbl}">${FAC_MINI_SVG[k]||''}<span>${lbl}</span></button>`;
+   return `<button type="button" class="fac-type-card${!auto&&k===activeFac?' on':''}" data-ft="${k}" title="${lbl}">${FAC_MINI_SVG[k]||''}<span>${lbl}</span></button>`;
   }).join('');
   grid.querySelectorAll('.fac-type-card').forEach(btn=>{
    btn.onclick=()=>{
@@ -10521,17 +10637,26 @@ function renderFacadeStudio(){
      const hadFac=!!b.fac;
      b.fac=ft;
      if(ft&&(!b.facCfg||!hadFac)){
-      b.facCfg=MC3D_FACADE.normalizeFacadeConfig({tone:cfg.tone,sides:cfg.sides,baseGround:cfg.baseGround},ft);
+      b.facCfg=MC3D_FACADE.normalizeFacadeConfig({tone:cfg.tone,sides:cfg.sides,baseGround:cfg.baseGround,ground:cfg.ground},ft);
      }
+     if(b.facCfg)b.facCfg.sideFac={}; // one type chosen for all sides replaces the climate mix
     });
    };
   });
+  if($('facAutoBtn'))$('facAutoBtn').classList.toggle('on',auto);
  }
 
- // Directional side toggles
+ // Directional side toggles, named by compass direction
+ const dirs=rep&&window.MC3D_ANALYSIS?facSideDirs(rep):null;
  [['facSideF','f'],['facSideB','b'],['facSideR','r'],['facSideL','l']].forEach(([id,sk])=>{
-  if($(id))$(id).classList.toggle('on',!!cfg.sides[sk]);
+  if(!$(id))return;
+  $(id).classList.toggle('on',!!cfg.sides[sk]);
+  if(dirs){const sf=cfg.sideFac[sk]||activeFac;$(id).textContent=FAC_DIR_NAME(dirs[sk]);$(id).title=sf?dn('facs',sf,FACS[sf]||''):''}
  });
+ // Ground-floor element
+ document.querySelectorAll('#facGrTypes [data-fg]').forEach(btn=>btn.classList.toggle('on',btn.dataset.fg===cfg.ground.type));
+ document.querySelectorAll('#facGrSides [data-fgs]').forEach(btn=>{const k=btn.dataset.fgs;btn.classList.toggle('on',!!cfg.ground.sides[k]);if(dirs)btn.textContent=FAC_DIR_NAME(dirs[k])});
+ if($('facGrSidesRow'))$('facGrSidesRow').style.display=cfg.ground.type?'':'none';
 
  // Sliders & readouts
  const um=L('م','m'),u2=L('م²','m²');
@@ -10627,11 +10752,42 @@ function initFacadeStudio(){
   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac);
   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{baseGround:!cur.baseGround}),b.fac);
  });
+ // one-click climate facade: each side gets the element that suits its orientation (Baghdad)
+ if($('facAutoBtn'))$('facAutoBtn').onclick=()=>{
+  if(!window.MC3D_ANALYSIS)return;
+  mutateFacadeTargets(b=>{
+   const dirs=facSideDirs(b),sf={};
+   MC3D_FACADE.SIDE_KEYS.forEach(k=>{sf[k]=MC3D_FACADE.CLIMATE_BY_DIR[dirs[k]]});
+   if(!b.fac)b.fac='win';
+   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac);
+   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{sideFac:sf,sides:{f:true,b:true,r:true,l:true}}),b.fac);
+  });
+  flash(L('واجهة مناخية ✓ جنوبية: كاسرات أفقية · شرقية: كاسرات عمودية · غربية: مشربية · شمالية: شبابيك','Climate facade ✓ South: horizontal louvres · East: vertical fins · West: mashrabiya · North: windows'));
+ };
+ document.querySelectorAll('#facGrTypes [data-fg]').forEach(btn=>{
+  btn.onclick=()=>mutateFacadeTargets(b=>{
+   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac||'win');
+   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{ground:Object.assign({},cur.ground,{type:btn.dataset.fg})}),b.fac||'win');
+  });
+ });
+ document.querySelectorAll('#facGrSides [data-fgs]').forEach(btn=>{
+  btn.onclick=()=>mutateFacadeTargets(b=>{
+   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac||'win');
+   const s=Object.assign({},cur.ground.sides);s[btn.dataset.fgs]=!s[btn.dataset.fgs];
+   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{ground:{type:cur.ground.type,sides:s}}),b.fac||'win');
+  });
+ });
  if($('facApplyAllBtn'))$('facApplyAllBtn').onclick=()=>{
   const elig=facEligibleIndices();if(!elig.length)return;
   const targets=facTargetIndices();
   const rep=targets.length?state.blocks[targets[0]]:state.blocks[elig[0]];
-  if(!rep||!rep.fac)return flash(L('اختر نظام واجهة أولاً لتعميمه','Select a facade system first'));
+  if(!rep||!(rep.fac||(rep.facCfg&&rep.facCfg.ground&&rep.facCfg.ground.type)))return flash(L('اختر نظام واجهة أولاً لتعميمه','Select a facade system first'));
+  if(hasSideFac(rep)){ // climate mix depends on each block's own orientation: recompute per block
+   snap(true);
+   elig.forEach(i=>{const b=state.blocks[i],dirs=facSideDirs(b),sf={};MC3D_FACADE.SIDE_KEYS.forEach(k=>{sf[k]=MC3D_FACADE.CLIMATE_BY_DIR[dirs[k]]});
+    b.fac=rep.fac||'win';b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign(clone(rep.facCfg),{sideFac:sf}),b.fac)});
+   refresh();return flash(L(`طُبِّقت الواجهة المناخية على ${elig.length} كتل ✓`,`Climate facade applied to ${elig.length} blocks ✓`));
+  }
   snap(true);
   const srcCfg=MC3D_FACADE.normalizeFacadeConfig(rep.facCfg,rep.fac);
   elig.forEach(i=>{state.blocks[i].fac=rep.fac;state.blocks[i].facCfg=clone(srcCfg)});

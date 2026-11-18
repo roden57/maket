@@ -597,6 +597,7 @@
             <button type="button" class="fac-preset-btn" data-fp="heritageMash">مشربية تراثية</button>
             <button type="button" class="fac-preset-btn" data-fp="resBalcony">شرفات سكنية</button>
           </div>
+          <button type="button" class="sm pri2" id="facAutoBtn" style="width:100%" title="كل واجهة تأخذ العنصر المناسب لاتجاهها: جنوب كاسرات أفقية، شرق كاسرات عمودية، غرب مشربية، شمال شبابيك">⚡ واجهة مناخية تلقائية (حسب الاتجاه)</button>
         </div>
       </div>
 
@@ -635,6 +636,23 @@
             <div class="fac-tone-swatches" id="facToneBtns"></div>
           </div>
           <button type="button" class="sm on" id="facGroundBtn" style="width:100%">شامل الطابق الأرضي</button>
+          <div class="fld-stack">
+            <span id="facGrLbl">عنصر الطابق الأرضي</span>
+            <div class="fac-sides-grid" id="facGrTypes" role="group" aria-label="عنصر الطابق الأرضي">
+              <button type="button" class="fac-side-btn" data-fg="">بدون</button>
+              <button type="button" class="fac-side-btn" data-fg="colon">رواق أعمدة</button>
+              <button type="button" class="fac-side-btn" data-fg="entry">مدخل بمظلة</button>
+            </div>
+          </div>
+          <div class="fld-stack" id="facGrSidesRow" style="display:none">
+            <span id="facGrSidesLbl">على الواجهة</span>
+            <div class="fac-sides-grid" id="facGrSides" role="group" aria-label="واجهات عنصر الطابق الأرضي">
+              <button type="button" class="fac-side-btn" data-fgs="f">أمام</button>
+              <button type="button" class="fac-side-btn" data-fgs="b">خلف</button>
+              <button type="button" class="fac-side-btn" data-fgs="r">يمين</button>
+              <button type="button" class="fac-side-btn" data-fgs="l">يسار</button>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -277,10 +277,12 @@
     ['[data-fp="resBalcony"]', 'Balconies'],
     ['#facSystemGrp .gc', 'Facade System & Parameters'],
     ['#facSidesLbl', 'Active Elevations'],
-    ['#facSideF', 'Front +Z'],
-    ['#facSideB', 'Back -Z'],
-    ['#facSideR', 'Right +X'],
-    ['#facSideL', 'Left -X'],
+    ['#facAutoBtn', '⚡ Auto Climate Facade (by orientation)'],
+    ['#facGrLbl', 'Ground-Floor Element'],
+    ['#facGrSidesLbl', 'On Side'],
+    ['#facGrTypes [data-fg=""]', 'None'],
+    ['#facGrTypes [data-fg="colon"]', 'Colonnade'],
+    ['#facGrTypes [data-fg="entry"]', 'Canopy Entrance'],
     ['#facSpacingLbl', 'Bay Spacing'],
     ['#facWwrLbl', 'Window Ratio'],
     ['#facDepthLbl', 'Projection'],
@@ -654,7 +656,9 @@
       hfins: 'Horizontal Fins',
       grid: 'Egg-Crate Grid',
       mash: 'Mashrabiya',
-      balcony: 'Balconies'
+      balcony: 'Balconies',
+      ribbon: 'Ribbon Window',
+      slit: 'Vertical Slits'
     },
     modals: {
       io: 'Copy / Paste JSON Design',
