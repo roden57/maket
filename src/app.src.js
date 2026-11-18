@@ -83,6 +83,15 @@ function tplTower(){return normState({v:9,site:{w:100,d:100,sb:6,north:0,city:'b
  norm({name:'جناح مخصص',mat:'brick',fn:'spec',x:-18,z:4,w:16,d:16,f:4,y0:8}),
  norm({name:'قلب الحركة الرأسية',mat:'joint',fn:'circ',x:-6,z:0,w:8,d:10,f:11})
 ]})}
+// The student's original sketches (src/sketch*.json, filled in by build.py)
+const SK2=__SK2__;
+const SK3=__SK3__;
+const SK4=__SK4__;
+function origCourt(c){return [norm({name:'الفناء',mat:'green',x:c.x,z:c.z,w:c.w,d:c.d,f:1})]}
+function origRiwaq(c){return norm({name:'الرواق',shape:'riwaq',mat:'white',x:c.x,z:c.z,w:c.w-1,d:c.d-1,f:1})}
+function sketchOrig(n){const base={v:9,site:{w:100,d:100,sb:0,north:0},fh:4};
+ if(n===3)return normState(Object.assign(base,{blocks:SK4.blocks.map(b=>norm(b))}));
+ const sk=n===2?SK3:SK2;return normState(Object.assign(base,{blocks:origCourt(sk.core).concat(sk.blocks.map(b=>norm(b)),[origRiwaq(sk.core)])}))}
 function migrate(o){const s=tplCourtyard();s.blocks=(o.blocks||[]).map(b=>norm(b));return normState(s)}
 function blank(){return normState({site:clone(state.site),meta:clone(state.meta),fh:state.fh,blocks:[],sun:clone(state.sun),img:state.img?clone(state.img):null})}
 let state=null,designs=LS.get('mc3d_designs')||{};
@@ -475,6 +484,8 @@ $('bNew').onclick=e=>arm(e.currentTarget,()=>{snap(true);state=blank();designs[c
 $('bSketch').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplCourtyard();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('فناء وسطي','Courtyard'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب الفناء الوسطي ✓','Loaded Courtyard template ✓'))});
 $('bSketch2').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplCluster();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('مجمع كتل','Mass Cluster'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب مجمع الكتل ✓','Loaded Mass Cluster template ✓'))});
 $('bSketch3').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplTower();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('برج ومنصة','Tower & Podium'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب البرج والمنصة ✓','Loaded Tower & Podium template ✓'))});
+[['bOrig1',1,'المخطط الأول','Sketch 1'],['bOrig2',2,'المخطط الثاني','Sketch 2'],['bOrig3',3,'المخطط الثالث','Sketch 3']].forEach(([id,n,ar,en])=>{
+ $(id).onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=sketchOrig(n);state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L(ar,en));clearSel();siteChanged();refresh();view('iso');flash(L('استُعيد '+ar+' الأصلي ✓','Restored original '+en+' ✓'))})});
 $('bSave').onclick=()=>{const n=($('dname').value||curName||'').trim();if(!n)return flash(L('أدخل اسماً للتصميم','Enter a design name'));designs[curName]=clone(state);designs[n]=clone(state);curName=n;const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=n;flushLocalSaveClean(ok);if(typeof cloudSoon==='function')cloudSoon();flash(ok?L('تم الحفظ: ','Saved: ')+n:L('⚠ الذاكرة ممتلئة','⚠ Storage full'))};
 $('qSave').onclick=()=>{$('dname').value=curName;$('bSave').click()};
 $('bOpen').onclick=()=>{const n=$('dsel').value;if(!n||!designs[n])return;if(n===curName)return flash(L('هذا التصميم مفتوح أصلاً','This design is already open'));designs[curName]=clone(state);LS.set('mc3d_designs',designs);snap(true);state=normState(clone(designs[n]));curName=n;clearSel();siteChanged();refresh();fillDesigns();$('dsel').value=n;const ok=LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);flushLocalSaveClean(ok);flash(L('تم الفتح: '+n+' — التصميم السابق محفوظ','Opened: '+n+' — previous design saved'))};
