@@ -444,6 +444,7 @@
     ['#ntImp', 'Import Notes'],
 
     // Program modal
+    ['#pgPreset option[value="medEdu"]', 'Preset: Medical Educational & Training Center (my project)'],
     ['#pgPreset option[value="general"]', 'Preset: Mixed-Use Project'],
     ['#pgPreset option[value="edu"]', 'Preset: Educational / Cultural'],
     ['#pgPreset option[value="res"]', 'Preset: Residential Complex'],

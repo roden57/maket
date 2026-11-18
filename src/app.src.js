@@ -324,7 +324,7 @@ function areaOf(b){if(!counts(b))return 0;const [w,d]=loc(b);let f=1;const t1=Ma
  switch(b.shape){case 'cyl':f=Math.PI/4;break;case 'ring':f=Math.PI/4*.64;break;case 'tri':f=.5;break;case 'L':f=(w*d-(w-t1)*(d-t1))/(w*d);break;case 'U':f=(w*d-(w-2*t2)*(d-t2))/(w*d);break;case 'court':{const t=courtT(b);f=(w*d-(w-2*t)*(d-2*t))/(w*d);break}}
  return w*d*f}
 let lastFp=0,lastGfa=0;
-function stats(){const st=state.site,bl=state.blocks.filter(counts);let fp=0;const W=st.w,D=st.d;
+function stats(){if(window.MC3D_PROG_READY)syncFnTargets();const st=state.site,bl=state.blocks.filter(counts);let fp=0;const W=st.w,D=st.d;
  const grounded=bl.filter(b=>b.y0<1);
  for(let x=-W/2+.5;x<W/2;x+=1)for(let z=-D/2+.5;z<D/2;z+=1){for(const b of grounded){if(inside(b,x,z)){fp+=1;break}}}
  const by={};Object.keys(FNS).forEach(k=>by[k]=0);let gfa=0;bl.forEach(b=>{const a=areaOf(b)*b.f;gfa+=a;by[b.fn||'']+=a});
@@ -2719,17 +2719,37 @@ const PROG_PRESETS={
   adm:[['إدارة وسجلات طبية','Medical Records & Admin',180,1],['تعقيم وصيدلية وميكانيك','CSSD, Pharmacy & MEP',280,1]],
   circ:[['مصاعد وممرات فصل الحركة','Separated Circulation Cores',260,1]]
  },
+ // The student's project: Medical Educational & Training Center, Bab al-Muadham (suggested program, ~4,700 m² net)
+ medEdu:{
+  main:[['مدرج المحاضرات الرئيسي (250 مقعد)','Main Lecture Theatre (250 seats)',300,1],['قاعة دراسية (40 طالب)','Classroom (40 students)',80,6],['قاعة تعلّم جماعي PBL (12 طالب)','PBL Group Room (12 students)',40,6]],
+  spec:[['غرفة محاكاة طبية عالية الدقة','High-Fidelity Simulation Room',60,4],['غرفة تحكم ومراقبة المحاكاة','Simulation Control Room',30,2],['قاعة مراجعة ما بعد المحاكاة','Debriefing Room',40,2],['مختبر المهارات السريرية','Clinical Skills Lab',150,2],['مختبر التشريح والنماذج','Anatomy & Models Lab',180,1],['مختبر العلوم الطبية الأساسية','Basic Medical Sciences Lab',100,2],['مختبر الحاسوب والتعليم الإلكتروني','Computer & e-Learning Lab',90,1]],
+  pub:[['بهو الاستقبال والمعرض','Entrance Lobby & Exhibition',250,1],['المكتبة الطبية وقاعة المطالعة','Medical Library & Reading Hall',350,1],['قاعة المؤتمرات والندوات','Conference & Seminar Hall',280,1],['كافتيريا واستراحة الطلبة','Cafeteria & Student Lounge',200,1],['مصلى','Prayer Room',80,1]],
+  adm:[['الإدارة والعمادة','Dean & Administration',180,1],['مكاتب التدريسيين والمدربين','Faculty & Trainer Offices',200,1],['قاعة اجتماعات','Meeting Room',50,1],['شؤون الطلبة والتسجيل','Student Affairs & Registry',80,1],['مرافق صحية','Restrooms',160,1],['مخازن المعدات الطبية','Medical Equipment Storage',120,1],['غرف الميكانيك والكهرباء','MEP Plant Rooms',220,1]],
+  circ:[['نواة حركة رأسية (سلالم ومصاعد)','Vertical Core (Stairs & Lifts)',150,2]]
+ },
  empty:{main:[],pub:[],spec:[],adm:[],circ:[]}
 };
+// Function area targets (FNS[k].t, net m²) follow the current design's program when it has spaces
+var FNS_T0=null;
+function syncFnTargets(){
+ if(!FNS_T0)FNS_T0=Object.fromEntries(Object.entries(FNS).map(([k,f])=>[k,f.t]));
+ // one-time move: a program that was auto-created with the old 'general' default and never allocated -> this project's program
+ const P0=state&&state.prog;
+ if(P0&&!P0.v){if((P0.preset||'general')==='general'&&!(P0.sp||[]).some(x=>x.bid))state.prog=progSeed('medEdu');else P0.v=2}
+ const sp=state&&state.prog&&state.prog.sp;
+ if(!sp||!sp.length){Object.keys(FNS).forEach(k=>{FNS[k].t=FNS_T0[k]});return}
+ const by={};sp.forEach(x=>{const fn=LEGACY_FN[x.fn]||x.fn;by[fn]=(by[fn]||0)+(+x.a||0)});
+ Object.keys(FNS).forEach(k=>{FNS[k].t=k?Math.round(by[k]||0):0})}
 function progSeed(preset){
- const p=(preset&&PROG_PRESETS[preset])?preset:'general';
+ const p=(preset&&PROG_PRESETS[preset])?preset:'medEdu';
  const src=PROG_PRESETS[p],sp=[];
  Object.entries(src).forEach(([fn,Lst])=>Lst.forEach(([nar,nen,a,q])=>{
   for(let k=1;k<=q;k++)sp.push({id:uid(),n:q>1?nar+' '+k:nar,nen:q>1?nen+' '+k:nen,a,fn,bid:'',fl:0});
  }));
- return {eff:.8,preset:p,sp};
+ return {v:2,eff:.8,preset:p,sp};
 }
 const prog=()=>(state.prog=state.prog||progSeed());
+window.MC3D_PROG_READY=true;
 function slots(){const out=[];state.blocks.forEach((b,i)=>{if(!counts(b)||b.hidden)return;for(let f=0;f<b.f;f++)out.push({key:b.id+'|'+f,bid:b.id,fl:f,i,b,cap:areaOf(b)*prog().eff})});return out}
 const slotName=s=>`B${String(s.i+1).padStart(2,'0')} ${s.b.name} — ${L('ط','F')}${s.fl+1}`;
 function progUse(){const P=prog(),use={};P.sp.forEach(x=>{if(!x.bid)return;const k=x.bid+'|'+x.fl;(use[k]=use[k]||{a:0,L:[]}).a+=x.a;use[k].L.push(x)});return use}
