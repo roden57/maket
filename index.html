@@ -121,19 +121,23 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 }
 #langBtn:hover{background:var(--acc-soft);border-color:var(--acc-line);color:var(--acc)}
 #curname{
-  font-size:13px;
+  font-size:12.5px;
   color:var(--muted);
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
-  max-width:210px;
+  max-width:150px;
+}
+#curname.unsaved{
+  color:#b45309;
+  font-weight:600;
 }
 
 /* Workspace Tabs */
 #tabs{
   display:flex;
   align-items:center;
-  gap:2px;
+  gap:1px;
   overflow-x:auto;
   scrollbar-width:none;
   flex:1;
@@ -147,8 +151,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   border:0;
   background:transparent;
   color:var(--ink-2);
-  padding:7px 11px;
-  font-size:13px;
+  padding:6px 7px;
+  font-size:12px;
   font-weight:500;
   border-radius:var(--radius);
   cursor:pointer;
@@ -165,11 +169,25 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 header#top:nth-of-type(1) > nav#tabs:nth-of-type(1) > button:nth-of-type(3).on,
 header#top:nth-of-type(1) > nav#tabs:nth-of-type(1) > button:nth-of-type(4).on,
 header#top:nth-of-type(1) > nav#tabs:nth-of-type(1) > button:nth-of-type(5).on,
-header#top:nth-of-type(1) > nav#tabs:nth-of-type(1) > button:nth-of-type(6).on{
+header#top:nth-of-type(1) > nav#tabs:nth-of-type(1) > button:nth-of-type(6).on,
+header#top > nav#tabs > button[data-t="facade"].on,
+header#top > nav#tabs > button[data-t="mass"].on{
   background:linear-gradient(180deg,rgba(30,64,175,.14) 0%,rgba(239,246,255,.96) 100%);
   color:var(--acc);
   font-weight:600;
   box-shadow:inset 0 2.5px 0 var(--acc),inset 0 0 0 1px var(--acc-line),0 1px 2px rgba(30,64,175,.08);
+}
+header#top > nav#tabs > button[data-t="facade"],
+header#top > nav#tabs > button[data-t="mass"]{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+}
+header#top > nav#tabs > button[data-t="facade"] .ic-facade,
+header#top > nav#tabs > button[data-t="mass"] .ic-mass{
+  width:15px;
+  height:15px;
+  flex:none;
 }
 header#top > nav#tabs > button:nth-of-type(5){
   display:inline-flex;
@@ -384,13 +402,53 @@ body.insp-closed #inspector{
 body.insp-closed #inspToggle{right:12px}
 
 #ribbon{
+  position:relative;
   flex:1;
   overflow-y:auto;
   overflow-x:hidden;
   padding:0;
 }
-.pane{display:none;flex-direction:column}
-.pane.on{display:flex}
+.pane{
+  display:none;
+  flex-direction:column;
+  opacity:0;
+  transform:translateY(5px);
+}
+.pane.entering{
+  display:flex;
+  opacity:0;
+  transform:translateY(5px);
+}
+.pane.on{
+  display:flex;
+  position:relative;
+  z-index:1;
+  opacity:1;
+  transform:translateY(0);
+  transition:opacity .2s cubic-bezier(.16,1,.3,1) .04s,transform .2s cubic-bezier(.16,1,.3,1) .04s;
+}
+.pane.leaving-prep{
+  display:flex;
+  position:absolute;
+  top:0;
+  left:0;
+  right:0;
+  z-index:0;
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:none;
+}
+.pane.leaving{
+  opacity:0;
+  transform:translateY(-4px);
+  transition:opacity .14s ease-out,transform .14s ease-out;
+}
+@media (prefers-reduced-motion:reduce){
+  .pane,.pane.entering,.pane.on,.pane.leaving-prep,.pane.leaving{
+    transition:none!important;
+    transform:none!important;
+  }
+}
 
 /* Inspector Section Cards */
 .grp{
@@ -1110,6 +1168,716 @@ body.revmode #toolRail{display:none}
 .sec-chip.on{border-color:#ff8f00;background:#fff8eb;color:var(--ink);font-weight:600}
 .sec-chip .sw{width:8px;height:8px;margin-inline-end:0}
 
+/* Site Studio (#p_site) */
+.site-seg{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:4px;
+  padding:3px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.site-seg button{
+  height:26px;
+  padding:0 6px;
+  border:0;
+  background:transparent;
+  color:var(--ink-2);
+  font-size:11.5px;
+  font-weight:500;
+  border-radius:4px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:background .15s,color .15s;
+}
+.site-seg button.on{
+  background:var(--surface);
+  color:var(--acc);
+  font-weight:600;
+  box-shadow:0 1px 2px rgba(15,23,42,.08);
+}
+.site-street-pad{
+  display:grid;
+  grid-template-columns:1fr 1.25fr 1fr;
+  grid-template-rows:auto auto auto;
+  gap:4px;
+  padding:6px;
+  direction:ltr;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.site-street-btn{
+  min-height:28px;
+  padding:3px 6px;
+  border:1px dashed var(--line-strong);
+  border-radius:4px;
+  background:var(--surface);
+  color:var(--ink-2);
+  font-size:11px;
+  font-weight:500;
+  cursor:pointer;
+  transition:all .15s;
+}
+.site-street-btn:hover{border-color:var(--acc-line);color:var(--acc)}
+.site-street-btn.on{
+  background:#334155;
+  color:#fff;
+  border-style:solid;
+  border-color:#1e293b;
+  font-weight:600;
+}
+.site-parcel-core{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  min-height:36px;
+  background:#f8fafc;
+  border:1.5px solid #94a3b8;
+  border-radius:4px;
+  font-family:var(--font-mono);
+  font-size:11px;
+  font-weight:600;
+  color:var(--ink);
+  padding:2px 4px;
+}
+.site-bars{display:flex;flex-direction:column;gap:6px}
+.site-bar-row{display:flex;flex-direction:column;gap:3px}
+.site-bar-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-size:11px;
+  color:var(--ink-2);
+}
+.site-bar-head b{font-family:var(--font-mono);color:var(--ink)}
+.site-bar-track{
+  height:6px;
+  border-radius:3px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  overflow:hidden;
+}
+.site-bar-fill{
+  height:100%;
+  width:0%;
+  background:var(--acc);
+  transition:width .2s,background-color .2s;
+}
+.site-bar-fill.over{background:var(--danger)}
+#siteDiagramWrap{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--surface-2);
+  padding:6px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+#siteDiagram{
+  width:100%;
+  height:152px;
+  display:block;
+  direction:ltr;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:4px;
+}
+#siteDiagram .site-blk{cursor:pointer;transition:opacity .12s}
+#siteDiagram .site-blk:hover{opacity:.82}
+#siteDiagram .site-blk.is-sel{stroke:#ff8f00;stroke-width:2.2}
+#siteViolationList{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+}
+.site-vchip{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:2px 7px;
+  border:1px solid #fecaca;
+  border-radius:4px;
+  background:#fef2f2;
+  color:#b91c1c;
+  font-size:11px;
+  cursor:pointer;
+}
+.site-vchip:hover{background:#fee2e2}
+.site-ok-pill{
+  font-size:11px;
+  color:#15803d;
+  background:#f0fdf4;
+  border:1px solid #bbf7d0;
+  border-radius:4px;
+  padding:4px 8px;
+  text-align:center;
+}
+
+/* Facade Studio (#p_facade) */
+.fac-seg{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:3px;
+  padding:3px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.fac-seg button{
+  height:26px;
+  padding:0 4px;
+  border:0;
+  background:transparent;
+  color:var(--ink-2);
+  font-size:11px;
+  font-weight:500;
+  border-radius:4px;
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  transition:background .15s,color .15s;
+}
+.fac-seg button.on{
+  background:var(--surface);
+  color:var(--acc);
+  font-weight:600;
+  box-shadow:0 1px 2px rgba(15,23,42,.08);
+}
+.fac-presets{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:5px;
+}
+.fac-preset-btn{
+  min-height:28px;
+  padding:4px 7px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--surface-2);
+  color:var(--ink-2);
+  font-size:11px;
+  font-weight:500;
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  transition:border-color .15s,background .15s,color .15s;
+}
+.fac-preset-btn:hover{border-color:var(--acc-line);color:var(--acc);background:var(--acc-soft)}
+.fac-type-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+}
+.fac-type-card{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  padding:5px 6px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--surface);
+  color:var(--ink-2);
+  font-size:11px;
+  font-weight:500;
+  text-align:start;
+  cursor:pointer;
+  min-height:34px;
+  transition:border-color .15s,background .15s,color .15s;
+}
+.fac-type-card svg{
+  width:18px;
+  height:18px;
+  flex:none;
+  color:var(--muted);
+}
+.fac-type-card span{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.fac-type-card:hover{border-color:var(--acc-line);color:var(--ink)}
+.fac-type-card.on{
+  border-color:var(--acc);
+  background:var(--acc-soft);
+  color:var(--acc);
+  font-weight:600;
+}
+.fac-type-card.on svg{color:var(--acc)}
+.fac-sides-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:4px;
+}
+.fac-side-btn{
+  min-height:26px;
+  padding:2px 4px;
+  border:1px solid var(--line);
+  border-radius:4px;
+  background:var(--surface);
+  color:var(--muted);
+  font-size:11px;
+  font-weight:500;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .15s;
+}
+.fac-side-btn.on{
+  background:var(--acc-soft);
+  border-color:var(--acc-line);
+  color:var(--acc);
+  font-weight:600;
+}
+.fac-tones-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+}
+.fac-tone-swatches{
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+.fac-tone-btn{
+  width:22px;
+  height:22px;
+  border-radius:4px;
+  border:1.5px solid rgba(15,23,42,.18);
+  cursor:pointer;
+  padding:0;
+  transition:transform .12s,box-shadow .12s;
+}
+.fac-tone-btn:hover{transform:scale(1.08)}
+.fac-tone-btn.on{
+  box-shadow:0 0 0 2px #fff,0 0 0 3.5px var(--acc);
+}
+#facPreviewWrap{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--surface-2);
+  padding:6px;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+#facPreviewSvg{
+  width:100%;
+  height:142px;
+  display:block;
+  direction:ltr;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:4px;
+}
+.fac-meta-line{
+  font-size:11px;
+  color:var(--muted);
+  line-height:1.45;
+  text-align:center;
+}
+.fac-empty{
+  padding:14px 10px;
+  border:1px dashed var(--line-strong);
+  border-radius:var(--radius);
+  background:var(--surface-2);
+  color:var(--muted);
+  font-size:12px;
+  text-align:center;
+  line-height:1.6;
+}
+
+/* Mass Analysis Studio (#p_mass) */
+.mass-seg{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:3px;
+  padding:3px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.mass-seg button{
+  height:27px;
+  padding:0 2px;
+  border:0;
+  background:transparent;
+  color:var(--ink-2);
+  font-size:10.5px;
+  font-weight:500;
+  border-radius:4px;
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  transition:background .15s,color .15s;
+}
+.mass-seg button:hover{color:var(--ink)}
+.mass-seg button.on{
+  background:var(--surface);
+  color:var(--acc);
+  font-weight:600;
+  box-shadow:0 1px 2px rgba(15,23,42,.08);
+}
+.mass-metric-seg{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:3px;
+  padding:3px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.mass-metric-seg button{
+  height:25px;
+  padding:0 3px;
+  border:0;
+  background:transparent;
+  color:var(--ink-2);
+  font-size:10.5px;
+  font-weight:500;
+  border-radius:4px;
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  transition:background .15s,color .15s;
+}
+.mass-metric-seg button.on{
+  background:var(--surface);
+  color:var(--acc);
+  font-weight:600;
+  box-shadow:0 1px 2px rgba(15,23,42,.08);
+}
+.mass-legend-box{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  padding:7px 8px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.mass-legend-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-size:11px;
+  font-weight:600;
+  color:var(--ink-2);
+}
+.mass-bar{
+  height:9px;
+  border-radius:4px;
+  border:1px solid rgba(15,23,42,.12);
+  direction:ltr;
+}
+.mass-ticks{
+  display:flex;
+  justify-content:space-between;
+  font-size:10px;
+  color:var(--muted);
+  font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums;
+  direction:ltr;
+}
+#massChartWrap{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--surface-2);
+  padding:6px;
+}
+#massChartSvg{
+  width:100%;
+  height:148px;
+  display:block;
+  direction:ltr;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:4px;
+}
+#massChartSvg .mass-bar-col{cursor:pointer;transition:opacity .12s}
+#massChartSvg .mass-bar-col:hover{opacity:.82}
+.mass-issues-list{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  max-height:148px;
+  overflow:auto;
+}
+.mass-issue-btn{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  width:100%;
+  padding:6px 8px;
+  border:1px solid #fecaca;
+  border-radius:5px;
+  background:#fef2f2;
+  color:#991b1b;
+  font-size:11px;
+  text-align:start;
+  cursor:pointer;
+  transition:background .12s;
+}
+.mass-issue-btn:hover{background:#fee2e2}
+.mass-issue-btn.gap{
+  border-color:#fde68a;
+  background:#fffbeb;
+  color:#92400e;
+}
+.mass-issue-btn.gap:hover{background:#fef3c7}
+.mass-issue-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  font-weight:600;
+}
+.mass-issue-sub{
+  font-size:10.5px;
+  opacity:.85;
+  font-family:var(--font-mono);
+}
+.mass-table{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  max-height:210px;
+  overflow:auto;
+}
+.mass-row{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  width:100%;
+  padding:6px 8px;
+  border:1px solid var(--line);
+  border-radius:5px;
+  background:var(--surface);
+  color:var(--ink);
+  text-align:start;
+  cursor:pointer;
+  transition:border-color .12s,background .12s;
+}
+.mass-row:hover{border-color:var(--acc-line);background:var(--surface-2)}
+.mass-row.on{border-color:var(--acc);background:var(--acc-soft)}
+.mass-row-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  font-size:11.5px;
+  font-weight:600;
+}
+.mass-row-name{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.mass-row-dot{
+  width:9px;
+  height:9px;
+  border-radius:2px;
+  flex:none;
+  border:1px solid rgba(15,23,42,.18);
+}
+.mass-row-metrics{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+  font-size:10.5px;
+  color:var(--muted);
+  font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums;
+}
+/* Architectural Analysis Studio (#p_mass sub-views) */
+.an-subtabs{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:3px;
+  padding:3px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.an-subtabs button,.an-envtabs button,.an-seg2 button{
+  height:28px;
+  padding:0 4px;
+  border:0;
+  background:transparent;
+  color:var(--ink-2);
+  font-size:11px;
+  font-weight:500;
+  border-radius:4px;
+  cursor:pointer;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  transition:background .15s,color .15s;
+}
+.an-subtabs button:hover,.an-envtabs button:hover,.an-seg2 button:hover{color:var(--ink)}
+.an-subtabs button.on,.an-envtabs button.on,.an-seg2 button.on{
+  background:var(--surface);
+  color:var(--acc);
+  font-weight:600;
+  box-shadow:0 1px 2px rgba(15,23,42,.08);
+}
+.an-envtabs{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:3px;
+  padding:3px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.an-seg2{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:3px;
+  padding:3px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+}
+.an-subsec{display:none;flex-direction:column;gap:8px}
+.an-subsec.on{display:flex}
+.an-svg-frame{
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--surface);
+  padding:6px;
+}
+.an-svg-frame svg{
+  width:100%;
+  display:block;
+  direction:ltr;
+  background:#ffffff;
+  border:1px solid var(--line);
+  border-radius:4px;
+}
+#anBubbleSvg{height:194px}
+#anBubbleSvg .an-bub{cursor:pointer;transition:opacity .12s}
+#anBubbleSvg .an-bub:hover{opacity:.84}
+#anEnvSvg{height:132px}
+.an-parti-box{
+  padding:9px 10px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--surface-2);
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.an-parti-kicker{
+  font-size:10px;
+  color:var(--muted);
+  font-weight:600;
+}
+.an-parti-title{
+  font-size:13px;
+  font-weight:700;
+  color:var(--ink);
+}
+.an-parti-desc{
+  font-size:11px;
+  line-height:1.5;
+  color:var(--ink-2);
+}
+.an-morph-nav{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+}
+.an-morph-nav .an-step-cnt{
+  font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums;
+  font-size:11px;
+  color:var(--ink-2);
+  font-weight:600;
+}
+.an-morph-list{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.an-morph-step{
+  display:grid;
+  grid-template-columns:56px 1fr;
+  gap:8px;
+  align-items:center;
+  width:100%;
+  padding:7px 8px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--surface);
+  color:var(--ink);
+  text-align:start;
+  cursor:pointer;
+  transition:border-color .14s,background .14s;
+}
+.an-morph-step:hover{border-color:var(--acc-line);background:var(--surface-2)}
+.an-morph-step.on{border-color:var(--acc);background:var(--acc-soft)}
+.an-morph-diag{
+  width:56px;
+  height:48px;
+  border:1px solid var(--line);
+  border-radius:4px;
+  background:#ffffff;
+  flex:none;
+}
+.an-morph-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.an-morph-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  font-size:11.5px;
+  font-weight:600;
+}
+.an-morph-meta{
+  font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums;
+  font-size:10px;
+  color:var(--acc);
+  white-space:nowrap;
+}
+.an-morph-desc{
+  font-size:10.5px;
+  line-height:1.45;
+  color:var(--muted);
+}
+.an-rec-line{
+  padding:6px 8px;
+  border:1px solid var(--line);
+  border-radius:5px;
+  background:var(--surface-2);
+  font-size:11px;
+  line-height:1.5;
+  color:var(--ink-2);
+}
+.an-rec-line.warn{
+  border-color:#fecaca;
+  background:#fef2f2;
+  color:#991b1b;
+}
+.an-rec-line.good{
+  border-color:#bbf7d0;
+  background:#f0fdf4;
+  color:#166534;
+}
+
 .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-inline-end:6px;vertical-align:-1px;flex:none}
 .hint{color:var(--muted);font-size:11.5px}
 .warnTxt{color:var(--danger);font-weight:500}
@@ -1437,6 +2205,8 @@ body.revmode #toolRail{display:none}
     <button class="tab" data-t="site">الموقع</button>
     <button class="tab" data-t="sun"><svg class="ic ic-sunwind" viewBox="0 0 24 24" aria-hidden="true"><g class="sw-sun" stroke="#f59e0b" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="15.5" cy="7.5" r="2.75" fill="#fbbf24" fill-opacity="0.25"/><path d="M15.5 2v1.6M15.5 11.4V13M10 7.5h1.6M19.4 7.5H21M11.6 3.6l1.1 1.1M18.3 10.3l1.1 1.1M19.4 3.6l-1.1 1.1M12.7 10.3l-1.1 1.1"/></g><g fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><path class="sw-wind" d="M2.5 14.5h11.2a2.1 2.1 0 1 0-2.1-2.1"/><path class="sw-wind sw-wind-2" d="M4 18.8h14.2a2 2 0 1 1-2 2"/></g></svg> الشمس والرياح</button>
     <button class="tab" data-t="sec">المقطع</button>
+    <button class="tab" data-t="facade"><svg class="ic ic-facade" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/></svg> الواجهات</button>
+    <button class="tab" data-t="mass"><svg class="ic ic-mass" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z"/><path d="M12 12 4 7.5M12 12l8-4.5M12 12v9"/><path d="M16 5.2v4.6l4 2.2"/></svg> تحليل</button>
     <button class="tab" data-t="sheet">اللوحات</button>
     <button class="tab" data-t="areas">المساحات</button>
     <button class="tab ctx" data-t="mod" id="tabMod">تعديل الكتلة</button>
@@ -1543,7 +2313,7 @@ body.revmode #toolRail{display:none}
         <div class="gb">
           <div class="fld"><span class="fld-lbl">خطوة الشبكة</span><select id="dSnap"><option value="0.5">0.5 م</option><option value="1" selected>1 م</option><option value="2">2 م</option><option value="5">5 م</option></select></div>
           <div class="gb-row">
-            <button class="sm on" id="bEdge">التصاق بالحواف</button>
+            <button class="sm on" id="bEdge" title="تفعيل الالتقاط والخطوط الإرشادية عند محاذاة الحواف أو المراكز">المحاذاة الذكية</button>
             <button class="sm" id="bAll">تحديد الكل</button>
           </div>
           <div class="gb-row">
@@ -1627,20 +2397,112 @@ body.revmode #toolRail{display:none}
 
     <!-- SITE -->
     <div class="pane" id="p_site">
-      <div class="grp">
+      <div class="grp" id="siteMainGrp">
         <div class="gc">أبعاد القطعة والنظام</div>
         <div class="gb">
-          <div class="fld-grid">
-            <div class="fld-stack">العرض (م) <input type="number" id="sW" min="20" max="600"></div>
-            <div class="fld-stack">العمق (م) <input type="number" id="sD" min="20" max="600"></div>
-            <div class="fld-stack">الارتداد (م) <input type="number" id="sSB" min="0" max="50" step="0.5"></div>
-            <div class="fld-stack">ارتفاع الطابق (م) <input type="number" id="sFH" min="2.5" max="10" step="0.5"></div>
+          <div class="gb-row" style="grid-template-columns:1fr auto">
+            <select id="sitePresetSel" aria-label="قالب أبعاد قطعة الأرض">
+              <option value="">قالب أبعاد سريع…</option>
+              <option value="100x100">مربع قياسي (100×100م)</option>
+              <option value="60x40">قطعة ناصية (60×40م)</option>
+              <option value="40x60">قطعة حضرية (40×60م)</option>
+              <option value="160x120">مجمع واسع (160×120م)</option>
+            </select>
+            <button type="button" class="sm" id="bFitSite">تأطير</button>
           </div>
-          <div class="fld"><span class="fld-lbl">اتجاه الشمال (°)</span><input type="number" id="sN" min="-180" max="180" step="5"></div>
+          <div class="fld-grid">
+            <div class="fld-stack"><span id="lblSiteW">العرض (م)</span> <input type="number" id="sW" min="10" max="600"></div>
+            <div class="fld-stack"><span id="lblSiteD">العمق (م)</span> <input type="number" id="sD" min="10" max="600"></div>
+            <div class="fld-stack"><span id="lblSiteFH">ارتفاع الطابق (م)</span> <input type="number" id="sFH" min="2.5" max="10" step="0.5"></div>
+            <div class="fld-stack"><span id="lblSiteN">اتجاه الشمال (°)</span> <input type="number" id="sN" min="-180" max="180" step="5"></div>
+          </div>
+          <div class="site-seg" role="group" aria-label="نمط الارتداد">
+            <button type="button" class="on" id="sbModeUniform">ارتداد موحد</button>
+            <button type="button" id="sbModeCustom">ارتداد مخصص</button>
+          </div>
+          <div class="fld" id="sbUniformWrap">
+            <span class="fld-lbl" id="sbUniformLbl">الارتداد (م)</span>
+            <input type="number" id="sSB" min="0" max="100" step="0.5">
+          </div>
+          <div class="fld-grid" id="sbCustomWrap" style="display:none">
+            <div class="fld-stack"><span id="lblSbN">شمال (م)</span> <input type="number" id="sSBN" min="0" max="100" step="0.5"></div>
+            <div class="fld-stack"><span id="lblSbS">جنوب (م)</span> <input type="number" id="sSBS" min="0" max="100" step="0.5"></div>
+            <div class="fld-stack"><span id="lblSbE">شرق (م)</span> <input type="number" id="sSBE" min="0" max="100" step="0.5"></div>
+            <div class="fld-stack"><span id="lblSbW">غرب (م)</span> <input type="number" id="sSBW" min="0" max="100" step="0.5"></div>
+          </div>
+          <div class="fld-grid">
+            <div class="fld-stack"><span id="lblMaxCov">أقصى تغطية (%)</span> <input type="number" id="sMaxCov" min="5" max="100" step="5"></div>
+            <div class="fld-stack"><span id="lblMaxFar">أقصى استغلال FAR</span> <input type="number" id="sMaxFar" min="0.2" max="20" step="0.1"></div>
+          </div>
         </div>
       </div>
 
-      <div class="grp">
+      <div class="grp" id="siteStreetsGrp">
+        <div class="gc">الشوارع المحيطة والوصول</div>
+        <div class="gb">
+          <div class="site-street-pad" role="group" aria-label="اتجاهات الشوارع المحيطة">
+            <span></span>
+            <button type="button" class="site-street-btn" id="stN">شارع شمال</button>
+            <span></span>
+            <button type="button" class="site-street-btn" id="stW">شارع غرب</button>
+            <div class="site-parcel-core" id="siteParcelMini">100×100م</div>
+            <button type="button" class="site-street-btn" id="stE">شارع شرق</button>
+            <span></span>
+            <button type="button" class="site-street-btn on" id="stS">شارع جنوب</button>
+            <span></span>
+          </div>
+          <div class="fld">
+            <span class="fld-lbl" id="sRoadWLbl">عرض الشارع</span>
+            <input type="range" id="sRoadW" min="4" max="36" step="1" value="12">
+            <b id="sRoadWL" style="font-family:var(--font-mono)">12 م</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="grp" id="siteAnalysisGrp">
+        <div class="gc">ملخص الموقع والارتدادات</div>
+        <div class="gb">
+          <div class="hm-kpis">
+            <div class="hm-kpi">
+              <span class="hm-kpi-lbl" id="sitePlotLbl">مساحة القطعة</span>
+              <span class="hm-kpi-val" id="sitePlotArea">10,000</span>
+              <span class="hm-kpi-sub" id="sitePlotUnit">م²</span>
+            </div>
+            <div class="hm-kpi">
+              <span class="hm-kpi-lbl" id="siteBuildLbl">قابل للبناء</span>
+              <span class="hm-kpi-val" id="siteBuildArea">8,100</span>
+              <span class="hm-kpi-sub" id="siteBuildUnit">م²</span>
+            </div>
+            <div class="hm-kpi">
+              <span class="hm-kpi-lbl" id="siteCompLbl">الالتزام</span>
+              <span class="hm-kpi-val" id="siteCompStatus">✓</span>
+              <span class="hm-kpi-sub" id="siteCompSub">مطابق</span>
+            </div>
+          </div>
+          <div class="site-bars">
+            <div class="site-bar-row">
+              <div class="site-bar-head">
+                <span id="siteCovLbl">نسبة البناء (التغطية)</span>
+                <b id="siteCovVal">0% / 60%</b>
+              </div>
+              <div class="site-bar-track"><div class="site-bar-fill" id="siteCovBar"></div></div>
+            </div>
+            <div class="site-bar-row">
+              <div class="site-bar-head">
+                <span id="siteFarLbl">معامل الاستغلال (FAR)</span>
+                <b id="siteFarVal">0.00 / 2.40</b>
+              </div>
+              <div class="site-bar-track"><div class="site-bar-fill" id="siteFarBar"></div></div>
+            </div>
+          </div>
+          <div id="siteDiagramWrap">
+            <svg id="siteDiagram" viewBox="0 0 268 152" data-testid="site-diagram" aria-label="مخطط الموقع والارتدادات"></svg>
+            <div id="siteViolationList"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grp" id="siteImgGrp">
         <div class="gc">صورة الموقع / المخطط الأساس</div>
         <div class="gb">
           <button class="big" id="bImg"><i><svg class="ic"><use href="#i-imgup"/></svg></i>رفع صورة الموقع</button>
@@ -1829,6 +2691,304 @@ body.revmode #toolRail{display:none}
           <div class="gb-row">
             <button type="button" class="sm pri2" id="secShot">التقاط المقطع للوحة</button>
             <button type="button" class="sm" id="secReset">إعادة ضبط</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FACADES STUDIO -->
+    <div class="pane" id="p_facade">
+      <div class="grp" id="facScopeGrp">
+        <div class="gc">نطاق التطبيق والقوالب السريعة</div>
+        <div class="gb">
+          <div class="fac-seg" role="group" aria-label="نطاق تطبيق الواجهات">
+            <button type="button" class="on" id="facScopeSel">الكتلة المحددة</button>
+            <button type="button" id="facScopeAll">كل الكتل</button>
+            <button type="button" id="facScopeZone">حسب الوظيفة</button>
+          </div>
+          <div class="fld" id="facBlockRow">
+            <span class="fld-lbl" id="facBlockLbl">الكتلة</span>
+            <select id="facBlockSel"></select>
+          </div>
+          <div class="fld" id="facZoneRow" style="display:none">
+            <span class="fld-lbl" id="facZoneLbl">الوظيفة</span>
+            <select id="facZoneSel"></select>
+          </div>
+          <div class="fac-presets" id="facPresetGrid">
+            <button type="button" class="fac-preset-btn" data-fp="officeGlass">مكتبي زجاجي</button>
+            <button type="button" class="fac-preset-btn" data-fp="solarSouth">كاسرات شمسية</button>
+            <button type="button" class="fac-preset-btn" data-fp="heritageMash">مشربية تراثية</button>
+            <button type="button" class="fac-preset-btn" data-fp="resBalcony">شرفات سكنية</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="facEmptyBox" class="fac-empty" style="display:none"></div>
+
+      <div class="grp" id="facSystemGrp">
+        <div class="gc">نظام الواجهة والمعاملات</div>
+        <div class="gb">
+          <div class="fac-type-grid" id="facTypeGrid"></div>
+          <div class="fld-stack">
+            <span id="facSidesLbl">الواجهات المفعّلة</span>
+            <div class="fac-sides-grid" role="group" aria-label="الواجهات المفعّلة">
+              <button type="button" class="fac-side-btn on" id="facSideF" data-fs="f">أمام +Z</button>
+              <button type="button" class="fac-side-btn on" id="facSideB" data-fs="b">خلف -Z</button>
+              <button type="button" class="fac-side-btn on" id="facSideR" data-fs="r">يمين +X</button>
+              <button type="button" class="fac-side-btn on" id="facSideL" data-fs="l">يسار -X</button>
+            </div>
+          </div>
+          <div class="fld">
+            <span class="fld-lbl" id="facSpacingLbl">التباعد</span>
+            <input type="range" id="facSpacing" min="1.5" max="8" step="0.1" value="3.2">
+            <b id="facSpacingVal" style="font-family:var(--font-mono)">3.2 م</b>
+          </div>
+          <div class="fld">
+            <span class="fld-lbl" id="facWwrLbl">نسبة الفتحات</span>
+            <input type="range" id="facWwr" min="20" max="85" step="5" value="45">
+            <b id="facWwrVal" style="font-family:var(--font-mono)">45%</b>
+          </div>
+          <div class="fld">
+            <span class="fld-lbl" id="facDepthLbl">عمق البروز</span>
+            <input type="range" id="facDepth" min="0.1" max="1.8" step="0.05" value="0.45">
+            <b id="facDepthVal" style="font-family:var(--font-mono)">0.45 م</b>
+          </div>
+          <div class="fac-tones-row">
+            <span class="fld-lbl" id="facToneLbl">لون الإطار</span>
+            <div class="fac-tone-swatches" id="facToneBtns"></div>
+          </div>
+          <button type="button" class="sm on" id="facGroundBtn" style="width:100%">شامل الطابق الأرضي</button>
+        </div>
+      </div>
+
+      <div class="grp" id="facPreviewGrp">
+        <div class="gc">معاينة الواجهة وتحليل الأداء</div>
+        <div class="gb">
+          <div class="hm-kpis">
+            <div class="hm-kpi">
+              <span class="hm-kpi-lbl" id="facKpiWwrLbl">نسبة الزجاج</span>
+              <span class="hm-kpi-val" id="facKpiWwr">0%</span>
+            </div>
+            <div class="hm-kpi">
+              <span class="hm-kpi-lbl" id="facKpiAreaLbl">مساحة الزجاج</span>
+              <span class="hm-kpi-val" id="facKpiArea">0</span>
+              <span class="hm-kpi-sub" id="facKpiAreaUnit">م²</span>
+            </div>
+            <div class="hm-kpi">
+              <span class="hm-kpi-lbl" id="facKpiShadeLbl">حماية التظليل</span>
+              <span class="hm-kpi-val" id="facKpiShade">0%</span>
+            </div>
+          </div>
+          <div id="facPreviewWrap">
+            <svg id="facPreviewSvg" viewBox="0 0 268 142" data-testid="facade-preview" aria-label="معاينة مخطط الواجهة"></svg>
+            <div class="fac-meta-line" id="facProjSummary"></div>
+          </div>
+          <div class="gb-row">
+            <button type="button" class="sm pri2" id="facApplyAllBtn">تعميم على كل الكتل</button>
+            <button type="button" class="sm" id="facClearBtn">إزالة الواجهة</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARCHITECTURAL ANALYSIS STUDIO -->
+    <div class="pane" id="p_mass">
+      <div class="grp" id="anNavGrp">
+        <div class="gc" id="anNavTitle">استوديو التحليل المعماري</div>
+        <div class="gb">
+          <div class="an-subtabs" id="anSubTabs" role="tablist" aria-label="أقسام التحليل المعماري">
+            <button type="button" class="on" id="anTabGeom" data-an="geom" role="tab">الكتلة</button>
+            <button type="button" id="anTabEnv" data-an="env" role="tab">البيئة</button>
+            <button type="button" id="anTabZones" data-an="zones" role="tab">الزونات</button>
+            <button type="button" id="anTabMorph" data-an="morph" role="tab">التشكيل</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-VIEW 1: GEOMETRY & VOLUMETRICS -->
+      <div class="an-subsec on" id="anSecGeom">
+        <div class="grp" id="massOverlayGrp">
+          <div class="gc">تحليل المنظور ثلاثي الأبعاد</div>
+          <div class="gb">
+            <div class="mass-seg" role="group" aria-label="وضع التلوين التحليلي">
+              <button type="button" class="on" id="massOvNone" data-mo="none">بدون</button>
+              <button type="button" id="massOvHeight" data-mo="height">الارتفاع</button>
+              <button type="button" id="massOvSvr" data-mo="svr">S/V</button>
+              <button type="button" id="massOvDay" data-mo="daylight">الإضاءة</button>
+              <button type="button" id="massOvIssues" data-mo="issues">التداخل</button>
+            </div>
+            <div class="mass-legend-box" id="massLegendBox" style="display:none">
+              <div class="mass-legend-head">
+                <span id="massLegendTitle">التدرج التحليلي</span>
+                <span id="massLegendUnit" style="font-family:var(--font-mono)"></span>
+              </div>
+              <div class="mass-bar" id="massLegendBar"></div>
+              <div class="mass-ticks" id="massLegendTicks"><span>0</span><span>50%</span><span>100%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp" id="massKpiGrp">
+          <div class="gc">المؤشرات الحجمية والانضغاطية</div>
+          <div class="gb">
+            <div class="hm-kpis">
+              <div class="hm-kpi">
+                <span class="hm-kpi-lbl" id="massKpiVolLbl">الحجم الكلي</span>
+                <span class="hm-kpi-val" id="massKpiVol">0</span>
+                <span class="hm-kpi-sub" id="massKpiVolUnit">م³</span>
+              </div>
+              <div class="hm-kpi">
+                <span class="hm-kpi-lbl" id="massKpiEnvLbl">مساحة الغلاف</span>
+                <span class="hm-kpi-val" id="massKpiEnv">0</span>
+                <span class="hm-kpi-sub" id="massKpiEnvUnit">م²</span>
+              </div>
+              <div class="hm-kpi">
+                <span class="hm-kpi-lbl" id="massKpiSvrLbl">نسبة S/V</span>
+                <span class="hm-kpi-val" id="massKpiSvr">0</span>
+                <span class="hm-kpi-sub">m⁻¹</span>
+              </div>
+              <div class="hm-kpi">
+                <span class="hm-kpi-lbl" id="massKpiCompLbl">الانضغاطية</span>
+                <span class="hm-kpi-val" id="massKpiComp">0%</span>
+                <span class="hm-kpi-sub" id="massKpiCompSub">كتلي</span>
+              </div>
+              <div class="hm-kpi">
+                <span class="hm-kpi-lbl" id="massKpiDayLbl">عمق الإضاءة</span>
+                <span class="hm-kpi-val" id="massKpiDay">0%</span>
+                <span class="hm-kpi-sub">≤ 7.5m</span>
+              </div>
+              <div class="hm-kpi">
+                <span class="hm-kpi-lbl" id="massKpiHeightLbl">أقصى ارتفاع</span>
+                <span class="hm-kpi-val" id="massKpiHeight">0</span>
+                <span class="hm-kpi-sub" id="massKpiHeightUnit">م</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp" id="massChartGrp">
+          <div class="gc">مقارنة الكتل التفاعلية</div>
+          <div class="gb">
+            <div class="mass-metric-seg" role="group" aria-label="معيار الرسم البياني">
+              <button type="button" class="on" id="massMetVol" data-mm="volume">الحجم</button>
+              <button type="button" id="massMetH" data-mm="height">الارتفاع</button>
+              <button type="button" id="massMetSvr" data-mm="svr">S/V</button>
+              <button type="button" id="massMetDay" data-mm="daylight">الإضاءة</button>
+            </div>
+            <div id="massChartWrap">
+              <svg id="massChartSvg" viewBox="0 0 264 148" data-testid="mass-chart" aria-label="مخطط مقارنة الكتل"></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp" id="massDiagGrp">
+          <div class="gc">الفحص المكاني والتداخلات</div>
+          <div class="gb">
+            <div id="massIssuesList" class="mass-issues-list"></div>
+          </div>
+        </div>
+
+        <div class="grp" id="massListGrp">
+          <div class="gc">جدول تحليل الكتل</div>
+          <div class="gb">
+            <div id="massTableList" class="mass-table"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-VIEW 2: ENVIRONMENTAL ANALYSIS (SUN, WIND, NOISE) -->
+      <div class="an-subsec" id="anSecEnv">
+        <div class="grp" id="anEnvCtrlGrp">
+          <div class="gc" id="anEnvCtrlTitle">التحليل البيئي والمناخي</div>
+          <div class="gb">
+            <div class="an-envtabs" id="anEnvTabs" role="group" aria-label="طبقة التحليل البيئي">
+              <button type="button" class="on" id="anEnvSolar" data-env="solar">الشمس</button>
+              <button type="button" id="anEnvWind" data-env="wind">الرياح</button>
+              <button type="button" id="anEnvNoise" data-env="noise">الضوضاء</button>
+            </div>
+            <div class="gb-row">
+              <button type="button" class="big on" id="anEnv3dBtn">عرض ثلاثي الأبعاد</button>
+              <button type="button" class="sm" id="anEnvSiteBtn">إعدادات الموقع</button>
+            </div>
+            <div class="mass-legend-box" id="anEnvLegendBox">
+              <div class="mass-legend-head">
+                <span id="anEnvLegendTitle">التعرض الشمسي</span>
+                <span id="anEnvLegendUnit" style="font-family:var(--font-mono)">%</span>
+              </div>
+              <div class="mass-bar" id="anEnvLegendBar"></div>
+              <div class="mass-ticks" id="anEnvLegendTicks"><span>0%</span><span>50%</span><span>100%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp" id="anEnvDiagramGrp">
+          <div class="gc" id="anEnvDiagTitle">المخطط التحليلي البيئي</div>
+          <div class="gb">
+            <div class="an-svg-frame">
+              <svg id="anEnvSvg" viewBox="0 0 264 132" data-testid="an-env-svg" aria-label="مخطط التحليل البيئي"></svg>
+            </div>
+            <div class="hm-kpis" id="anEnvKpis"></div>
+            <div id="anEnvInsights" style="display:flex;flex-direction:column;gap:5px"></div>
+          </div>
+        </div>
+
+        <div class="grp" id="anEnvListGrp">
+          <div class="gc" id="anEnvListTitle">تقييم الكتل البيئي</div>
+          <div class="gb">
+            <div id="anEnvList" class="mass-table"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-VIEW 3: ZONES & INTERACTIVE BUBBLE DIAGRAM -->
+      <div class="an-subsec" id="anSecZones">
+        <div class="grp" id="anZonesCtrlGrp">
+          <div class="gc" id="anZonesTitle">الزونات والمخطط الفقاعي</div>
+          <div class="gb">
+            <div class="an-seg2" id="anBubbleModeSeg" role="group" aria-label="نمط المخطط الفقاعي">
+              <button type="button" class="on" id="anBubModeZones" data-zb="zones">حسب الزونات</button>
+              <button type="button" id="anBubModeMass" data-zb="masses">حسب الكتل</button>
+            </div>
+            <button type="button" class="big on" id="anZones3dBtn">عرض الزونات والروابط 3D</button>
+            <div class="an-svg-frame">
+              <svg id="anBubbleSvg" viewBox="0 0 264 194" data-testid="an-bubble-svg" aria-label="المخطط الفقاعي للزونات والعلاقات"></svg>
+            </div>
+            <div class="hint" id="anBubbleHint">انقر أي فقاعة لتحديد الكتلة في المشهد · الخط السميك = اتصال مباشر</div>
+          </div>
+        </div>
+
+        <div class="grp" id="anZoneListGrp">
+          <div class="gc" id="anZoneListTitle">تدرج الخصوصية وتوزيع المساحات</div>
+          <div class="gb">
+            <div class="hm-kpis" id="anZoneKpis"></div>
+            <div id="anZoneList" class="mass-table"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-VIEW 4: MASSING EVOLUTION / MORPHOLOGY -->
+      <div class="an-subsec" id="anSecMorph">
+        <div class="grp" id="anMorphPartiGrp">
+          <div class="gc" id="anMorphTitle">تحليل تكوّن الكتلة (كيف أصبحت بهذا الشكل؟)</div>
+          <div class="gb">
+            <div class="an-parti-box" id="anMorphParti">
+              <span class="an-parti-kicker" id="anPartiKicker">الفكرة التكوينية السائدة · Parti</span>
+              <span class="an-parti-title" id="anPartiTitle">—</span>
+              <span class="an-parti-desc" id="anPartiDesc">—</span>
+            </div>
+            <div class="an-morph-nav">
+              <button type="button" class="sm" id="anMorphPrev">‹ السابق</button>
+              <span class="an-step-cnt" id="anMorphCounter">1 / 1</span>
+              <button type="button" class="sm" id="anMorphNext">التالي ›</button>
+            </div>
+            <button type="button" class="big on" id="anMorph3dBtn">عزل المرحلة في المشهد 3D</button>
+          </div>
+        </div>
+
+        <div class="grp" id="anMorphStepsGrp">
+          <div class="gc" id="anMorphStepsTitle">تسلسل مراحل التشكيل المعماري</div>
+          <div class="gb">
+            <div id="anMorphSteps" class="an-morph-list" data-testid="an-morph-steps"></div>
           </div>
         </div>
       </div>
@@ -2136,8 +3296,14 @@ body.revmode #toolRail{display:none}
 <script src="areas-logic.js?v=1"></script>
 <script src="shadow-heatmap-logic.js?v=1"></script>
 <script src="section-logic.js?v=1"></script>
+<script src="site-logic.js?v=1"></script>
+<script src="facade-logic.js?v=1"></script>
+<script src="mass-logic.js?v=1"></script>
+<script src="analysis-studio-logic.js?v=1"></script>
+<script src="snap-guides-logic.js?v=1"></script>
 <script src="i18n.js?v=1"></script>
 <script src="occupancy-chart.js?v=1"></script>
+<script src="unsaved-logic.js?v=1"></script>
 <script>
 (function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=3';document.body.appendChild(s)}
 if(!q)return go();var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f1f3f5;color:#0f172a;z-index:99;font:600 16px "IBM Plex Sans Arabic",Tajawal,sans-serif';ov.textContent=(window.L?L('جارٍ فتح التصميم…','Opening design…'):'جارٍ فتح التصميم…');document.body.appendChild(ov);

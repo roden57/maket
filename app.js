@@ -47,7 +47,9 @@ if(REV){const mem={},rk=k=>'mc3d_rv_'+REV.key+'_'+k,pk=['mc3d_cur','mc3d_rq','mc
 const RQ=Object.assign({tex:false,ao:false,sky:false},LS.get('mc3d_rq')||{});
 function norm(b){const r=Object.assign({name:'كتلة',shape:'box',mat:'brick',fn:'',x:0,z:0,w:10,d:10,f:2,y0:0,ry:0,rot:0},b);if(r.fn&&LEGACY_FN[r.fn])r.fn=LEGACY_FN[r.fn];if(r.fn&&!FNS[r.fn])r.fn='';return r}
 function ensureIds(s){const seen=new Set();let n=0;(s.blocks||[]).forEach(b=>{if(!b.id||seen.has(b.id)){while(seen.has('k'+n)||(s.blocks||[]).some(o=>o!==b&&o.id==='k'+n))n++;b.id='k'+n}seen.add(b.id)});return s}
-function normState(s){ensureIds(s);s.site=Object.assign({w:100,d:100,sb:0,north:0,city:'baghdad',lat:33.31,lon:44.36,tz:3,wind:315},s.site||{});
+function normState(s){ensureIds(s);const rawSite=s.site||{};
+ const baseSite={w:100,d:100,sb:0,sbMode:'uniform',sbN:0,sbS:0,sbE:0,sbW:0,north:0,roadW:12,maxCovPct:60,maxFar:2.4,streets:{n:false,s:true,e:false,w:false},city:'baghdad',lat:33.31,lon:44.36,tz:3,wind:315};
+ s.site=window.MC3D_SITE?MC3D_SITE.normalizeSiteConfig(Object.assign({},baseSite,rawSite)):Object.assign(baseSite,rawSite);
  s.meta=Object.assign({title:'مشروع معماري',designer:'',org:'',location:''},s.meta||{});
  s.fh=s.fh||4;s.blocks=(s.blocks||[]).map(norm);
  s.sun=Object.assign({on:false,date:'2026-06-21',hour:14},s.sun||{});s.img=s.img||null;s.v=Math.max(s.v||0,9);return s}
@@ -92,7 +94,7 @@ let firstMsg='';
 LS.set('mc3d_mig',9);
 let curName=LS.get('mc3d_name')||'تصميم افتراضي';
 let imgData=null;try{imgData=localStorage.getItem('mc3d_img')}catch(e){}
-let sel=-1,selSet=new Set(),tool='select',colorMode='fn',showGrid=true,showNames=false,showDims=true,snapStep=1,edgeOn=true,multiMode=false;
+let sel=-1,selSet=new Set(),tool='select',colorMode='fn',massOverlay='none',massChartMetric='volume',massAnalysisCache=null,showGrid=true,showNames=false,showDims=true,snapStep=1,edgeOn=true,multiMode=false;
 let sec={on:false,axis:'x',pos:0,flip:false,angle:0,slice:false,thick:12,cap:true,showFrame:true},playing=false,whiteBg=false;
 let undoS=[],redoS=[],lastPush=0;
 const snapStr=()=>JSON.stringify({s:state,n:curName});
@@ -158,19 +160,68 @@ function setSun(){const m=Math.max(state.site.w,state.site.d)*1.2;const sc=sun.s
 const northG=new THREE.Group();S.add(northG);
 const plinth=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:'#cfd5dd'}));plinth.receiveShadow=true;S.add(plinth);
 const shadowCatch=new THREE.Mesh(new THREE.PlaneGeometry(4000,4000),new THREE.ShadowMaterial({opacity:.22}));shadowCatch.rotation.x=-Math.PI/2;shadowCatch.position.y=-0.012;shadowCatch.receiveShadow=true;shadowCatch.visible=false;S.add(shadowCatch);
-function siteChanged(){siteG.clear();const st=state.site,w=st.w,d=st.d,m=Math.max(w,d);plinth.scale.set(w+m*.12,1.2,d+m*.12);plinth.position.set(0,-0.62,0);
+function disposeGroupFlat(g){while(g.children.length){const c=g.children[0];g.remove(c);if(c.geometry)c.geometry.dispose();if(c.material){if(Array.isArray(c.material))c.material.forEach(mt=>mt.dispose());else c.material.dispose()}}}
+function siteChanged(){disposeGroupFlat(siteG);const st=window.MC3D_SITE?MC3D_SITE.normalizeSiteConfig(state.site):state.site;state.site=st;
+ const w=st.w,d=st.d,m=Math.max(w,d);
+ const zone=window.MC3D_SITE?MC3D_SITE.computeBuildableZone(st):{minX:-w/2+st.sb,maxX:w/2-st.sb,minZ:-d/2+st.sb,maxZ:d/2-st.sb,centerX:0,centerZ:0,width:Math.max(0,w-2*st.sb),depth:Math.max(0,d-2*st.sb),hasSetback:st.sb>0,valid:st.sb*2<Math.min(w,d)};
+ const rw=st.roadW||12,streets=st.streets||{s:true};
+ const padN=streets.n?rw+4:m*0.06,padS=streets.s?rw+4:m*0.06,padE=streets.e?rw+4:m*0.06,padW=streets.w?rw+4:m*0.06;
+ plinth.scale.set(w+padE+padW,1.2,d+padN+padS);plinth.position.set((padE-padW)/2,-0.62,(padS-padN)/2);
  const p=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshLambertMaterial({color:'#f8fafc',transparent:true,opacity:imgData&&state.img&&state.img.show?0.25:1}));p.rotation.x=-Math.PI/2;p.position.y=0.02;p.receiveShadow=true;siteG.add(p);
- const dl=(W,D,c,y)=>{const l=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(W,D)),new THREE.LineDashedMaterial({color:c,dashSize:2,gapSize:1.5}));l.rotation.x=-Math.PI/2;l.position.y=y;l.computeLineDistances();siteG.add(l)};
- dl(w,d,'#64748b',0.07);if(st.sb>0&&st.sb*2<Math.min(w,d))dl(w-2*st.sb,d-2*st.sb,'#dc2626',0.08);
+ const dl=(W,D,c,y,cx,cz)=>{const l=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(W,D)),new THREE.LineDashedMaterial({color:c,dashSize:2,gapSize:1.5}));l.rotation.x=-Math.PI/2;l.position.set(cx||0,y,cz||0);l.computeLineDistances();siteG.add(l)};
+ dl(w,d,'#475569',0.07,0,0);
+ if(zone.hasSetback&&zone.valid){
+  dl(zone.width,zone.depth,'#dc2626',0.08,zone.centerX,zone.centerZ);
+  // Subtle setback buffer shade strips inside parcel perimeter
+  const sbMat=new THREE.MeshBasicMaterial({color:'#ef4444',transparent:true,opacity:0.07,depthWrite:false});
+  const addSB=(sw,sd,sx,sz)=>{if(sw<=0.05||sd<=0.05)return;const sm=new THREE.Mesh(new THREE.PlaneGeometry(sw,sd),sbMat);sm.rotation.x=-Math.PI/2;sm.position.set(sx,0.024,sz);siteG.add(sm)};
+  if(st.sbN>0)addSB(w,st.sbN,0,-d/2+st.sbN/2);
+  if(st.sbS>0)addSB(w,st.sbS,0,d/2-st.sbS/2);
+  const midD=Math.max(0,d-st.sbN-st.sbS),midZ=(zone.minZ+zone.maxZ)/2;
+  if(st.sbW>0&&midD>0)addSB(st.sbW,midD,-w/2+st.sbW/2,midZ);
+  if(st.sbE>0&&midD>0)addSB(st.sbE,midD,w/2-st.sbE/2,midZ);
+ }
+ // Surrounding Streets & Sidewalks
+ const addRoad=(rx,rz,rW,rD,horiz)=>{
+  const swCurb=new THREE.Mesh(new THREE.PlaneGeometry(rW+(horiz?0:2.2),rD+(horiz?2.2:0)),new THREE.MeshLambertMaterial({color:'#cbd5e1'}));
+  swCurb.rotation.x=-Math.PI/2;swCurb.position.set(rx,0.008,rz);swCurb.receiveShadow=true;siteG.add(swCurb);
+  const asph=new THREE.Mesh(new THREE.PlaneGeometry(rW,rD),new THREE.MeshLambertMaterial({color:'#4b5563'}));
+  asph.rotation.x=-Math.PI/2;asph.position.set(rx,0.013,rz);asph.receiveShadow=true;siteG.add(asph);
+  const lnGeo=new THREE.BufferGeometry().setFromPoints(horiz?[new THREE.Vector3(rx-rW/2+1,0.019,rz),new THREE.Vector3(rx+rW/2-1,0.019,rz)]:[new THREE.Vector3(rx,0.019,rz-rD/2+1),new THREE.Vector3(rx,0.019,rz+rD/2-1)]);
+  const ln=new THREE.Line(lnGeo,new THREE.LineDashedMaterial({color:'#e2e8f0',dashSize:3,gapSize:2.5}));
+  ln.computeLineDistances();siteG.add(ln);
+ };
+ const gap=1.4,extW=(streets.w?rw+gap:0),extE=(streets.e?rw+gap:0);
+ if(streets.s)addRoad((extE-extW)/2,d/2+gap+rw/2,w+extW+extE+2,rw,true);
+ if(streets.n)addRoad((extE-extW)/2,-d/2-gap-rw/2,w+extW+extE+2,rw,true);
+ if(streets.e)addRoad(w/2+gap+rw/2,0,rw,d+gap*2,false);
+ if(streets.w)addRoad(-w/2-gap-rw/2,0,rw,d+gap*2,false);
  grid=new THREE.GridHelper(m,Math.round(m/2),'#cbd5e1','#e2e8f0');grid.position.y=0.05;grid.visible=showGrid;siteG.add(grid);
- northG.clear();const na=new THREE.Mesh(new THREE.ConeGeometry(m*.02,m*.06,3),new THREE.MeshLambertMaterial({color:'#0f172a'}));na.rotation.x=-Math.PI/2;northG.add(na);
- northG.position.set(-w/2-m*.07,0.5,-d/2+m*.05);northG.rotation.y=-st.north*Math.PI/180;
+ // Architectural North Compass
+ disposeGroupFlat(northG);
+ const cR=Math.max(2.6,m*0.038);
+ const disc=new THREE.Mesh(new THREE.CircleGeometry(cR,24),new THREE.MeshLambertMaterial({color:'#f8fafc'}));disc.rotation.x=-Math.PI/2;northG.add(disc);
+ const ring=new THREE.Mesh(new THREE.RingGeometry(cR*0.86,cR,24),new THREE.MeshBasicMaterial({color:'#334155',side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=0.02;northG.add(ring);
+ const tip=new THREE.Mesh(new THREE.ConeGeometry(cR*0.42,cR*1.05,3),new THREE.MeshLambertMaterial({color:'#dc2626'}));tip.rotation.x=-Math.PI/2;tip.position.set(0,0.06,-cR*0.28);northG.add(tip);
+ const tail=new THREE.Mesh(new THREE.ConeGeometry(cR*0.32,cR*0.75,3),new THREE.MeshLambertMaterial({color:'#0f172a'}));tail.rotation.x=Math.PI/2;tail.position.set(0,0.06,cR*0.35);northG.add(tail);
+ northG.position.set(-w/2-(streets.w?rw+gap+cR*1.4:m*.07),0.25,-d/2+cR*1.1);northG.rotation.y=-st.north*Math.PI/180;
+ // Sync Site Pane inputs
  $('sW').value=w;$('sD').value=d;$('sFH').value=state.fh;$('sSB').value=st.sb;$('sN').value=st.north;
+ if($('sSBN'))$('sSBN').value=st.sbN;if($('sSBS'))$('sSBS').value=st.sbS;if($('sSBE'))$('sSBE').value=st.sbE;if($('sSBW'))$('sSBW').value=st.sbW;
+ if($('sMaxCov'))$('sMaxCov').value=st.maxCovPct;if($('sMaxFar'))$('sMaxFar').value=st.maxFar;
+ if($('sbModeUniform'))$('sbModeUniform').classList.toggle('on',st.sbMode!=='custom');
+ if($('sbModeCustom'))$('sbModeCustom').classList.toggle('on',st.sbMode==='custom');
+ if($('sbUniformWrap'))$('sbUniformWrap').style.display=st.sbMode==='custom'?'none':'flex';
+ if($('sbCustomWrap'))$('sbCustomWrap').style.display=st.sbMode==='custom'?'grid':'none';
+ [['stN','n'],['stS','s'],['stE','e'],['stW','w']].forEach(([id,k])=>{if($(id))$(id).classList.toggle('on',!!streets[k])});
+ if($('sRoadW'))$('sRoadW').value=rw;
+ if($('sRoadWL'))$('sRoadWL').textContent=rw+' '+L('م','m');
+ if($('siteParcelMini'))$('siteParcelMini').textContent=`${w}×${d}${L('م','m')}`;
  if($('citySel'))$('citySel').value=CITIES[st.city]?st.city:'custom';
  if($('siteLat'))$('siteLat').value=st.lat;$('siteLon')&&($('siteLon').value=st.lon);$('siteTz')&&($('siteTz').value=st.tz);$('siteWind')&&($('siteWind').value=st.wind);
  const mt=state.meta||{};
  if($('metaTitle'))$('metaTitle').value=mt.title||'';if($('metaDesigner'))$('metaDesigner').value=mt.designer||'';if($('metaOrg'))$('metaOrg').value=mt.org||'';if($('metaLoc'))$('metaLoc').value=mt.location||'';
- $('secPos').min=-m*.6;$('secPos').max=m*.6;buildImg();setSun();if(typeof buildWind==='function')buildWind();if(typeof rebuildShadowHeatmap==='function'&&shadowHmOn)rebuildShadowHeatmap()}
+ $('secPos').min=-m*.6;$('secPos').max=m*.6;buildImg();setSun();if(typeof buildWind==='function')buildWind();if(typeof rebuildShadowHeatmap==='function'&&shadowHmOn)rebuildShadowHeatmap();if(typeof renderSiteAnalysis==='function')renderSiteAnalysis()}
 function buildImg(){imgG.clear();const im=state.img;const has=!!(imgData&&im);
  ['iOp','iW','iR','iX','iZ'].forEach(id=>$(id).disabled=!has);
  if(!has)return;$('iOp').value=im.op;$('iW').value=+im.w.toFixed(1);$('iR').value=im.rot;$('iX').value=+im.x.toFixed(1);$('iZ').value=+im.z.toFixed(1);$('bImgShow').classList.toggle('on',im.show);
@@ -210,10 +261,11 @@ const roofH=b=>(b.shape==='gable'||b.shape==='shed')?Math.max(.5,b.rh===undefine
 function bh(b){if(b.shape==='tree')return b.w*1.3;if(b.shape==='person')return 1.75;if(b.shape==='car')return 1.55;
  if(isFlat(b))return b.mat==='asphalt'?0.1:0.3;if(b.shape==='riwaq')return Math.max(3,b.f*state.fh-0.5);return b.f*state.fh+roofH(b)}
 const WHITE={green:'#dfe8d6',water:'#d3e4ee',asphalt:'#c4c4c4',paving:'#ecebe6',glass:'#d6e8f3',context:'#d9d9d9'};
-const colOf=b=>{if(colorMode==='white')return WHITE[b.mat]||'#f7f6f2';if(colorMode==='fn'&&!isFlat(b)&&!isProp(b)&&b.mat!=='context')return FNS[b.fn||''].c;return MATS[b.mat].c};
+const getMassAnalysis=()=>{if(!window.MC3D_MASS)return null;if(!massAnalysisCache)massAnalysisCache=MC3D_MASS.analyzeProjectMasses(state.blocks,state.fh);return massAnalysisCache};
+const colOf=b=>{if(massOverlay!=='none'&&window.MC3D_MASS&&MC3D_MASS.isMassAnalyzable(b)){const an=getMassAnalysis();const idx=state.blocks.indexOf(b);const it=an&&(idx>=0?an.byIndex[idx]:an.items.find(x=>x.id===b.id));const oc=it?MC3D_MASS.getMassOverlayColor(it,massOverlay,an):null;if(oc)return oc}if(colorMode==='white')return WHITE[b.mat]||'#f7f6f2';if(colorMode==='fn'&&!isFlat(b)&&!isProp(b)&&b.mat!=='context')return FNS[b.fn||''].c;return MATS[b.mat].c};
 function M(c,glass,map){const o={color:map?'#ffffff':c,clippingPlanes:clipArr,clipShadows:true};if(map)o.map=map;if(glass)return new THREE.MeshPhysicalMaterial(Object.assign(o,{transparent:true,opacity:.45,roughness:.05,metalness:.1,depthWrite:false}));if(clipArr.length)o.side=THREE.DoubleSide;return new THREE.MeshLambertMaterial(o)}
 const LM=(c,op)=>new THREE.LineBasicMaterial({color:c,clippingPlanes:clipArr,transparent:op!==undefined,opacity:op===undefined?1:op});
-const matOf=b=>{if(colorMode==='xray'&&!isFlat(b)){const m=M(colOf(b),true);m.opacity=.3;return m}return M(colOf(b),b.mat==='glass',(RQ.tex&&colorMode==='mat')?texOf(b.mat):null)};
+const matOf=b=>{if(colorMode==='xray'&&!isFlat(b)){const m=M(colOf(b),true);m.opacity=.3;return m}return M(colOf(b),b.mat==='glass',(RQ.tex&&colorMode==='mat'&&massOverlay==='none')?texOf(b.mat):null)};
 const bg=new THREE.Group();S.add(bg);let meshes=[];
 function propGroup(b,grp,h){const add=(g,c,y)=>{const m=new THREE.Mesh(g,M(colorMode==='white'?'#e9e9e5':c));m.position.y=y;m.castShadow=true;grp.add(m);return m};
  if(b.shape==='tree'){add(new THREE.CylinderGeometry(.15,.22,h*.4,8),'#7a5a3a',-h/2+h*.2);const cr=add(new THREE.SphereGeometry(b.w/2,14,10),'#6f9e5b',h/2-b.w/2);cr.scale.y=.9}
@@ -237,11 +289,11 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
     for(let k=1;k<sx;k++){const xx=-b.w/2+k*b.w/sx;pts.push(xx,-h/2,z,xx,h/2,z,xx,-h/2,-z,xx,h/2,-z)}
     for(let k=1;k<sz;k++){const zz=-b.d/2+k*b.d/sz;pts.push(x,-h/2,zz,x,h/2,zz,-x,-h/2,zz,-x,h/2,zz)}}
    if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM(b.mat==='glass'?'#1f4e79':'#e7a07c',b.mat==='glass'?.8:.6)))}}
-  if(b.fac&&RECTISH.includes(b.shape)&&!isFlat(b)&&colorMode!=='xray')facade(b,h,grp)}
+  if(b.fac&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray')facade(b,h,grp)}
  grp.rotation.y=-((b.shape==='riwaq'?0:rotOf(b))+(b.rot||0))*Math.PI/180;
  pick.userData.i=i;grp.position.set(b.x,b.y0+h/2,b.z);return [grp,pick]}
 let groups=[],handles=[];const hG=new THREE.Group();S.add(hG);
-function build(){ensureIds(state);bg.clear();meshes=[];groups=[];state.blocks.forEach((b,i)=>{if(b.hidden){meshes.push(null);groups.push(null);return}const [g,m]=makeBlock(b,i);bg.add(g);meshes.push(m);groups.push(g)});buildHandles()}
+function build(){ensureIds(state);massAnalysisCache=window.MC3D_MASS?MC3D_MASS.analyzeProjectMasses(state.blocks,state.fh):null;bg.clear();meshes=[];groups=[];state.blocks.forEach((b,i)=>{if(b.hidden){meshes.push(null);groups.push(null);return}const [g,m]=makeBlock(b,i);bg.add(g);meshes.push(m);groups.push(g)});buildHandles()}
 const pickables=()=>meshes.filter(Boolean);
 function buildHandles(){hG.clear();handles=[];if(selSet.size!==1||tool!=='select')return;const b=state.blocks[sel];if(!b||b.hidden||b.lock||isProp(b))return;
  const m=Math.max(state.site.w,state.site.d),s=Math.max(.8,m*.013),h=bh(b),y=b.y0+(isFlat(b)?0.5:Math.min(h/2,3));
@@ -261,11 +313,15 @@ function areaOf(b){if(!counts(b))return 0;const [w,d]=loc(b);let f=1;const t1=Ma
  if(b.shape==='poly'){const P=polyPts(b);if(P)return polyArea(P)}
  switch(b.shape){case 'cyl':f=Math.PI/4;break;case 'ring':f=Math.PI/4*.64;break;case 'tri':f=.5;break;case 'L':f=(w*d-(w-t1)*(d-t1))/(w*d);break;case 'U':f=(w*d-(w-2*t2)*(d-t2))/(w*d);break;case 'court':{const t=courtT(b);f=(w*d-(w-2*t)*(d-2*t))/(w*d);break}}
  return w*d*f}
+let lastFp=0,lastGfa=0;
 function stats(){const st=state.site,bl=state.blocks.filter(counts);let fp=0;const W=st.w,D=st.d;
  const grounded=bl.filter(b=>b.y0<1);
  for(let x=-W/2+.5;x<W/2;x+=1)for(let z=-D/2+.5;z<D/2;z+=1){for(const b of grounded){if(inside(b,x,z)){fp+=1;break}}}
  const by={};Object.keys(FNS).forEach(k=>by[k]=0);let gfa=0;bl.forEach(b=>{const a=areaOf(b)*b.f;gfa+=a;by[b.fn||'']+=a});
- let out=0;if(st.sb>0){const lx=W/2-st.sb,lz=D/2-st.sb;bl.forEach(b=>{const [w,d]=[b.w,b.d];if(Math.abs(b.x)+w/2>lx+.01||Math.abs(b.z)+d/2>lz+.01)out++})}
+ lastFp=fp;lastGfa=gfa;
+ let out=0;
+ if(window.MC3D_SITE){out=MC3D_SITE.checkSetbackCompliance({site:st,blocks:state.blocks}).violationCount}
+ else if(st.sb>0){const lx=W/2-st.sb,lz=D/2-st.sb;bl.forEach(b=>{const [w,d]=[b.w,b.d];if(Math.abs(b.x)+w/2>lx+.01||Math.abs(b.z)+d/2>lz+.01)out++})}
  const u2=L('م²','m²'),um=L('م','m');
  $('status').innerHTML=`<span>${L('البصمة ≈','Footprint ≈')} <b>${Math.round(fp).toLocaleString('en')}</b> ${u2}</span><span>${L('التغطية','Coverage')} <b>${(fp/(W*D)*100).toFixed(0)}%</b></span><span>${L('المساحة الطابقية ≈','GFA ≈')} <b>${Math.round(gfa).toLocaleString('en')}</b> ${u2}</span><span>${L('الكتل','Blocks')} <b>${state.blocks.length}</b></span>`+(out?`<span class="warnTxt">⚠ ${out} ${L('كتلة تتجاوز الارتداد','exceed setback')}</span>`:'')+(selSet.size>1?`<span>${L('محدد:','Selected:')} <b>${selSet.size}</b></span>`:'')+`<span class="hint">${L('القطعة','Site')} ${W}×${D} ${um} · ${L('الأرقام تقريبية','Approx.')}</span>`;
  let h='';Object.entries(FNS).forEach(([k,f])=>{if(!f.t&&!by[k])return;const tg=f.t*1.25,p=tg?Math.min(100,by[k]/tg*100):0;
@@ -278,7 +334,8 @@ function stats(){const st=state.site,bl=state.blocks.filter(counts);let fp=0;con
   bl.forEach(b=>{if(!b.hidden)for(let f=0;f<b.f;f++)validSlots.add(b.id+'|'+f)});
   const allocatedArea=(state.prog&&Array.isArray(state.prog.sp))?state.prog.sp.filter(x=>x.bid&&validSlots.has(x.bid+'|'+x.fl)).reduce((s,x)=>s+x.a,0):0;
   MC3D_OCC_CHART.render({siteWidth:W,siteDepth:D,footprint:fp,netCapacity,allocatedArea,byZone:by});
- }}
+ }
+ if(typeof renderSiteAnalysis==='function')renderSiteAnalysis()}
 
 // ---------- inspector panels ----------
 const opts=(o,v,grp)=>Object.entries(o).map(([k,x])=>`<option value="${k}" ${k===v?'selected':''}>${grp?dn(grp,k,x.n||x):(x.n||x)}</option>`).join('');
@@ -289,18 +346,57 @@ function galSync(){}
 const DEFP={t:8,gw:6,gf:1,rh:3};
 function shapeExtra(b){let h='';if(b.shape==='court')h+=numRow('pT',L('عمق الجناح','Wing Depth'),courtT(b),1);if(b.shape==='gate'){const [gw]=gateG(b);h+=numRow('pGW',L('عرض البوابة','Portal Width'),gw,1)+numRow('pGF',L('طوابق البوابة','Portal Floors'),b.gf||1,1)}
  if(b.shape==='gable'||b.shape==='shed')h+=numRow('pRH',L('ارتفاع السقف','Roof Height'),roofH(b),.5);let out=h?`<div class="grp"><div class="gc">${L('إعدادات الشكل','Shape Settings')}</div><div class="gb"><div class="col">${h}</div></div></div>`:'';
- if(RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context')out+=`<div class="grp"><div class="gc">${L('عناصر الواجهة','Facade Elements')}</div><div class="gb"><div class="fld"><span class="fld-lbl">${L('الواجهة','Facade')}</span><select id="pFac">${Object.entries(FACS).map(([k,n])=>`<option value="${k}" ${(b.fac||'')===k?'selected':''}>${dn('facs',k,n)}</option>`).join('')}</select></div><div class="hint">${L('تظهر في الإظهار واللوحات','Visible in 3D & sheets')}</div></div></div>`;
  if(counts(b)&&state.prog){const sp=state.prog.sp.filter(x=>x.bid===b.id),a=sp.reduce((s,x)=>s+x.a,0),cap=areaOf(b)*b.f*state.prog.eff;out+=`<div class="grp"><div class="gc">${L('البرنامج الوظيفي','Program Allocation')}</div><div class="gb"><button class="big" id="pProg"><i><svg class="ic"><use href="#i-clip"/></svg></i>${sp.length} ${L('فضاء','spaces')} (${Math.round(a)}/${Math.round(cap)} ${L('م²','m²')})</button></div></div>`}
  return out}
 function numRow(id,l,v,st){return `<div class="fld"><span class="fld-lbl">${l}</span><div class="stepper"><button class="sm" data-n="${id}" data-s="-${st}">−</button><input type="number" id="${id}" value="${+(+v).toFixed(2)}" step="${st}"><button class="sm" data-n="${id}" data-s="${st}">+</button></div></div>`}
 let lastSelPanel=-2,curTab='home',userTab='home';
-function showTab(t){curTab=t;if(typeof openSheet==='function'&&t!=='sheet'&&t!=='shmod'&&sheetOpen)openSheet(false);document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p_'+t));setTimeout(fit,0)}
+const paneLeaveTimers=new WeakMap();
+function showTab(t){
+ curTab=t;
+ if(typeof openSheet==='function'&&t!=='sheet'&&t!=='shmod'&&sheetOpen)openSheet(false);
+ document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+ const ribbon=$('ribbon');
+ const nextPane=$('p_'+t);
+ const prevPane=document.querySelector('.pane.on');
+ if(prevPane===nextPane){setTimeout(fit,0);return}
+ document.querySelectorAll('.pane.leaving,.pane.leaving-prep,.pane.entering').forEach(p=>{
+  if(p!==prevPane&&p!==nextPane){
+   clearTimeout(paneLeaveTimers.get(p));
+   p.classList.remove('leaving','leaving-prep','entering');
+   p.style.top='';
+  }
+ });
+ const prevScroll=ribbon?ribbon.scrollTop:0;
+ if(prevPane){
+  clearTimeout(paneLeaveTimers.get(prevPane));
+  prevPane.style.top=(-prevScroll)+'px';
+  prevPane.classList.add('leaving-prep');
+  prevPane.classList.remove('on','entering');
+  void prevPane.offsetWidth;
+  prevPane.classList.add('leaving');
+  paneLeaveTimers.set(prevPane,setTimeout(()=>{
+   prevPane.classList.remove('leaving','leaving-prep');
+   prevPane.style.top='';
+  },180));
+ }
+ if(ribbon&&prevScroll)ribbon.scrollTop=0;
+ if(nextPane){
+  clearTimeout(paneLeaveTimers.get(nextPane));
+  nextPane.classList.remove('leaving','leaving-prep');
+  nextPane.style.top='';
+  nextPane.classList.add('entering');
+  void nextPane.offsetWidth;
+  nextPane.classList.remove('entering');
+  nextPane.classList.add('on');
+ }
+ setTimeout(fit,0);
+}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{if(b.dataset.t!=='mod')userTab=b.dataset.t;document.body.classList.remove('insp-closed');showTab(b.dataset.t)});
 if($('inspToggle'))$('inspToggle').onclick=()=>{document.body.classList.toggle('insp-closed');setTimeout(()=>{fit();layoutSheet()},220)};
 if(innerWidth<=760)document.body.classList.add('insp-closed');
 function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filter(i=>state.blocks[i]);
- if(!ids.length){tm.style.display='none';if(curTab==='mod')showTab(userTab);box.innerHTML='';lastSelPanel=-1;return}
- tm.style.display='inline-block';const key=ids.join(',');if(curTab!=='mod'&&lastSelPanel!==key)showTab('mod');lastSelPanel=key;
+ if(!ids.length){tm.style.display='none';if(curTab==='mod')showTab(userTab);box.innerHTML='';lastSelPanel=-1;if(curTab==='mass'&&typeof renderMassStudio==='function')renderMassStudio();return}
+ tm.style.display='inline-block';const key=ids.join(',');if(curTab!=='mod'&&curTab!=='facade'&&curTab!=='mass'&&lastSelPanel!==key)showTab('mod');lastSelPanel=key;if(curTab==='mass'&&typeof renderMassStudio==='function')renderMassStudio();
  if(ids.length>1){tm.textContent=L('تعديل ('+ids.length+' كتل)','Edit ('+ids.length+' blocks)');
   box.innerHTML=`<div class="grp"><div class="gc">${L('تغيير للكل','Batch Edit')}</div><div class="gb"><div class="fld"><span class="fld-lbl">${L('الوظيفة','Function')}</span><select id="mFn"><option value="__">—</option>${opts(FNS,'__','fns')}</select></div><div class="fld"><span class="fld-lbl">${L('المادة','Material')}</span><select id="mMat"><option value="__">—</option>${opts(MATS,'__','mats')}</select></div></div></div>
   <div class="grp"><div class="gc">${L('الارتفاع','Elevation')}</div><div class="gb"><div class="fld"><span class="fld-lbl">${L('الطوابق للكل','Floors (All)')}</span><div class="stepper"><button class="sm" id="mFm">−1</button><button class="sm" id="mFp">+1</button></div></div><div class="hint">${L('حرّكها معاً بالسحب أو بالأسهم','Drag together or nudge with arrow keys')}</div></div></div>
@@ -328,7 +424,7 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
  const map={pF:'f',pY0:'y0',pW:'w',pD:'d',pX:'x',pZ:'z',pT:'t',pGW:'gw',pGF:'gf',pRH:'rh'},min={f:1,y0:0,w:.3,d:.3,x:-9999,z:-9999,t:1,gw:1,gf:1,rh:.5};
  Object.entries(map).forEach(([id,k])=>{if(!$(id))return;$(id).onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b[k]=Math.max(min[k],v);refresh()}});
  box.querySelectorAll('[data-n]').forEach(bt=>bt.onclick=()=>{const k=map[bt.dataset.n];snap();if(b[k]===undefined)b[k]=DEFP[k]||0;b[k]=Math.max(min[k],+(b[k]+parseFloat(bt.dataset.s)).toFixed(2));refresh()});
- if($('pFac'))$('pFac').onchange=e=>{snap(true);b.fac=e.target.value;refresh()};if($('pProg'))$('pProg').onclick=openProg;
+ if($('pProg'))$('pProg').onclick=openProg;
  $('pLock').onclick=toggleLock;$('pRm').onclick=()=>rotFree(-15);$('pRp').onclick=()=>rotFree(15);$('pRotA').onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b.rot=((v%360)+360)%360;refresh()};$('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()}}
 function elemList(){const box=$('elBox');if(!box)return;box.innerHTML='';state.blocks.forEach((b,i)=>{const d=document.createElement('div');d.className='chip'+(selSet.has(i)?' on':'')+(b.hidden?' off':'');
  d.innerHTML=`<span class="sw" style="background:${colOf(b)}"></span><span class="nm"></span><button title="${L('إظهار/إخفاء','Show/Hide')}">${b.hidden?IC('eyeoff'):IC('eye')}</button><button title="${L('قفل','Lock')}">${b.lock?IC('lock'):IC('unlock')}</button>`;d.querySelector('.nm').textContent=b.name;
@@ -344,11 +440,34 @@ function dup(){if(!selSet.size)return;snap(true);const ids=[...selSet],start=sta
  ids.forEach(i=>{const b=clone(state.blocks[i]);b.x+=snapStep*4;b.z+=snapStep*4;if(ids.length===1)b.name+=L(' (نسخة)',' (Copy)');state.blocks.push(b)});
  selSet=new Set(ids.map((_,k)=>start+k));sel=start;refresh()}
 function del(){if(!selSet.size)return;const ids=[...selSet].filter(i=>!state.blocks[i].lock);if(!ids.length)return flash(L('الكتلة مقفلة','Mass is locked'));snap(true);ids.sort((a,b)=>b-a).forEach(i=>state.blocks.splice(i,1));clearSel();refresh()}
-function refresh(){build();panel();stats();save();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis()}
-let saveT=null;
+function refresh(){build();panel();stats();save();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis();if(typeof renderFacadeStudio==='function')renderFacadeStudio();if(typeof renderMassStudio==='function')renderMassStudio()}
+let saveT=null,appBooted=false;
+const unsavedTracker=window.MC3D_UNSAVED?window.MC3D_UNSAVED.createUnsavedTracker():null;
+function hasActiveCanvasGesture(){return Boolean((typeof drawing!=='undefined'&&drawing)||(typeof dragging!=='undefined'&&dragging&&dragging.moved)||(typeof resizing!=='undefined'&&resizing)||(typeof cutting!=='undefined'&&cutting)||(typeof polyD!=='undefined'&&polyD))}
+function updateCurNameBadge(ok){
+ const el=$('curname');if(!el)return;
+ const dirty=unsavedTracker?unsavedTracker.hasUnsavedChanges(state,curName,hasActiveCanvasGesture()):false;
+ const suffix=ok===false?L('  ⚠ الذاكرة ممتلئة','  ⚠ Storage full'):(dirty?L('  ● غير محفوظ','  ● Unsaved'):L('  ✓ محفوظ','  ✓ Saved'));
+ el.textContent='· '+curName+suffix;
+ el.classList.toggle('unsaved',!!dirty);
+}
+function flushLocalSaveClean(ok){
+ clearTimeout(saveT);saveT=null;
+ if(unsavedTracker){
+  if(ok===false)unsavedTracker.setLocalSaveStatus({pending:false,ok:false});
+  else unsavedTracker.markClean(state,curName);
+ }
+ updateCurNameBadge(ok!==false);
+}
 function syncDesigns(){const disk=LS.get('mc3d_designs');if(disk&&typeof disk==='object'){Object.keys(designs).forEach(k=>{if(!(k in disk)&&k!==curName)delete designs[k]});Object.keys(disk).forEach(k=>{if(k!==curName)designs[k]=disk[k]})}}
-function save(){LS.set('mc3d_cur',state);LS.set('mc3d_name',curName);if(curName){designs[curName]=clone(state);clearTimeout(saveT);saveT=setTimeout(()=>{syncDesigns();designs[curName]=clone(state);const ok=LS.set('mc3d_designs',designs);fillDesigns();$('dsel').value=curName;$('curname').textContent='· '+curName+(ok?L('  ✓ محفوظ','  ✓ Saved'):L('  ⚠ الذاكرة ممتلئة','  ⚠ Storage full'))},300)}
- $('curname').textContent='· '+curName}
+function save(){const okCur=LS.set('mc3d_cur',state),okName=LS.set('mc3d_name',curName);
+ if(unsavedTracker&&(!okCur||!okName))unsavedTracker.setLocalSaveStatus({ok:false});
+ if(curName){designs[curName]=clone(state);clearTimeout(saveT);
+  if(unsavedTracker&&appBooted)unsavedTracker.setLocalSaveStatus({pending:true});
+  saveT=setTimeout(()=>{saveT=null;syncDesigns();designs[curName]=clone(state);const ok=LS.set('mc3d_designs',designs)&&okCur&&okName;
+   if(unsavedTracker)unsavedTracker.setLocalSaveStatus({pending:false,ok});
+   fillDesigns();$('dsel').value=curName;updateCurNameBadge(ok)},300)}
+ updateCurNameBadge(okCur&&okName?undefined:false)}
 function fillDesigns(){const ks=Object.keys(designs);$('dsel').innerHTML=ks.length?ks.map(k=>`<option>${k.replace(/</g,'&lt;')}</option>`).join(''):`<option value="">${L('— لا توجد تصاميم محفوظة —','— No saved designs —')}</option>`}
 
 // ---------- file ----------
@@ -356,12 +475,12 @@ $('bNew').onclick=e=>arm(e.currentTarget,()=>{snap(true);state=blank();designs[c
 $('bSketch').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplCourtyard();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('فناء وسطي','Courtyard'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب الفناء الوسطي ✓','Loaded Courtyard template ✓'))});
 $('bSketch2').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplCluster();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('مجمع كتل','Mass Cluster'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب مجمع الكتل ✓','Loaded Mass Cluster template ✓'))});
 $('bSketch3').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplTower();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('برج ومنصة','Tower & Podium'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب البرج والمنصة ✓','Loaded Tower & Podium template ✓'))});
-$('bSave').onclick=()=>{const n=($('dname').value||curName||'').trim();if(!n)return flash(L('أدخل اسماً للتصميم','Enter a design name'));designs[curName]=clone(state);designs[n]=clone(state);LS.set('mc3d_designs',designs);curName=n;fillDesigns();$('dsel').value=n;save();flash(L('تم الحفظ: ','Saved: ')+n)};
+$('bSave').onclick=()=>{const n=($('dname').value||curName||'').trim();if(!n)return flash(L('أدخل اسماً للتصميم','Enter a design name'));designs[curName]=clone(state);designs[n]=clone(state);curName=n;const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=n;flushLocalSaveClean(ok);if(typeof cloudSoon==='function')cloudSoon();flash(ok?L('تم الحفظ: ','Saved: ')+n:L('⚠ الذاكرة ممتلئة','⚠ Storage full'))};
 $('qSave').onclick=()=>{$('dname').value=curName;$('bSave').click()};
-$('bOpen').onclick=()=>{const n=$('dsel').value;if(!n||!designs[n])return;if(n===curName)return flash(L('هذا التصميم مفتوح أصلاً','This design is already open'));designs[curName]=clone(state);LS.set('mc3d_designs',designs);snap(true);state=normState(clone(designs[n]));curName=n;clearSel();siteChanged();refresh();fillDesigns();$('dsel').value=n;flash(L('تم الفتح: '+n+' — التصميم السابق محفوظ','Opened: '+n+' — previous design saved'))};
-$('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.currentTarget,()=>{clearTimeout(saveT);syncDesigns();delete designs[n];
+$('bOpen').onclick=()=>{const n=$('dsel').value;if(!n||!designs[n])return;if(n===curName)return flash(L('هذا التصميم مفتوح أصلاً','This design is already open'));designs[curName]=clone(state);LS.set('mc3d_designs',designs);snap(true);state=normState(clone(designs[n]));curName=n;clearSel();siteChanged();refresh();fillDesigns();$('dsel').value=n;const ok=LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);flushLocalSaveClean(ok);flash(L('تم الفتح: '+n+' — التصميم السابق محفوظ','Opened: '+n+' — previous design saved'))};
+$('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.currentTarget,()=>{clearTimeout(saveT);saveT=null;syncDesigns();delete designs[n];
   if(n===curName){const rest=Object.keys(designs);snap(true);if(rest.length){curName=rest[0];state=normState(clone(designs[curName]))}else{state=blank();curName=L('تصميم جديد','New Design');designs[curName]=clone(state)}clearSel();siteChanged()}
-  LS.set('mc3d_designs',designs);LS.set('mc3d_cur',state);LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;refresh();flash(L('حُذف نهائياً: ','Permanently deleted: ')+n+(designs[curName]?L(' — المفتوح حالياً: ',' — current: ')+curName:''))})};
+  const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;refresh();flushLocalSaveClean(ok);flash(L('حُذف نهائياً: ','Permanently deleted: ')+n+(designs[curName]?L(' — المفتوح حالياً: ',' — current: ')+curName:''))})};
 addEventListener('storage',e=>{if(e.key==='mc3d_designs'){syncDesigns();fillDesigns();$('dsel').value=curName}
  if(e.key==='mc3d_sheets'&&typeof sheets!=='undefined'){const d=LS.get('mc3d_sheets');if(d){Object.keys(sheets).forEach(k=>{if(!(k in d)&&k!==curSheet)delete sheets[k]});Object.keys(d).forEach(k=>{if(k!==curSheet)sheets[k]=d[k]});fillSheets()}}});
 const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة']};
@@ -390,10 +509,117 @@ if($('citySel'))$('citySel').onchange=e=>{
 [['siteLat','lat'],['siteLon','lon'],['siteTz','tz'],['siteWind','wind']].forEach(([id,k])=>{
  if($(id))$(id).onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);state.site[k]=v;state.site.city='custom';siteChanged();save()};
 });
-['sW','sD','sFH','sSB','sN'].forEach(id=>$(id).onchange=()=>{const w=parseFloat($('sW').value),d=parseFloat($('sD').value),fh=parseFloat($('sFH').value),sb=parseFloat($('sSB').value)||0,n=parseFloat($('sN').value)||0;
- if(!(w>0&&d>0&&fh>0))return;snap(true);Object.assign(state.site,{w,d,sb,north:n});state.fh=fh;siteChanged();refresh()});
+function renderSiteAnalysis(){
+ if(!window.MC3D_SITE)return;
+ const m=MC3D_SITE.computeSiteMetrics({site:state.site,blocks:state.blocks,footprintArea:lastFp,gfa:lastGfa});
+ const st=m.site,z=m.zone,comp=m.compliance;
+ const u2=L('م²','m²');
+ if($('sitePlotArea'))$('sitePlotArea').textContent=Math.round(m.plotArea).toLocaleString('en');
+ if($('siteBuildArea'))$('siteBuildArea').textContent=Math.round(m.buildableArea).toLocaleString('en');
+ if($('sitePlotUnit'))$('sitePlotUnit').textContent=u2;
+ if($('siteBuildUnit'))$('siteBuildUnit').textContent=u2;
+ if($('siteCompStatus')){
+  $('siteCompStatus').textContent=comp.isFullyCompliant?'✓':String(comp.violationCount);
+  $('siteCompStatus').style.color=comp.isFullyCompliant?'#15803d':'#dc2626';
+ }
+ if($('siteCompSub')){
+  $('siteCompSub').textContent=comp.isFullyCompliant?L('مطابق','Compliant'):L('مخالفات','Breaches');
+  $('siteCompSub').style.color=comp.isFullyCompliant?'#15803d':'#dc2626';
+ }
+ if($('siteCovVal'))$('siteCovVal').textContent=`${m.coveragePct.toFixed(0)}% / ${Math.round(m.maxCovPct)}%`;
+ if($('siteCovBar')){$('siteCovBar').style.width=Math.min(100,m.maxCovPct>0?(m.coveragePct/m.maxCovPct)*100:0).toFixed(1)+'%';$('siteCovBar').classList.toggle('over',!m.coverageOk)}
+ if($('siteFarVal'))$('siteFarVal').textContent=`${m.far.toFixed(2)} / ${m.maxFar.toFixed(2)}`;
+ if($('siteFarBar')){$('siteFarBar').style.width=Math.min(100,m.maxFar>0?(m.far/m.maxFar)*100:0).toFixed(1)+'%';$('siteFarBar').classList.toggle('over',!m.farOk)}
+ const svg=$('siteDiagram');
+ if(svg){
+  const W=268,H=152,pad=20,rw=st.roadW||12;
+  const exW=st.w+(st.streets.w?rw+2:0)+(st.streets.e?rw+2:0);
+  const exD=st.d+(st.streets.n?rw+2:0)+(st.streets.s?rw+2:0);
+  const sc=Math.min((W-pad*2)/exW,(H-pad*2)/exD);
+  const cx=W/2+((st.streets.w?rw+2:0)-(st.streets.e?rw+2:0))*sc/2;
+  const cy=H/2+((st.streets.n?rw+2:0)-(st.streets.s?rw+2:0))*sc/2;
+  const xOf=x=>cx+x*sc,yOf=z_=>cy+z_*sc;
+  const out=[];
+  // Roads in SVG
+  const roadRect=(x,y,w_,h_,horiz)=>{
+   out.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w_.toFixed(1)}" height="${h_.toFixed(1)}" fill="#475569" rx="1"/>`);
+   if(horiz)out.push(`<line x1="${(x+2).toFixed(1)}" y1="${(y+h_/2).toFixed(1)}" x2="${(x+w_-2).toFixed(1)}" y2="${(y+h_/2).toFixed(1)}" stroke="#e2e8f0" stroke-width="0.9" stroke-dasharray="4 3"/>`);
+   else out.push(`<line x1="${(x+w_/2).toFixed(1)}" y1="${(y+2).toFixed(1)}" x2="${(x+w_/2).toFixed(1)}" y2="${(y+h_-2).toFixed(1)}" stroke="#e2e8f0" stroke-width="0.9" stroke-dasharray="4 3"/>`);
+  };
+  const px0=xOf(-st.w/2),py0=yOf(-st.d/2),pw=st.w*sc,pd=st.d*sc,rPx=rw*sc,gPx=2*sc;
+  const rx0=px0-(st.streets.w?rPx+gPx:0),rx1=px0+pw+(st.streets.e?rPx+gPx:0);
+  if(st.streets.n)roadRect(rx0,py0-gPx-rPx,rx1-rx0,rPx,true);
+  if(st.streets.s)roadRect(rx0,py0+pd+gPx,rx1-rx0,rPx,true);
+  if(st.streets.w)roadRect(px0-gPx-rPx,py0,rPx,pd,false);
+  if(st.streets.e)roadRect(px0+pw+gPx,py0,rPx,pd,false);
+  // Parcel base & buildable envelope
+  out.push(`<rect x="${px0.toFixed(1)}" y="${py0.toFixed(1)}" width="${pw.toFixed(1)}" height="${pd.toFixed(1)}" fill="#f8fafc" stroke="#334155" stroke-width="1.3"/>`);
+  if(z.hasSetback&&z.valid){
+   out.push(`<rect x="${xOf(z.minX).toFixed(1)}" y="${yOf(z.minZ).toFixed(1)}" width="${(z.width*sc).toFixed(1)}" height="${(z.depth*sc).toFixed(1)}" fill="#ecfdf5" fill-opacity="0.45" stroke="#dc2626" stroke-width="1" stroke-dasharray="3 2"/>`);
+  }
+  const breachSet=new Set(comp.violations.map(v=>v.index));
+  state.blocks.forEach((b,i)=>{
+   if(b.hidden||isProp(b))return;
+   const pts=MC3D_SITE.blockPlanCorners(b);
+   const dPath='M'+pts.map(([x,z_])=>`${xOf(x).toFixed(1)},${yOf(z_).toFixed(1)}`).join('L')+'Z';
+   const isBad=breachSet.has(i),isSel=selSet.has(i);
+   const col=colOf(b);
+   const stroke=isSel?'#ff8f00':(isBad?'#dc2626':'#0f172a');
+   const sw_=isSel?2.2:(isBad?1.8:0.9);
+   out.push(`<path class="site-blk${isSel?' is-sel':''}" data-bi="${i}" d="${dPath}" fill="${col}" fill-opacity="${isFlat(b)?0.4:0.82}" stroke="${stroke}" stroke-width="${sw_}"${isBad&&!isSel?' stroke-dasharray="2 1"':''}><title>${b.name}</title></path>`);
+  });
+  // Rotated North compass badge in top-right of diagram
+  out.push(`<g transform="translate(${W-16},16) rotate(${st.north})"><circle r="10" fill="#fff" stroke="#cbd5e1"/><polygon points="0,-7 -3.2,3 0,1 3.2,3" fill="#dc2626"/><text y="-8.5" text-anchor="middle" font-size="6.5" font-weight="700" fill="#0f172a">N</text></g>`);
+  out.push(`<text x="6" y="13" text-anchor="start" font-size="9.5" fill="#64748b" font-family="IBM Plex Mono,monospace">${st.w}×${st.d}m · SB ${st.sbMode==='custom'?`${st.sbN}/${st.sbS}/${st.sbE}/${st.sbW}`:st.sb}m</text>`);
+  svg.innerHTML=out.join('');
+  svg.querySelectorAll('.site-blk').forEach(el=>{
+   el.onclick=()=>{const i=parseInt(el.dataset.bi);if(!isNaN(i)&&state.blocks[i]){setSel(i);lastSelPanel=String(i);refresh()}};
+  });
+ }
+ const vList=$('siteViolationList');
+ if(vList){
+  if(comp.isFullyCompliant){
+   vList.innerHTML=`<div class="site-ok-pill">${L('جميع الكتل ضمن حدود الارتداد المسموح ✓','All masses within permitted setback envelope ✓')}</div>`;
+  }else{
+   vList.innerHTML=comp.violations.slice(0,6).map(v=>`<button type="button" class="site-vchip" data-bi="${v.index}"><span>⚠</span><span>${v.name}</span></button>`).join('');
+   vList.querySelectorAll('.site-vchip').forEach(bt=>{
+    bt.onclick=()=>{const i=parseInt(bt.dataset.bi);if(!isNaN(i)&&state.blocks[i]){setSel(i);lastSelPanel=String(i);refresh()}};
+   });
+  }
+ }
+}
+function applySiteInputs(){
+ const w=parseFloat($('sW').value),d=parseFloat($('sD').value),fh=parseFloat($('sFH').value),n=parseFloat($('sN').value)||0;
+ const sb=parseFloat($('sSB').value)||0;
+ const sbN=parseFloat($('sSBN')?$('sSBN').value:sb)||0,sbS=parseFloat($('sSBS')?$('sSBS').value:sb)||0,sbE=parseFloat($('sSBE')?$('sSBE').value:sb)||0,sbW=parseFloat($('sSBW')?$('sSBW').value:sb)||0;
+ const maxCovPct=parseFloat($('sMaxCov')?$('sMaxCov').value:60)||60,maxFar=parseFloat($('sMaxFar')?$('sMaxFar').value:2.4)||2.4;
+ if(!(w>=10&&d>=10&&fh>0))return;
+ snap(true);
+ Object.assign(state.site,{w,d,sb,sbN,sbS,sbE,sbW,north:n,maxCovPct,maxFar});
+ state.fh=fh;
+ siteChanged();refresh();
+}
+['sW','sD','sFH','sSB','sSBN','sSBS','sSBE','sSBW','sN','sMaxCov','sMaxFar'].forEach(id=>{if($(id))$(id).onchange=applySiteInputs});
+if($('sbModeUniform'))$('sbModeUniform').onclick=()=>{snap(true);state.site.sbMode='uniform';siteChanged();refresh()};
+if($('sbModeCustom'))$('sbModeCustom').onclick=()=>{snap(true);if(state.site.sbMode!=='custom'){const s=state.site.sb||0;state.site.sbN=s;state.site.sbS=s;state.site.sbE=s;state.site.sbW=s}state.site.sbMode='custom';siteChanged();refresh()};
+[['stN','n'],['stS','s'],['stE','e'],['stW','w']].forEach(([id,k])=>{
+ if($(id))$(id).onclick=()=>{snap(true);state.site.streets=state.site.streets||{n:false,s:true,e:false,w:false};state.site.streets[k]=!state.site.streets[k];siteChanged();save()};
+});
+if($('sRoadW')){$('sRoadW').oninput=e=>{state.site.roadW=parseInt(e.target.value)||12;siteChanged()};$('sRoadW').onchange=()=>save()}
+if($('sitePresetSel'))$('sitePresetSel').onchange=e=>{
+ const val=e.target.value;if(!val)return;
+ const [pw,pd]=val.split('x').map(Number);if(!(pw>0&&pd>0))return;
+ snap(true);state.site.w=pw;state.site.d=pd;
+ if(val==='60x40')state.site.streets={n:false,s:true,e:true,w:false};
+ else if(val==='40x60')state.site.streets={n:false,s:true,e:false,w:false};
+ else if(val==='160x120')state.site.streets={n:true,s:true,e:true,w:true};
+ siteChanged();refresh();view('iso');
+ e.target.value='';
+ flash(L(`تم تطبيق أبعاد القطعة ${pw}×${pd} م ✓`,`Applied parcel ${pw}×${pd} m ✓`));
+};
+if($('bFitSite'))$('bFitSite').onclick=()=>{view('iso');flash(L('تم توسيط الكاميرا على حدود الموقع','Framed camera to site bounds'))};
 $('dSnap').onchange=e=>snapStep=parseFloat(e.target.value);
-$('bEdge').onclick=()=>{edgeOn=!edgeOn;tg('bEdge',edgeOn)};
+$('bEdge').onclick=()=>{edgeOn=!edgeOn;tg('bEdge',edgeOn);if(!edgeOn&&typeof clearSnapGuides==='function')clearSnapGuides();flash(edgeOn?L('المحاذاة الذكية مفعّلة — تظهر خطوط إرشادية عند محاذاة الحواف والمراكز','Smart Align ON — guides appear when aligning edges or centers'):L('المحاذاة الذكية متوقفة','Smart Align OFF'))};
 $('bMulti').onclick=()=>{multiMode=!multiMode;tg('bMulti',multiMode);flash(multiMode?L('التحديد المتعدد مفعّل: كل نقرة تضيف كتلة','Multi-select ON: click to add blocks'):L('التحديد المتعدد متوقف','Multi-select OFF'))};
 $('bAll').onclick=()=>{selSet=new Set(state.blocks.map((_,i)=>i));sel=state.blocks.length-1;refresh()};
 // image
@@ -660,9 +886,9 @@ function tg(id,on){$(id).classList.toggle('on',!!on)}
 $('bGrid').onclick=()=>{showGrid=!showGrid;tg('bGrid',showGrid);if(grid)grid.visible=showGrid};
 $('bNames').onclick=()=>{showNames=!showNames;tg('bNames',showNames);renderNames(true)};
 $('bDims').onclick=()=>{showDims=!showDims;tg('bDims',showDims)};
-function setColor(m){colorMode=m;[['cMat','mat'],['cFn','fn'],['cWhite','white'],['cXray','xray']].forEach(([id,v])=>tg(id,m===v));build();renderNames(true)}
+function setColor(m){colorMode=m;massOverlay='none';[['cMat','mat'],['cFn','fn'],['cWhite','white'],['cXray','xray']].forEach(([id,v])=>tg(id,m===v));if(typeof syncMassOverlayUI==='function')syncMassOverlayUI();build();renderNames(true)}
 $('cMat').onclick=()=>setColor('mat');$('cFn').onclick=()=>setColor('fn');$('cWhite').onclick=()=>setColor('white');$('cXray').onclick=()=>setColor('xray');
-function setTool(t){if(typeof cancelPoly==='function'&&polyD&&t!=='draw')cancelPoly();tool=t;buildHandles();tg('tCut',t==='cut');if(t==='cut'){mLine.visible=false;flash(L('اسحب خطاً عبر الكتلة لقصها إلى جزأين — الأسهل من وضع المسقط','Drag a line across a mass to split it in two (best in 2D Plan)'))}if(typeof galSync==='function')setTimeout(galSync,0);tg('tSel',t==='select');tg('tDraw',t==='draw');tg('tMeas',t==='meas');R.domElement.style.cursor=t==='select'?'default':'crosshair';
+function setTool(t){if(typeof cancelPoly==='function'&&polyD&&t!=='draw')cancelPoly();if(typeof clearSnapGuides==='function')clearSnapGuides();tool=t;buildHandles();tg('tCut',t==='cut');if(t==='cut'){mLine.visible=false;flash(L('اسحب خطاً عبر الكتلة لقصها إلى جزأين — الأسهل من وضع المسقط','Drag a line across a mass to split it in two (best in 2D Plan)'))}if(typeof galSync==='function')setTimeout(galSync,0);tg('tSel',t==='select');tg('tDraw',t==='draw');tg('tMeas',t==='meas');R.domElement.style.cursor=t==='select'?'default':'crosshair';
  if(t!=='meas'&&t!=='cal')clearMeas();if(t==='draw')flash($('dShape').value==='poly'?L('مضلع حر: انقر نقاط الشكل واحدة تلو الأخرى، وأغلقه بالنقر على أول نقطة','Polygon: click points on the ground, then click the start point to close'):PROPS[$('dShape').value]?L('انقر على الأرض لوضع العنصر','Click on the ground to place item'):L('اسحب على الأرض لرسم كتلة','Drag on the ground to draw a mass'));if(t==='meas')flash(L('انقر نقطتين لقياس المسافة','Click 2 points to measure distance'))}
 $('tSel').onclick=()=>setTool('select');$('tCut').onclick=()=>setTool(tool==='cut'?'select':'cut');$('tDraw').onclick=()=>setTool('draw');$('tMeas').onclick=()=>setTool('meas');
 $('tUndo').onclick=doUndo;$('tRedo').onclick=doRedo;$('qUndo').onclick=doUndo;$('qRedo').onclick=doRedo;
@@ -675,10 +901,58 @@ function ndc(e){const r=R.domElement.getBoundingClientRect();mv.x=((e.clientX-r.
 function gpt(e){ndc(e);const p=new THREE.Vector3();return ray.ray.intersectPlane(plane,p)?p:null}
 const sn=v=>Math.round(v/snapStep)*snapStep;
 const TH=()=>Math.max(.6,snapStep*.8);
-function edgeLists(excl){const xs=[],zs=[];state.blocks.forEach((b,i)=>{if(excl&&excl.has(i)||isProp(b))return;xs.push(b.x-b.w/2,b.x+b.w/2,b.x);zs.push(b.z-b.d/2,b.z+b.d/2,b.z)});
+function edgeLists(excl){
+ if(window.MC3D_SNAP){
+  const t=MC3D_SNAP.collectSnapTargets(state.blocks,excl,state.site);
+  return {xs:t.x.map(c=>c.val),zs:t.z.map(c=>c.val),targets:t};
+ }
+ const xs=[],zs=[];state.blocks.forEach((b,i)=>{if((excl&&excl.has(i))||b.hidden||isProp(b))return;xs.push(b.x-b.w/2,b.x+b.w/2,b.x);zs.push(b.z-b.d/2,b.z+b.d/2,b.z)});
  const st=state.site;xs.push(-st.w/2,st.w/2,0);zs.push(-st.d/2,st.d/2,0);if(st.sb>0){xs.push(-st.w/2+st.sb,st.w/2-st.sb);zs.push(-st.d/2+st.sb,st.d/2-st.sb)}return {xs,zs}}
 function near(v,arr){let best=null,bd=TH();for(const e of arr){const d=Math.abs(e-v);if(d<bd){bd=d;best=e}}return best}
 function snapPt(p){let x=sn(p.x),z=sn(p.z);if(edgeOn){const {xs,zs}=edgeLists(null);const ex=near(p.x,xs),ez=near(p.z,zs);if(ex!==null)x=ex;if(ez!==null)z=ez}return new THREE.Vector3(x,0,z)}
+const snapGuidesG=new THREE.Group();snapGuidesG.renderOrder=1002;S.add(snapGuidesG);let activeSnapGuides=[];
+function clearSnapGuides(){
+ activeSnapGuides=[];
+ while(snapGuidesG.children.length){
+  const ch=snapGuidesG.children[0];
+  snapGuidesG.remove(ch);
+  if(ch.geometry)ch.geometry.dispose();
+  if(ch.material)ch.material.dispose();
+ }
+}
+function renderSnapGuides(guides){
+ clearSnapGuides();
+ if(!guides||!guides.length)return;
+ activeSnapGuides=guides;
+ const COLORS={edge:'#0284c7',center:'#d97706',site:'#059669'};
+ guides.forEach(g=>{
+  const col=COLORS[g.kind]||'#0284c7';
+  const yBase=Math.max(0.14,(g.y||0)+0.14);
+  const addLine=(yPos,op,dashed)=>{
+   const p1=g.axis==='x'?new THREE.Vector3(g.coord,yPos,g.spanStart):new THREE.Vector3(g.spanStart,yPos,g.coord);
+   const p2=g.axis==='x'?new THREE.Vector3(g.coord,yPos,g.spanEnd):new THREE.Vector3(g.spanEnd,yPos,g.coord);
+   const geo=new THREE.BufferGeometry().setFromPoints([p1,p2]);
+   const mat=dashed
+    ?new THREE.LineDashedMaterial({color:col,dashSize:1.8,gapSize:0.9,transparent:true,opacity:op,depthTest:false})
+    :new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op,depthTest:false});
+   const ln=new THREE.Line(geo,mat);
+   if(dashed)ln.computeLineDistances();
+   ln.renderOrder=1002;
+   snapGuidesG.add(ln);
+  };
+  addLine(yBase,0.92,g.kind==='center'||g.kind==='site');
+  if(yBase>0.5)addLine(0.08,0.45,true);
+  const nodeGeo=new THREE.BoxGeometry(0.55,0.16,0.55);
+  const nodeMat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.95,depthTest:false});
+  [g.spanStart+2.5,g.spanEnd-2.5].forEach(sp=>{
+   const mk=new THREE.Mesh(nodeGeo.clone(),nodeMat.clone());
+   mk.position.set(g.axis==='x'?g.coord:sp,yBase,g.axis==='x'?sp:g.coord);
+   mk.renderOrder=1003;
+   snapGuidesG.add(mk);
+  });
+  nodeGeo.dispose();nodeMat.dispose();
+ });
+}
 function defH(){const sh=$('dShape').value;if(PROPS[sh])return 2;return FLAT.includes($('dMat').value)?0.3:Math.max(1,parseInt($('dF').value)||1)*state.fh}
 function updPrev(){const d=drawing,w=Math.max(.2,Math.abs(d.x1-d.x0)),dd=Math.max(.2,Math.abs(d.z1-d.z0)),h=defH();prev.scale.set(w,h,dd);prev.position.set((d.x0+d.x1)/2,h/2,(d.z0+d.z1)/2);prev.visible=true}
 // measure
@@ -709,16 +983,55 @@ addEventListener('pointermove',e=>{
  if(resizing){const r=resizing,b=r.b;
   if(r.k==='H'){ndc(e);const n=new THREE.Vector3(C.position.x-b.x,0,C.position.z-b.z).normalize();const vp=new THREE.Plane().setFromNormalAndCoplanarPoint(n,new THREE.Vector3(b.x,0,b.z));const q=new THREE.Vector3();
    if(ray.ray.intersectPlane(vp,q)){const nf=Math.max(1,Math.round((q.y-b.y0)/state.fh));if(nf!==b.f){b.f=nf;rebuildOne(sel)}}return}
-  const p=gpt(e);if(!p)return;let s=sn(p[r.k==='R'||r.k==='L'?'x':'z']);
-  if(edgeOn){const {xs,zs}=edgeLists(new Set([sel]));const ev=near(p[r.k==='R'||r.k==='L'?'x':'z'],r.k==='R'||r.k==='L'?xs:zs);if(ev!==null)s=ev}
+  const p=gpt(e);if(!p)return;const axis=(r.k==='R'||r.k==='L')?'x':'z';let s=sn(p[axis]);
+  if(edgeOn){
+   if(window.MC3D_SNAP){
+    if(!r.snapTargets)r.snapTargets=MC3D_SNAP.collectSnapTargets(state.blocks,new Set([sel]),state.site);
+    const rs=MC3D_SNAP.computeSmartResizeSnap({
+     rawMovingVal:p[axis],
+     axis,
+     dragCrossMin:axis==='x'?r.z1:r.x1,
+     dragCrossMax:axis==='x'?r.z2:r.x2,
+     targets:r.snapTargets,
+     threshold:TH(),
+     guideY:(b.y0||0)+0.12
+    });
+    if(rs.matched){s=+rs.snappedVal.toFixed(3);renderSnapGuides(rs.guides)}
+    else clearSnapGuides();
+   }else{const {xs,zs}=edgeLists(new Set([sel]));const ev=near(p[axis],axis==='x'?xs:zs);if(ev!==null)s=ev}
+  }else clearSnapGuides();
   let {x1,x2,z1,z2}=r;if(r.k==='R')x2=Math.max(x1+1,s);if(r.k==='L')x1=Math.min(x2-1,s);if(r.k==='B')z2=Math.max(z1+1,s);if(r.k==='T')z1=Math.min(z2-1,s);
   b.w=+(x2-x1).toFixed(3);b.x=+((x1+x2)/2).toFixed(3);b.d=+(z2-z1).toFixed(3);b.z=+((z1+z2)/2).toFixed(3);rebuildOne(sel);return}
  if(dragging){if(!dragging.moved){if(Math.hypot(e.clientX-down.x,e.clientY-down.y)<4)return;snap(true);dragging.moved=true;hG.clear()}
   if(!dragging.orig.length)return;const p=gpt(e);if(!p)return;const pr=state.blocks[dragging.i],o=dragging.orig.find(q=>q.k===dragging.i)||dragging.orig[0];
   let dx=p.x-dragging.p0.x,dz=p.z-dragging.p0.z;dx=sn(o.x-pr.w/2+dx)+pr.w/2-o.x;dz=sn(o.z-pr.d/2+dz)+pr.d/2-o.z;
-  if(edgeOn){const {xs,zs}=edgeLists(selSet);let a=1e9,b=-1e9,c=1e9,d=-1e9;dragging.orig.forEach(q=>{const bb=state.blocks[q.k];a=Math.min(a,q.x-bb.w/2);b=Math.max(b,q.x+bb.w/2);c=Math.min(c,q.z-bb.d/2);d=Math.max(d,q.z+bb.d/2)});
-   const adj=(lo,hi,arr)=>{let best=0,bd=TH();for(const ev of arr)for(const v of [lo,hi,(lo+hi)/2]){const df=ev-v;if(Math.abs(df)<bd){bd=Math.abs(df);best=df}}return best};
-   dx+=adj(a+dx,b+dx,xs);dz+=adj(c+dz,d+dz,zs)}
+  if(edgeOn){
+   if(window.MC3D_SNAP){
+    if(!dragging.snapTargets)dragging.snapTargets=MC3D_SNAP.collectSnapTargets(state.blocks,selSet,state.site);
+    const shiftedBlocks=state.blocks.slice();
+    const origIds=[];
+    let minY=Infinity;
+    dragging.orig.forEach(q=>{
+     const origB=state.blocks[q.k];
+     if(!origB)return;
+     origIds.push(q.k);
+     minY=Math.min(minY,origB.y0||0);
+     shiftedBlocks[q.k]=Object.assign({},origB,{x:q.x+dx,z:q.z+dz});
+    });
+    const dragBox=MC3D_SNAP.getSelectionAabbXZ(shiftedBlocks,origIds);
+    const res=MC3D_SNAP.computeSmartDragSnap({
+     dragBox,
+     targets:dragging.snapTargets,
+     threshold:TH(),
+     guideY:Number.isFinite(minY)?minY+0.12:0.12
+    });
+    dx+=res.dx;dz+=res.dz;
+    if(res.guides.length)renderSnapGuides(res.guides);
+    else clearSnapGuides();
+   }else{const {xs,zs}=edgeLists(selSet);let a=1e9,b=-1e9,c=1e9,d=-1e9;dragging.orig.forEach(q=>{const bb=state.blocks[q.k];a=Math.min(a,q.x-bb.w/2);b=Math.max(b,q.x+bb.w/2);c=Math.min(c,q.z-bb.d/2);d=Math.max(d,q.z+bb.d/2)});
+    const adj=(lo,hi,arr)=>{let best=0,bd=TH();for(const ev of arr)for(const v of [lo,hi,(lo+hi)/2]){const df=ev-v;if(Math.abs(df)<bd){bd=Math.abs(df);best=df}}return best};
+    dx+=adj(a+dx,b+dx,xs);dz+=adj(c+dz,d+dz,zs)}
+  }else clearSnapGuides();
   dragging.orig.forEach(q=>{const b=state.blocks[q.k];b.x=+(q.x+dx).toFixed(3);b.z=+(q.z+dz).toFixed(3);const g=groups[q.k];if(g){g.position.x=b.x;g.position.z=b.z}})}});
 let cutting=null,polyD=null;
 addEventListener('pointermove',e=>{if(typeof updateShadowProbe==='function')updateShadowProbe(e)});
@@ -751,12 +1064,12 @@ function rebuildOne(i){const b=state.blocks[i],old=groups[i];if(!old)return;bg.r
 function up(e){
  if(cutting){const c=cutting;cutting=null;O.enabled=true;mLine.visible=false;mDots.forEach(d=>d.visible=false);doCut(c.a,c.b);down=null;return}
  if(tool==='meas'||tool==='cal'){O.enabled=true;down=null;return}
- if(resizing){resizing=null;O.enabled=true;refresh();down=null;return}
+ if(resizing){resizing=null;clearSnapGuides();O.enabled=true;refresh();down=null;return}
  if(drawing){const d=drawing;drawing=null;prev.visible=false;O.enabled=true;const w=Math.abs(d.x1-d.x0),dd=Math.abs(d.z1-d.z0),sh=$('dShape').value,n=state.blocks.length+1;
   if(PROPS[sh]){snap(true);const [pw,pd]=PROPS[sh];state.blocks.push(norm({name:dn('shapes',sh,SHAPES[sh])+' '+n,shape:sh,mat:sh==='car'?'white':'brick',f:1,x:d.x1,z:d.z1,w:pw,d:pd}));setSel(state.blocks.length-1);refresh()}
   else if(w>=1&&dd>=1){snap(true);state.blocks.push(norm({name:dn('shapes',sh,SHAPES[sh])+' '+n,shape:sh,mat:$('dMat').value,fn:$('dFn').value,f:Math.max(1,parseInt($('dF').value)||1),x:(d.x0+d.x1)/2,z:(d.z0+d.z1)/2,w,d:dd}));setSel(state.blocks.length-1);refresh()}
   else flash(L('اسحب مسافة أكبر للرسم (1 م على الأقل)','Drag at least 1 m to draw a mass'));down=null;return}
- if(dragging){const g=dragging;dragging=null;O.enabled=true;if(g.moved)refresh();down=null;return}
+ if(dragging){const g=dragging;dragging=null;clearSnapGuides();O.enabled=true;if(g.moved)refresh();down=null;return}
  const click=down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<5;
  if(pending){const pd=pending;pending=null;if(click){if(pd.shift){if(selSet.has(pd.i))selSet.delete(pd.i);else selSet.add(pd.i);sel=selSet.size?(selSet.has(pd.i)?pd.i:[...selSet].pop()):-1}else setSel(pd.i);refresh()}down=null;return}
  if(click&&e.target===R.domElement&&selSet.size&&!multiMode){clearSel();refresh()}
@@ -787,7 +1100,7 @@ addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='SEL
  if(ctrl&&(k==='c'||k==='C')){copySel();return}if(ctrl&&(k==='v'||k==='V')){e.preventDefault();pasteClip();return}
  if(ctrl&&(k==='d'||k==='D')){e.preventDefault();dup();return}
  if(k==='v'||k==='V'){setTool('select');return}if(k==='b'||k==='B'){setTool('draw');return}if(k==='m'||k==='M'){setTool('meas');return}
- if(k==='Escape'){clearSel();setTool('select');refresh();return}
+ if(k==='Escape'){dragging=null;resizing=null;O.enabled=true;clearSnapGuides();clearSel();setTool('select');refresh();return}
  if(!selSet.size)return;
  if(k==='Delete'||k==='Backspace'){e.preventDefault();del();return}
  if(k==='d'||k==='D'){dup();return}if(k==='R'&&e.shiftKey){rotFree(15);return}if((k==='r'||k==='R')&&selSet.size===1){rot90();return}if(k==='l'||k==='L'){toggleLock();return}if(k==='h'||k==='H'){toggleHide();return}
@@ -801,7 +1114,13 @@ function renderNames(rebuild){if(rebuild){namesBox.innerHTML='';nameDivs=[];if(s
 function toScreen(v){v.project(C);if(v.z>1)return null;const r=el.getBoundingClientRect();return [r.left+(v.x+1)/2*r.width,r.top+(1-v.y)/2*r.height]}
 function labels(){let txt=null,pos=null;const um=L('م','m');
  if(drawing){const d=drawing;txt=`${Math.abs(d.x1-d.x0).toFixed(1)} × ${Math.abs(d.z1-d.z0).toFixed(1)} ${um}`;pos=new THREE.Vector3((d.x0+d.x1)/2,defH()+1,(d.z0+d.z1)/2)}
- else if(selSet.size===1&&showDims&&state.blocks[sel]){const b=state.blocks[sel];txt=(b.lock?'':'')+`${b.w.toFixed(1)} × ${b.d.toFixed(1)} ${um}`+(counts(b)?` · ${L('ارتفاع','H')} ${(bh(b)).toFixed(1)} ${um}`:'')+(b.y0?` · ${L('مرفوع','Elev')} ${b.y0} ${um}`:'');pos=new THREE.Vector3(b.x,b.y0+bh(b)+1.5,b.z)}
+ else{
+  const activeGuides=((dragging&&dragging.moved)||resizing)&&activeSnapGuides.length?activeSnapGuides:null;
+  let snapTag='';
+  if(activeGuides){const kinds=new Set(activeGuides.map(g=>g.kind));const tags=[];if(kinds.has('center'))tags.push(L('محاذاة مركز','Center Align'));if(kinds.has('edge'))tags.push(L('محاذاة حافة','Edge Align'));if(kinds.has('site'))tags.push(L('محاذاة موقع','Site Align'));if(tags.length)snapTag='⌖ '+tags.join(' + ')}
+  if(selSet.size===1&&(showDims||snapTag)&&state.blocks[sel]){const b=state.blocks[sel];txt=(showDims?(b.lock?'':'')+`${b.w.toFixed(1)} × ${b.d.toFixed(1)} ${um}`+(counts(b)?` · ${L('ارتفاع','H')} ${(bh(b)).toFixed(1)} ${um}`:'')+(b.y0?` · ${L('مرفوع','Elev')} ${b.y0} ${um}`:''):'')+(snapTag?(showDims?' · ':'')+snapTag:'');pos=new THREE.Vector3(b.x,b.y0+bh(b)+1.5,b.z)}
+  else if(snapTag&&dragging&&dragging.orig&&dragging.orig.length){const b=state.blocks[dragging.i]||state.blocks[dragging.orig[0].k];if(b){txt=snapTag;pos=new THREE.Vector3(b.x,b.y0+bh(b)+1.5,b.z)}}
+ }
  const s=pos&&toScreen(pos);if(!txt||!s){lab.style.display='none'}else{lab.style.display='block';lab.textContent=txt;lab.style.left=s[0]+'px';lab.style.top=s[1]+'px'}
  const ml=$('mlab'),a=mp.a,b=mp.b||mp.hover;if(a&&b&&(tool==='meas'||tool==='cal')){const q=toScreen(new THREE.Vector3((a.x+b.x)/2,.5,(a.z+b.z)/2));if(q){ml.style.display='block';ml.textContent=a.distanceTo(b).toFixed(2)+' '+um+(tool==='cal'?L(' (بمقياس الصورة)',' (image scale)'):'');ml.style.left=q[0]+'px';ml.style.top=q[1]+'px'}}else ml.style.display='none';
  if(showNames)state.blocks.forEach((b,i)=>{const d=nameDivs[i];if(!d||isProp(b))return;const q=toScreen(new THREE.Vector3(b.x,b.y0+bh(b)+.5,b.z));if(!q){d.style.display='none';return}d.style.display='block';d.style.left=q[0]+'px';d.style.top=q[1]+'px'})}
@@ -1405,7 +1724,7 @@ async function pushImg(id){const done=LS.get('mc3d_imgup')||{};if(done[id])retur
  for(let k=0;k<n;k++)await CL.col.doc('img_'+id+'_'+k).set({d:v.slice(k*CHUNK,(k+1)*CHUNK),k,n});done[id]=1;LS.set('mc3d_imgup',done)}
 async function pullImg(id){if(imgSrc[id])return true;const first=await CL.col.doc('img_'+id+'_0').get();if(!first.exists)return false;const f=first.data();let s=f.d;
  for(let k=1;k<f.n;k++){const p=await CL.col.doc('img_'+id+'_'+k).get();if(!p.exists)return false;s+=p.data().d}imgSrc[id]=s;await IDB.put(id,s);const done=LS.get('mc3d_imgup')||{};done[id]=1;LS.set('mc3d_imgup',done);return true}
-async function reconcile(remote){if(!CL.col)return;if(CL.busy){CL.pending=true;return}CL.busy=true;clStatus('جارٍ المزامنة…','sync','Syncing…');
+async function reconcile(remote){if(!CL.col)return;if(CL.busy){CL.pending=true;return}CL.busy=true;if(unsavedTracker)unsavedTracker.setCloudStatus({pending:true});clStatus('جارٍ المزامنة…','sync','Syncing…');
  try{remote=remote||{d:{},s:{},del:{d:{},s:{}}};remote.d=remote.d||{};remote.s=remote.s||{};remote.del=remote.del||{d:{},s:{}};remote.del.d=remote.del.d||{};remote.del.s=remote.del.s||{};
   const sy=syncedMap(),now=Date.now();let changedCur=false,changedD=false,changedS=false,msgs=[];
   // ---- designs
@@ -1445,7 +1764,7 @@ async function reconcile(remote){if(!CL.col)return;if(CL.busy){CL.pending=true;r
   if(msgs.length)flash(''+msgs.slice(0,3).join(' · '));
   clStatus('متزامن','ok','Synced');CL.ok=true}
  catch(e){clStatus('خطأ بالمزامنة','err','Sync error');if(e&&e.code==='quota_exceeded')flash(L('مساحة الحفظ السحابي ممتلئة — احذف لوحات أو صوراً قديمة','Cloud storage quota full — delete old sheets or images'))}
- finally{CL.busy=false;if(CL.pending){CL.pending=false;setTimeout(()=>reconcile(CL.lastMeta),300)}}}
+ finally{CL.busy=false;if(unsavedTracker)unsavedTracker.setCloudStatus({pending:false});if(CL.pending){CL.pending=false;setTimeout(()=>reconcile(CL.lastMeta),300)}}}
 function saveSheetLocalOnly(){if(typeof sheet!=='undefined'&&sheet&&curSheet)sheets[curSheet]=sheet}
 let clT=null;function cloudSoon(){if(!CL.col)return;clearTimeout(clT);clT=setTimeout(()=>reconcile(CL.lastMeta),4000)}
 async function cloudInit(){try{if(!window.claude||!claude.use)return sbInit();const db=await claude.use('db'),user=await claude.use('user');
@@ -1496,25 +1815,498 @@ let latticeT=null;function lattice(){if(latticeT)return latticeT;const N=128,cv=
 function worldUV(g,b){const map=texOf(b.mat);if(!map)return;const s=map.userData.size||2,pos=g.attributes.position;if(!g.attributes.normal)g.computeVertexNormals();const n=g.attributes.normal,yo=b.y0+bh(b)/2;
  const uv=new Float32Array(pos.count*2);for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i)+yo,z=pos.getZ(i),nx=Math.abs(n.getX(i)),ny=Math.abs(n.getY(i)),nz=Math.abs(n.getZ(i));let u,v;
   if(ny>.7){u=x;v=z}else if(nx>nz){u=z;v=y}else{u=x;v=y}uv[i*2]=u/s;uv[i*2+1]=v/s}g.setAttribute('uv',new THREE.BufferAttribute(uv,2))}
-// ---- facade elements ----
-const FACS={'':'بدون',win:'شبابيك (إيقاع)',fins:'كاسرات عمودية',hfins:'كاسرات أفقية',mash:'مشربية'};
+// ---- facade elements & Facade Studio ----
+const FACS={'':'بدون',win:'شبابيك (إيقاع)',curtain:'ستائر زجاجية',fins:'كاسرات عمودية',hfins:'كاسرات أفقية',grid:'إطار شبكي',mash:'مشربية',balcony:'شرفات متكررة'};
 function boxesGeo(list){const P=[],Nn=[],U=[];list.forEach(([cx,cy,cz,sx,sy,sz,ang])=>{const g=new THREE.BoxGeometry(sx,sy,sz).toNonIndexed();g.rotateY(ang);g.translate(cx,cy,cz);
   P.push(...g.attributes.position.array);Nn.push(...g.attributes.normal.array);U.push(...g.attributes.uv.array);g.dispose()});
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(Nn,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2));return g}
-function facade(b,h,grp){const [w,d]=loc(b),W=w/2,D=d/2,fh=state.fh,H=h/2,hw=h-roofH(b);const faces=[[-W,D,1,0,0,1,w],[W,-D,-1,0,0,-1,w],[W,D,0,-1,1,0,d],[-W,-D,0,1,-1,0,d]];
- if(b.shape==='court'){const t=courtT(b),Wi=W-t,Di=D-t;faces.push([Wi,Di,-1,0,0,-1,2*Wi],[-Wi,-Di,1,0,0,1,2*Wi],[-Wi,Di,0,-1,1,0,2*Di],[Wi,-Di,0,1,-1,0,2*Di])}
- const gate=b.shape==='gate'?gateG(b):null,wh=colorMode==='white';
- const dark=[],lite=[],wood=[];
- faces.forEach(([ox,oz,dx,dz,nx,nz,len])=>{const ang=Math.atan2(-dz,dx),at=(s,off,y,sx,sy,sz,arr)=>{const x=ox+dx*s+nx*off,z=oz+dz*s+nz*off;
-   if(gate&&nx===0&&Math.abs(x)<gate[0]/2+sx/2+.3&&y-sy/2<-H+gate[1])return;arr.push([x,y,z,sx,sy,sz,ang])};
-  for(let k=0;k<b.f;k++){const y0=-H+k*fh;if(y0+fh>-H+hw+.01)break;
-   if(b.fac==='win'){const n=Math.max(1,Math.floor(len/3.2));for(let i=0;i<n;i++)at((i+.5)*len/n,.05,y0+1.9,1.5,1.8,.12,dark)}
-   else if(b.fac==='fins'){const n=Math.max(1,Math.floor(len/2.4));for(let i=0;i<n;i++)at((i+.5)*len/n,.04,y0+1.7,1.9,2.4,.08,dark)}
-   else if(b.fac==='hfins'){at(len/2,.04,y0+1.7,len-.6,2.6,.08,dark);[1.2,1.75,2.3,2.85].forEach(yy=>at(len/2,.32,y0+yy,len-.2,.08,.55,lite))}
-   else if(b.fac==='mash'){const n=Math.max(1,Math.floor(len/4));for(let i=0;i<n;i++)at((i+.5)*len/n,.2,y0+1.9,2.4,2.6,.4,wood)}}
-  if(b.fac==='fins'){const n=Math.max(1,Math.floor(len/1));for(let i=0;i<=n;i++)at(i*len/n,.35,-H+hw/2,.12,hw,.7,lite)}});
- const add=(arr,col,map)=>{if(!arr.length)return;const m=new THREE.Mesh(boxesGeo(arr),M(wh?(map?'#d8d4cc':col==='#2e3d4f'?'#a9a9a4':'#f7f6f2'):col,false,wh?null:map));m.castShadow=true;m.receiveShadow=true;m.userData.fac=1;grp.add(m)};
- add(dark,'#2e3d4f');add(lite,'#f1eee6');add(wood,'#8a5a32',lattice())}
+function facade(b,h,grp){
+ const wh=colorMode==='white';
+ if(window.MC3D_FACADE){
+  const res=MC3D_FACADE.generateFacadeBoxes({
+   block:b,fh:state.fh,height:h,roofHeight:roofH(b),
+   courtDepth:b.shape==='court'?courtT(b):0,
+   gateGap:b.shape==='gate'?gateG(b):null
+  });
+  const pal=res.palette||MC3D_FACADE.FACADE_TONES.slate;
+  const add=(arr,col,map)=>{if(!arr||!arr.length)return;const m=new THREE.Mesh(boxesGeo(arr),M(wh?(map?'#d8d4cc':col):col,false,wh?null:map));m.castShadow=true;m.receiveShadow=true;m.userData.fac=1;grp.add(m)};
+  add(res.dark,wh?'#a3a39e':pal.dark);
+  add(res.lite,wh?'#f7f6f2':pal.lite);
+  add(res.glass,wh?'#bfd2e2':pal.glass);
+  add(res.wood,wh?'#d8d4cc':pal.wood,lattice());
+  return;
+ }
+}
+
+const FAC_MINI_SVG={
+ '':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="1.5"/><line x1="6" y1="18" x2="18" y2="6" stroke-opacity="0.45"/></svg>',
+ win:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><rect x="6.5" y="6.5" width="4" height="4.5" fill="currentColor" fill-opacity="0.22"/><rect x="13.5" y="6.5" width="4" height="4.5" fill="currentColor" fill-opacity="0.22"/><rect x="6.5" y="13.5" width="4" height="4.5" fill="currentColor" fill-opacity="0.22"/><rect x="13.5" y="13.5" width="4" height="4.5" fill="currentColor" fill-opacity="0.22"/></svg>',
+ curtain:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1" fill="currentColor" fill-opacity="0.14"/><path d="M8.5 3.5v17M15.5 3.5v17M3.5 9h17M3.5 15h17"/></svg>',
+ fins:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M7 4v16M10.3 4v16M13.7 4v16M17 4v16"/></svg>',
+ hfins:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M4 7.5h16M4 11h16M4 14.5h16M4 18h16"/></svg>',
+ grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/></svg>',
+ mash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M6 6l12 12M18 6L6 18M12 4v16M4 12h16" stroke-opacity="0.8"/></svg>',
+ balcony:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M4 10.5h16M4 16.5h16" stroke-width="2"/><rect x="6" y="6" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/><rect x="6" y="12" width="12" height="4.5" fill="currentColor" fill-opacity="0.18"/></svg>'
+};
+let facScope='sel',facZone='main',facFocusIdx=-1;
+function facEligibleIndices(){
+ if(!window.MC3D_FACADE)return [];
+ const out=[];
+ (state.blocks||[]).forEach((b,i)=>{if(b&&!b.hidden&&MC3D_FACADE.isBlockFacadeEligible(b))out.push(i)});
+ return out;
+}
+function facTargetIndices(){
+ const elig=facEligibleIndices();
+ if(!elig.length)return [];
+ if(facScope==='all')return elig;
+ if(facScope==='zone'){const zf=elig.filter(i=>(state.blocks[i].fn||'')===facZone);return zf.length?zf:[]}
+ if(sel>=0&&elig.includes(sel)){facFocusIdx=sel;return [sel]}
+ const inSet=[...selSet].filter(i=>elig.includes(i));
+ if(inSet.length){facFocusIdx=inSet[0];return inSet}
+ if(facFocusIdx>=0&&elig.includes(facFocusIdx))return [facFocusIdx];
+ facFocusIdx=elig[0];
+ return [elig[0]];
+}
+function renderFacadePreviewSvg(b,cfg){
+ const svg=$('facPreviewSvg');if(!svg||!window.MC3D_FACADE)return;
+ const W=268,H=142,padX=22,topPad=24,botPad=10;
+ if(!b){svg.innerHTML=`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="11" fill="#94a3b8">${L('لا توجد كتلة مؤهلة للواجهة','No facade-eligible block')}</text>`;return}
+ const [bw]=loc(b),floors=Math.max(1,b.f||1),fh=state.fh||4,bhWall=floors*fh;
+ const sc=Math.min((W-padX*2)/Math.max(4,bw),(H-topPad-botPad)/Math.max(4,bhWall));
+ const rx=bw*sc,ry=bhWall*sc,x0=(W-rx)/2,y0=topPad+((H-topPad-botPad)-ry)/2;
+ const pal=MC3D_FACADE.FACADE_TONES[cfg.tone]||MC3D_FACADE.FACADE_TONES.slate;
+ const fac=b.fac||'';
+ const nBays=Math.max(1,Math.round(bw/cfg.spacing));
+ const bayPx=rx/nBays,flPx=ry/floors;
+ const wwrF=cfg.wwr/100;
+ const out=[];
+ // Elevation silhouette
+ out.push(`<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${rx.toFixed(1)}" height="${ry.toFixed(1)}" fill="#f8fafc" stroke="#334155" stroke-width="1.2"/>`);
+ // Ground baseline
+ out.push(`<line x1="${(x0-10).toFixed(1)}" y1="${(y0+ry).toFixed(1)}" x2="${(x0+rx+10).toFixed(1)}" y2="${(y0+ry).toFixed(1)}" stroke="#64748b" stroke-width="1.3"/>`);
+ const startK=(!cfg.baseGround&&floors>1)?1:0;
+ if(fac){
+  for(let k=startK;k<floors;k++){
+   const fk=floors-1-k; // top floor index 0 in SVG y
+   const fy=y0+fk*flPx;
+   const glH=Math.max(3,flPx*(0.38+0.52*wwrF));
+   const glY=fy+(flPx-glH)/2;
+   if(fac==='curtain'||fac==='hfins'){
+    out.push(`<rect x="${(x0+2).toFixed(1)}" y="${glY.toFixed(1)}" width="${Math.max(4,rx-4).toFixed(1)}" height="${glH.toFixed(1)}" fill="${pal.glass}" fill-opacity="0.72"/>`);
+    if(fac==='hfins'){
+     const nL=cfg.depth>=0.7?3:2;
+     for(let l=0;l<nL;l++){const ly=fy+flPx*(0.32+(l/Math.max(1,nL-1))*0.48);out.push(`<line x1="${(x0+1).toFixed(1)}" y1="${ly.toFixed(1)}" x2="${(x0+rx-1).toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${pal.dark}" stroke-width="1.4"/>`);}
+    }else{
+     out.push(`<line x1="${x0.toFixed(1)}" y1="${(fy+flPx).toFixed(1)}" x2="${(x0+rx).toFixed(1)}" y2="${(fy+flPx).toFixed(1)}" stroke="${pal.dark}" stroke-width="1.5"/>`);
+    }
+   }else{
+    const winW=Math.max(3,Math.min(bayPx-2.2,bayPx*Math.sqrt(wwrF)*0.88));
+    for(let i=0;i<nBays;i++){
+     const wx=x0+i*bayPx+(bayPx-winW)/2;
+     if(fac==='mash'){
+      out.push(`<rect x="${wx.toFixed(1)}" y="${(fy+2).toFixed(1)}" width="${winW.toFixed(1)}" height="${Math.max(4,flPx-4).toFixed(1)}" fill="${pal.glass}" fill-opacity="0.45" stroke="${pal.wood}" stroke-width="1.1"/>`);
+      out.push(`<line x1="${wx.toFixed(1)}" y1="${(fy+2).toFixed(1)}" x2="${(wx+winW).toFixed(1)}" y2="${(fy+flPx-2).toFixed(1)}" stroke="${pal.wood}" stroke-width="0.7" stroke-opacity="0.75"/>`);
+      out.push(`<line x1="${(wx+winW).toFixed(1)}" y1="${(fy+2).toFixed(1)}" x2="${wx.toFixed(1)}" y2="${(fy+flPx-2).toFixed(1)}" stroke="${pal.wood}" stroke-width="0.7" stroke-opacity="0.75"/>`);
+     }else if(fac==='balcony'){
+      const bw2=Math.max(4,bayPx*0.82),bx2=x0+i*bayPx+(bayPx-bw2)/2;
+      out.push(`<rect x="${(bx2+1).toFixed(1)}" y="${(fy+2.5).toFixed(1)}" width="${Math.max(3,bw2-2).toFixed(1)}" height="${Math.max(4,flPx-5).toFixed(1)}" fill="${pal.glass}" fill-opacity="0.65"/>`);
+      out.push(`<rect x="${bx2.toFixed(1)}" y="${(fy+flPx-3.6).toFixed(1)}" width="${bw2.toFixed(1)}" height="3.2" fill="${pal.lite}" stroke="${pal.dark}" stroke-width="0.8"/>`);
+     }else{
+      out.push(`<rect x="${wx.toFixed(1)}" y="${glY.toFixed(1)}" width="${winW.toFixed(1)}" height="${glH.toFixed(1)}" fill="${pal.glass}" fill-opacity="0.76" stroke="${pal.dark}" stroke-width="0.8"/>`);
+     }
+    }
+    if(fac==='grid'){
+     out.push(`<line x1="${x0.toFixed(1)}" y1="${fy.toFixed(1)}" x2="${(x0+rx).toFixed(1)}" y2="${fy.toFixed(1)}" stroke="${pal.dark}" stroke-width="1.4"/>`);
+    }
+   }
+  }
+  if(fac==='curtain'||fac==='fins'||fac==='grid'){
+   const topY=y0,botY=y0+(floors-startK)*flPx;
+   for(let i=0;i<=nBays;i++){
+    const mx=x0+i*bayPx;
+    out.push(`<line x1="${mx.toFixed(1)}" y1="${topY.toFixed(1)}" x2="${mx.toFixed(1)}" y2="${botY.toFixed(1)}" stroke="${pal.dark}" stroke-width="${fac==='fins'?1.7:1.1}"/>`);
+   }
+  }
+ }
+ // Floor lines subtle
+ for(let k=1;k<floors;k++){
+  const fy=y0+k*flPx;
+  out.push(`<line x1="${x0.toFixed(1)}" y1="${fy.toFixed(1)}" x2="${(x0+rx).toFixed(1)}" y2="${fy.toFixed(1)}" stroke="#94a3b8" stroke-width="0.5" stroke-dasharray="2 2"/>`);
+ }
+ out.push(`<text x="${W/2}" y="14" text-anchor="middle" font-size="9.5" fill="#475569" font-family="IBM Plex Mono,monospace">${bw.toFixed(1)}×${bhWall.toFixed(1)}m · ${floors}F · ${dn('facs',fac,FACS[fac]||'')}</text>`);
+ svg.innerHTML=out.join('');
+}
+function mutateFacadeTargets(mutator){
+ const elig=facEligibleIndices();
+ if(!elig.length)return flash(L('أضف كتلة معمارية أولاً لتخصيص واجهتها','Add a rectangular mass first to design its facade'));
+ let targets=facTargetIndices();
+ if(!targets.length&&facScope==='zone'){
+  return flash(L('لا توجد كتل في هذا التصنيف الوظيفي','No masses match the selected zone'));
+ }
+ if(!targets.length)targets=[elig[0]];
+ snap(true);
+ targets.forEach(i=>mutator(state.blocks[i]));
+ refresh();
+}
+function renderFacadeStudio(){
+ if(!window.MC3D_FACADE||!$('p_facade'))return;
+ const elig=facEligibleIndices();
+ const empty=$('facEmptyBox'),sysGrp=$('facSystemGrp'),prvGrp=$('facPreviewGrp');
+ $('facScopeSel').classList.toggle('on',facScope==='sel');
+ $('facScopeAll').classList.toggle('on',facScope==='all');
+ $('facScopeZone').classList.toggle('on',facScope==='zone');
+ $('facBlockRow').style.display=facScope==='sel'?'flex':'none';
+ $('facZoneRow').style.display=facScope==='zone'?'flex':'none';
+
+ // Zone select options
+ if($('facZoneSel')){
+  $('facZoneSel').innerHTML=Object.entries(FNS).filter(([k])=>k!=='').map(([k,v])=>`<option value="${k}" ${k===facZone?'selected':''}>${dn('fns',k,v.n)}</option>`).join('');
+ }
+ // Block select options
+ if($('facBlockSel')){
+  if(!elig.length){
+   $('facBlockSel').innerHTML=`<option value="">${L('— لا توجد كتل مؤهلة —','— No eligible masses —')}</option>`;
+  }else{
+   const curTargets=facTargetIndices();
+   const activeIdx=curTargets.length?curTargets[0]:elig[0];
+   $('facBlockSel').innerHTML=elig.map(i=>{
+    const b=state.blocks[i],t=b.fac?dn('facs',b.fac,FACS[b.fac]||''):L('بدون','None');
+    return `<option value="${i}" ${i===activeIdx?'selected':''}>${b.name.replace(/</g,'&lt;')} (${t})</option>`;
+   }).join('');
+  }
+ }
+
+ const targets=facTargetIndices();
+ const rep=targets.length?state.blocks[targets[0]]:(elig.length?state.blocks[elig[0]]:null);
+ const hasElig=elig.length>0;
+ const hasTarget=!!rep;
+ if(empty){
+  if(!hasElig){empty.style.display='block';empty.textContent=L('ارسم كتلة مستطيلة أو بفناء لتخصيص عناصر الواجهة ثلاثية الأبعاد.','Draw a rectangular or courtyard mass to customize 3D facade elements.')}
+  else if(facScope==='zone'&&!targets.length){empty.style.display='block';empty.textContent=L('لا توجد كتل تابعة للوظيفة المختارة حالياً.','No masses belong to the selected zone yet.')}
+  else empty.style.display='none';
+ }
+ if(sysGrp)sysGrp.style.opacity=hasTarget?'1':'0.5';
+ if(prvGrp)prvGrp.style.opacity=hasTarget?'1':'0.5';
+
+ const activeFac=rep?(rep.fac||''):'';
+ const cfg=MC3D_FACADE.normalizeFacadeConfig(rep&&rep.facCfg,activeFac||'win');
+
+ // Render 8 type cards
+ const grid=$('facTypeGrid');
+ if(grid){
+  grid.innerHTML=Object.entries(MC3D_FACADE.FACADE_TYPES).map(([k,m])=>{
+   const lbl=dn('facs',k,m.ar);
+   return `<button type="button" class="fac-type-card${k===activeFac?' on':''}" data-ft="${k}" title="${lbl}">${FAC_MINI_SVG[k]||''}<span>${lbl}</span></button>`;
+  }).join('');
+  grid.querySelectorAll('.fac-type-card').forEach(btn=>{
+   btn.onclick=()=>{
+    const ft=btn.dataset.ft;
+    mutateFacadeTargets(b=>{
+     const hadFac=!!b.fac;
+     b.fac=ft;
+     if(ft&&(!b.facCfg||!hadFac)){
+      b.facCfg=MC3D_FACADE.normalizeFacadeConfig({tone:cfg.tone,sides:cfg.sides,baseGround:cfg.baseGround},ft);
+     }
+    });
+   };
+  });
+ }
+
+ // Directional side toggles
+ [['facSideF','f'],['facSideB','b'],['facSideR','r'],['facSideL','l']].forEach(([id,sk])=>{
+  if($(id))$(id).classList.toggle('on',!!cfg.sides[sk]);
+ });
+
+ // Sliders & readouts
+ const um=L('م','m'),u2=L('م²','m²');
+ if($('facSpacing')){$('facSpacing').value=cfg.spacing;$('facSpacingVal').textContent=cfg.spacing.toFixed(1)+' '+um}
+ if($('facWwr')){$('facWwr').value=cfg.wwr;$('facWwrVal').textContent=cfg.wwr+'%'}
+ if($('facDepth')){$('facDepth').value=cfg.depth;$('facDepthVal').textContent=cfg.depth.toFixed(2)+' '+um}
+
+ // Tone swatches
+ const tBox=$('facToneBtns');
+ if(tBox){
+  tBox.innerHTML=Object.entries(MC3D_FACADE.FACADE_TONES).map(([tk,tv])=>{
+   const lbl=L(tv.ar,tv.en);
+   return `<button type="button" class="fac-tone-btn${tk===cfg.tone?' on':''}" data-tone="${tk}" title="${lbl}" aria-label="${lbl}" style="background:linear-gradient(135deg,${tv.lite} 50%,${tv.dark} 50%)"></button>`;
+  }).join('');
+  tBox.querySelectorAll('.fac-tone-btn').forEach(btn=>{
+   btn.onclick=()=>mutateFacadeTargets(b=>{
+    if(!b.fac)b.fac='win';
+    b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},b.facCfg||{},{tone:btn.dataset.tone}),b.fac);
+   });
+  });
+ }
+
+ // Ground floor toggle
+ if($('facGroundBtn')){
+  $('facGroundBtn').classList.toggle('on',!!cfg.baseGround);
+  $('facGroundBtn').textContent=cfg.baseGround?L('شامل الطابق الأرضي','Includes Ground Floor'):L('تخطي الطابق الأرضي (قاعدة صماء)','Skip Ground Floor (Solid Base)');
+ }
+
+ // KPIs & Project summary
+ const metrics=rep?MC3D_FACADE.computeBlockFacadeMetrics(rep,state.fh):{effectiveWwr:0,glazedArea:0,shadingPct:0};
+ const projSum=MC3D_FACADE.computeProjectFacadeSummary(state.blocks,state.fh);
+ if($('facKpiWwr'))$('facKpiWwr').textContent=Math.round(metrics.effectiveWwr)+'%';
+ if($('facKpiArea'))$('facKpiArea').textContent=Math.round(metrics.glazedArea).toLocaleString('en');
+ if($('facKpiAreaUnit'))$('facKpiAreaUnit').textContent=u2;
+ if($('facKpiShade'))$('facKpiShade').textContent=metrics.shadingPct+'%';
+ if($('facProjSummary')){
+  $('facProjSummary').textContent=L(
+   `المشروع: ${projSum.facetedCount}/${projSum.eligibleCount} كتل بواجهات · إجمالي الزجاج ${Math.round(projSum.totalGlazedArea).toLocaleString('en')} م² (${projSum.projectWwr}%)`,
+   `Project: ${projSum.facetedCount}/${projSum.eligibleCount} clad · Total glass ${Math.round(projSum.totalGlazedArea).toLocaleString('en')} m² (${projSum.projectWwr}%)`
+  );
+ }
+ renderFacadePreviewSvg(rep,cfg);
+}
+function initFacadeStudio(){
+ if(!window.MC3D_FACADE||!$('p_facade'))return;
+ $('facScopeSel').onclick=()=>{facScope='sel';renderFacadeStudio()};
+ $('facScopeAll').onclick=()=>{facScope='all';renderFacadeStudio()};
+ $('facScopeZone').onclick=()=>{facScope='zone';renderFacadeStudio()};
+ $('facBlockSel').onchange=e=>{const i=parseInt(e.target.value);if(!isNaN(i)&&state.blocks[i]){facFocusIdx=i;setSel(i);refresh()}};
+ $('facZoneSel').onchange=e=>{facZone=e.target.value;renderFacadeStudio()};
+ document.querySelectorAll('[data-fp]').forEach(btn=>{
+  btn.onclick=()=>{
+   const pr=MC3D_FACADE.FACADE_PRESETS[btn.dataset.fp];if(!pr)return;
+   mutateFacadeTargets(b=>{b.fac=pr.fac;b.facCfg=MC3D_FACADE.normalizeFacadeConfig(clone(pr.cfg),pr.fac)});
+   flash(L('تم تطبيق قالب الواجهة: '+pr.ar,'Applied facade preset: '+pr.en));
+  };
+ });
+ [['facSideF','f'],['facSideB','b'],['facSideR','r'],['facSideL','l']].forEach(([id,sk])=>{
+  if($(id))$(id).onclick=()=>mutateFacadeTargets(b=>{
+   if(!b.fac)b.fac='win';
+   const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac);
+   const nxt=Object.assign({},cur.sides);nxt[sk]=!nxt[sk];
+   b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{sides:nxt}),b.fac);
+  });
+ });
+ const bindRange=(id,valId,key,unitFn)=>{
+  const el=$(id);if(!el)return;
+  el.oninput=e=>{
+   const v=parseFloat(e.target.value);
+   if($(valId))$(valId).textContent=(key==='depth'?v.toFixed(2):(key==='spacing'?v.toFixed(1):Math.round(v)))+unitFn();
+   const targets=facTargetIndices();if(!targets.length)return;
+   snap();
+   targets.forEach(i=>{
+    const b=state.blocks[i];if(!b.fac)b.fac='win';
+    b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},b.facCfg||{},{[key]:v}),b.fac);
+   });
+   build();
+   const rep=state.blocks[targets[0]];
+   const cfg=MC3D_FACADE.normalizeFacadeConfig(rep&&rep.facCfg,rep.fac||'win');
+   const m=MC3D_FACADE.computeBlockFacadeMetrics(rep,state.fh);
+   if($('facKpiWwr'))$('facKpiWwr').textContent=Math.round(m.effectiveWwr)+'%';
+   if($('facKpiArea'))$('facKpiArea').textContent=Math.round(m.glazedArea).toLocaleString('en');
+   if($('facKpiShade'))$('facKpiShade').textContent=m.shadingPct+'%';
+   renderFacadePreviewSvg(rep,cfg);
+  };
+  el.onchange=()=>refresh();
+ };
+ bindRange('facSpacing','facSpacingVal','spacing',()=>' '+L('م','m'));
+ bindRange('facWwr','facWwrVal','wwr',()=>'%');
+ bindRange('facDepth','facDepthVal','depth',()=>' '+L('م','m'));
+ if($('facGroundBtn'))$('facGroundBtn').onclick=()=>mutateFacadeTargets(b=>{
+  if(!b.fac)b.fac='win';
+  const cur=MC3D_FACADE.normalizeFacadeConfig(b.facCfg,b.fac);
+  b.facCfg=MC3D_FACADE.normalizeFacadeConfig(Object.assign({},cur,{baseGround:!cur.baseGround}),b.fac);
+ });
+ if($('facApplyAllBtn'))$('facApplyAllBtn').onclick=()=>{
+  const elig=facEligibleIndices();if(!elig.length)return;
+  const targets=facTargetIndices();
+  const rep=targets.length?state.blocks[targets[0]]:state.blocks[elig[0]];
+  if(!rep||!rep.fac)return flash(L('اختر نظام واجهة أولاً لتعميمه','Select a facade system first'));
+  snap(true);
+  const srcCfg=MC3D_FACADE.normalizeFacadeConfig(rep.facCfg,rep.fac);
+  elig.forEach(i=>{state.blocks[i].fac=rep.fac;state.blocks[i].facCfg=clone(srcCfg)});
+  refresh();
+  flash(L(`طُبِّقت الواجهة على ${elig.length} كتل ✓`,`Applied facade to ${elig.length} blocks ✓`));
+ };
+ if($('facClearBtn'))$('facClearBtn').onclick=()=>{
+  mutateFacadeTargets(b=>{b.fac='';delete b.facCfg});
+  flash(L('أُزيلت عناصر الواجهة','Facade elements cleared'));
+ };
+}
+initFacadeStudio();
+
+// ---------- mass analysis studio ----------
+function syncMassOverlayUI(an){
+ document.querySelectorAll('.mass-seg [data-mo]').forEach(btn=>btn.classList.toggle('on',btn.dataset.mo===massOverlay));
+ document.querySelectorAll('.mass-metric-seg [data-mm]').forEach(btn=>btn.classList.toggle('on',btn.dataset.mm===massChartMetric));
+ const box=$('massLegendBox'),bar=$('massLegendBar'),ttl=$('massLegendTitle'),unit=$('massLegendUnit'),ticks=$('massLegendTicks');
+ if(!box)return;
+ if(massOverlay==='none'){box.style.display='none';return}
+ box.style.display='flex';
+ const maxH=(an&&an.summary&&an.summary.maxHeight)||40;
+ if(massOverlay==='height'){
+  ttl.textContent=L('تدرج الارتفاع','Height Elevation');
+  unit.textContent=L('م','m');
+  bar.style.background='linear-gradient(90deg,#38bdf8 0%,#f59e0b 50%,#be123c 100%)';
+  ticks.innerHTML=`<span>0</span><span>${(maxH/2).toFixed(0)}m</span><span>${maxH.toFixed(0)}m</span>`;
+ }else if(massOverlay==='svr'){
+  ttl.textContent=L('نسبة السطح إلى الحجم','Envelope S/V Ratio');
+  unit.textContent='m⁻¹';
+  bar.style.background='linear-gradient(90deg,#10b981 0%,#f59e0b 50%,#e11d48 100%)';
+  ticks.innerHTML=`<span>0.12 (${L('مضغوط','Compact')})</span><span>0.26</span><span>0.40+</span>`;
+ }else if(massOverlay==='daylight'){
+  ttl.textContent=L('نسبة الإضاءة الطبيعية (≤7.5m)','Daylight Reach (≤7.5m)');
+  unit.textContent='%';
+  bar.style.background='linear-gradient(90deg,#4338ca 0%,#0ea5e9 50%,#10b981 100%)';
+  ticks.innerHTML=`<span>45%</span><span>72%</span><span>98%+</span>`;
+ }else if(massOverlay==='issues'){
+  ttl.textContent=L('الفحص المكاني والتداخل','Spatial Clash Check');
+  unit.textContent='';
+  bar.style.background='linear-gradient(90deg,#10b981 0%,#10b981 33%,#f59e0b 33%,#f59e0b 66%,#dc2626 66%,#dc2626 100%)';
+  ticks.innerHTML=`<span>${L('سليم','OK')}</span><span>${L('تقارب <3m','Gap <3m')}</span><span>${L('تداخل','Clash')}</span>`;
+ }
+}
+function setMassOverlay(m){
+ massOverlay=m||'none';
+ massAnalysisCache=window.MC3D_MASS?MC3D_MASS.analyzeProjectMasses(state.blocks,state.fh):null;
+ syncMassOverlayUI(massAnalysisCache);
+ build();
+ renderNames(true);
+ renderMassStudio();
+}
+function focusMassBlocks(indices){
+ const valid=(indices||[]).filter(i=>Number.isInteger(i)&&state.blocks[i]);
+ if(!valid.length)return;
+ if(valid.length===1){setSel(valid[0])}
+ else{sel=valid[0];selSet=new Set(valid)}
+ let sx=0,sy=0,sz=0;
+ valid.forEach(i=>{const b=state.blocks[i];sx+=b.x;sz+=b.z;sy+=b.y0+bh(b)*0.5});
+ O.target.set(sx/valid.length,sy/valid.length,sz/valid.length);
+ O.update();
+ build();
+ panel();
+}
+function renderMassChartSvg(an){
+ const svg=$('massChartSvg');if(!svg)return;
+ if(!an||!an.items.length){
+  svg.innerHTML=`<text x="132" y="76" text-anchor="middle" font-size="11" fill="#94a3b8">${L('لا توجد كتل معمارية لتحليلها','No architectural masses to analyze')}</text>`;
+  return;
+ }
+ const metric=massChartMetric||'volume';
+ const getVal=it=>metric==='height'?it.topElev:metric==='svr'?it.svr:metric==='daylight'?it.daylightPct:it.volume;
+ const fmtVal=v=>metric==='svr'?v.toFixed(2):metric==='daylight'?Math.round(v)+'%':metric==='height'?v.toFixed(0)+'m':(v>=1000?(v/1000).toFixed(1)+'k':Math.round(v));
+ const sorted=[...an.items].sort((a,b)=>getVal(b)-getVal(a)).slice(0,7);
+ const maxV=Math.max(0.01,...sorted.map(getVal));
+ const avgV=sorted.reduce((s,x)=>s+getVal(x),0)/sorted.length;
+ const W=264,H=148,labelX=86,barX=92,barMaxW=130,valX=258;
+ const rowH=Math.min(22,Math.floor((H-12)/sorted.length));
+ const startY=Math.max(6,Math.floor((H-rowH*sorted.length)/2));
+ const avgX=barX+(avgV/maxV)*barMaxW;
+ let out=`<line x1="${avgX.toFixed(1)}" y1="${startY}" x2="${avgX.toFixed(1)}" y2="${startY+rowH*sorted.length}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 2"/>`;
+ sorted.forEach((it,idx)=>{
+  const v=getVal(it);
+  const bwPx=Math.max(4,(v/maxV)*barMaxW);
+  const y=startY+idx*rowH;
+  const barH=Math.max(8,rowH-6);
+  const by=y+(rowH-barH)/2;
+  const isSel=selSet.has(it.idx);
+  const oc=massOverlay!=='none'?MC3D_MASS.getMassOverlayColor(it,massOverlay,an):null;
+  const fill=oc||(FNS[it.fn||'']&&FNS[it.fn||''].c)||'#2563eb';
+  const shortNm=it.name.length>14?it.name.slice(0,13)+'…':it.name;
+  const escNm=it.name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  out+=`<g class="mass-bar-col" data-mi="${it.idx}">`;
+  out+=`<title>${escNm}: ${fmtVal(v)}</title>`;
+  out+=`<rect x="${barX}" y="${by.toFixed(1)}" width="${barMaxW}" height="${barH.toFixed(1)}" rx="2.5" fill="#f1f5f9"/>`;
+  out+=`<rect x="${barX}" y="${by.toFixed(1)}" width="${bwPx.toFixed(1)}" height="${barH.toFixed(1)}" rx="2.5" fill="${fill}" stroke="${isSel?'#ff8f00':'#0f172a'}" stroke-width="${isSel?1.6:0.35}" stroke-opacity="${isSel?1:0.2}"/>`;
+  out+=`<text x="${labelX}" y="${(y+rowH/2+3).toFixed(1)}" text-anchor="end" font-size="8.6" fill="${isSel?'#1e40af':'#334155'}" font-weight="${isSel?700:500}">${shortNm.replace(/</g,'&lt;')}</text>`;
+  out+=`<text x="${valX}" y="${(y+rowH/2+3).toFixed(1)}" text-anchor="end" font-size="8.5" font-weight="600" fill="#0f172a" font-family="var(--font-mono)">${fmtVal(v)}</text>`;
+  out+=`</g>`;
+ });
+ svg.innerHTML=out;
+ svg.querySelectorAll('.mass-bar-col').forEach(g=>{
+  g.onclick=()=>{const i=parseInt(g.dataset.mi);if(!isNaN(i))focusMassBlocks([i])};
+ });
+}
+function renderMassStudio(){
+ if(!window.MC3D_MASS||!$('p_mass'))return;
+ massAnalysisCache=MC3D_MASS.analyzeProjectMasses(state.blocks,state.fh);
+ const an=massAnalysisCache,s=an.summary;
+ syncMassOverlayUI(an);
+
+ const um=L('م','m'),u2=L('م²','m²'),u3=L('م³','m³');
+ if($('massKpiVol'))$('massKpiVol').textContent=Math.round(s.totalVolume).toLocaleString('en');
+ if($('massKpiVolUnit'))$('massKpiVolUnit').textContent=u3;
+ if($('massKpiEnv'))$('massKpiEnv').textContent=Math.round(s.totalEnvelope).toLocaleString('en');
+ if($('massKpiEnvUnit'))$('massKpiEnvUnit').textContent=u2;
+ if($('massKpiSvr'))$('massKpiSvr').textContent=s.avgSvr.toFixed(2);
+ if($('massKpiComp'))$('massKpiComp').textContent=Math.round(s.avgCompactness)+'%';
+ if($('massKpiDay'))$('massKpiDay').textContent=Math.round(s.avgDaylightPct)+'%';
+ if($('massKpiHeight'))$('massKpiHeight').textContent=s.maxHeight.toFixed(1);
+ if($('massKpiHeightUnit'))$('massKpiHeightUnit').textContent=um;
+
+ renderMassChartSvg(an);
+
+ // Spatial clash & gap diagnostics
+ const issEl=$('massIssuesList');
+ if(issEl){
+  if(!an.items.length){
+   issEl.innerHTML=`<div class="hint">${L('أضف كتلاً معمارية لفحص التداخلات والمسافات البينية.','Add architectural masses to inspect spatial clashes and clearances.')}</div>`;
+  }else if(!an.collisions.length&&!an.tightGaps.length){
+   issEl.innerHTML=`<div class="site-ok-pill">${L('لا توجد تداخلات أو فراغات حرجة (<3م) ✓','No 3D overlaps or critical gaps (<3m) ✓')}</div>`;
+  }else{
+   let html='';
+   an.collisions.forEach(c=>{
+    const aN=c.aName.replace(/</g,'&lt;'),bN=c.bName.replace(/</g,'&lt;');
+    html+=`<button type="button" class="mass-issue-btn" data-pair="${c.aIdx},${c.bIdx}"><span class="mass-issue-head"><span>⚠ ${L('تداخل ثلاثي الأبعاد','3D Overlap')}</span><span>${c.penetration} ${um}</span></span><span class="mass-issue-sub">${aN} × ${bN}</span></button>`;
+   });
+   an.tightGaps.forEach(g=>{
+    const aN=g.aName.replace(/</g,'&lt;'),bN=g.bName.replace(/</g,'&lt;');
+    html+=`<button type="button" class="mass-issue-btn gap" data-pair="${g.aIdx},${g.bIdx}"><span class="mass-issue-head"><span>⚡ ${L('تقارب حرج (<3م)','Tight Clearance')}</span><span>${g.gap} ${um}</span></span><span class="mass-issue-sub">${aN} ↔ ${bN}</span></button>`;
+   });
+   issEl.innerHTML=html;
+   issEl.querySelectorAll('[data-pair]').forEach(btn=>{
+    btn.onclick=()=>{
+     const idxs=btn.dataset.pair.split(',').map(n=>parseInt(n));
+     focusMassBlocks(idxs);
+    };
+   });
+  }
+ }
+
+ // Per-mass breakdown table
+ const tbl=$('massTableList');
+ if(tbl){
+  if(!an.items.length){
+   tbl.innerHTML=`<div class="hint">${L('لا توجد كتل معمارية مرئية.','No visible architectural masses.')}</div>`;
+  }else{
+   const sorted=[...an.items].sort((a,b)=>b.volume-a.volume);
+   tbl.innerHTML=sorted.map(it=>{
+    const isSel=selSet.has(it.idx);
+    const oc=massOverlay!=='none'?MC3D_MASS.getMassOverlayColor(it,massOverlay,an):null;
+    const dot=oc||(FNS[it.fn||'']&&FNS[it.fn||''].c)||'#64748b';
+    const nm=it.name.replace(/</g,'&lt;');
+    return `<button type="button" class="mass-row${isSel?' on':''}" data-mi="${it.idx}">
+     <div class="mass-row-top">
+      <span class="mass-row-name"><span class="mass-row-dot" style="background:${dot}"></span>${nm}</span>
+      <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--acc)">${Math.round(it.volume).toLocaleString('en')} ${u3}</span>
+     </div>
+     <div class="mass-row-metrics">
+      <span>${it.floors}${L('ط','F')} · ${it.topElev.toFixed(0)}${um}</span>
+      <span>S/V ${it.svr.toFixed(2)}</span>
+      <span>${L('إضاءة','Light')} ${Math.round(it.daylightPct)}%</span>
+     </div>
+    </button>`;
+   }).join('');
+   tbl.querySelectorAll('.mass-row').forEach(row=>{
+    row.onclick=()=>{const i=parseInt(row.dataset.mi);if(!isNaN(i))focusMassBlocks([i])};
+   });
+  }
+ }
+}
+function initMassStudio(){
+ if(!window.MC3D_MASS||!$('p_mass'))return;
+ document.querySelectorAll('.mass-seg [data-mo]').forEach(btn=>{
+  btn.onclick=()=>setMassOverlay(btn.dataset.mo);
+ });
+ document.querySelectorAll('.mass-metric-seg [data-mm]').forEach(btn=>{
+  btn.onclick=()=>{massChartMetric=btn.dataset.mm;renderMassStudio()};
+ });
+}
+initMassStudio();
 // ---- sky & fog ----
 const skyTex=(()=>{const c=document.createElement('canvas');c.width=4;c.height=256;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#8fb4dc');gr.addColorStop(.6,'#d4e2ee');gr.addColorStop(1,'#efeee8');g.fillStyle=gr;g.fillRect(0,0,4,256);return new THREE.CanvasTexture(c)})();
 const FOG=new THREE.Fog('#eceee9',200,900);
@@ -1750,13 +2542,13 @@ async function authGo(isNew){const u=$('auU').value.trim().toLowerCase(),k=$('au
  if(r==='short')return msg(L('يجب ألا تقل كلمة المرور عن 4 أحرف','Password must be at least 4 characters'));
  if(r!=='ok'&&r!=='new')return msg(L('اسم المستخدم أو كلمة المرور غير صحيحة','Incorrect username or password'));
  const owner=LS.get('mc3d_owner');SBU=u;SBK=k;LS.set('mc3d_sbu',u);LS.set('mc3d_sbk',k);
- if(owner&&owner!==u){clearLocalData();LS.set('mc3d_owner',u);flash(L('جارٍ فتح حساب '+u+'…','Opening account '+u+'…'));setTimeout(()=>location.reload(),400);return}
+ if(owner&&owner!==u){clearLocalData();LS.set('mc3d_owner',u);if(unsavedTracker)unsavedTracker.suppressNextUnload();flash(L('جارٍ فتح حساب '+u+'…','Opening account '+u+'…'));setTimeout(()=>location.reload(),400);return}
  LS.set('mc3d_owner',u);$('modal').style.display='none';userUI();flash(r==='new'?L('✓ أُنشئ حسابك "'+u+'" — يُحفظ عملك الآن في السحابة','✓ Account "'+u+'" created — cloud sync enabled'):L('✓ مرحباً '+u,'✓ Welcome back, '+u));
  const after=authAfter;authAfter=null;if(!CL.col&&after!==sbInit)sbInit();if(after)after();pullNotes()}
 $('auIn').onclick=()=>authGo(false);$('auNew').onclick=()=>authGo(true);$('auK').onkeydown=e=>{if(e.key==='Enter')authGo(false)};$('auU').onkeydown=e=>{if(e.key==='Enter')$('auK').focus()};
 $('bLogout').onclick=e=>arm(e.currentTarget,async()=>{if(CL.col&&CL.sb){clearTimeout(clT);flash(L('جارٍ حفظ عملك في السحابة قبل الخروج…','Saving your work to cloud before logout…'));CL.ok=false;await reconcile(CL.lastMeta?clone(CL.lastMeta):null);
   for(let t=0;t<40&&CL.busy;t++)await new Promise(r=>setTimeout(r,500));if(!CL.ok)return flash(L('تعذّر الحفظ في السحابة — لم يتم تسجيل الخروج حفاظاً على عملك','Could not sync — logout cancelled to protect your work'))}
- if(CL.unsub)CL.unsub();sbForget();clearLocalData();location.reload()});
+ if(CL.unsub)CL.unsub();sbForget();clearLocalData();if(unsavedTracker)unsavedTracker.suppressNextUnload();location.reload()});
 userUI();
 async function sbInit(){if(REV)return clStatus('','off','');if(CL.col)return;if(!SBK||!SBU)return clStatus('انقر لتسجيل الدخول','off','Sign in');
  try{const r=await sbRpc('user_login',sbA());if(r!=='ok'){sbForget();return clStatus('انقر لتسجيل الدخول','off','Sign in')}}catch(e){return clStatus('تعذّر الاتصال بالسحابة','err','Offline')}
@@ -1848,6 +2640,8 @@ function syncLangUI(){
  if(typeof openSheet==='function'&&$('shOpen'))$('shOpen').innerHTML=sheetOpen?`<i><svg class="ic"><use href="#i-cube"/></svg></i>${L('رجوع للنموذج','Back to 3D')}`:`<i><svg class="ic"><use href="#i-sheet"/></svg></i>${L('فتح اللوحة','Open Sheet')}`;
  refresh();
  if(typeof renderShadowHmSummary==='function')renderShadowHmSummary();
+ if(typeof renderFacadeStudio==='function')renderFacadeStudio();
+ if(typeof renderMassStudio==='function')renderMassStudio();
  if(window.MC3D_OCC_CHART&&MC3D_OCC_CHART.renderPaletteControls)MC3D_OCC_CHART.renderPaletteControls();
  if(sheetOpen)renderSheet();else sheetPanel();
  if($('tour').style.display==='flex')showTour(tourI);
@@ -1855,6 +2649,7 @@ function syncLangUI(){
   if($('mProg').style.display!=='none')renderProg();
   if($('mNotes').style.display!=='none')renderNotes();
  }
+ updateCurNameBadge();
 }
 window.onLangChange=syncLangUI;
 if($('langBtn'))$('langBtn').onclick=()=>{if(window.MC3D_I18N)MC3D_I18N.toggle()};
@@ -1862,6 +2657,8 @@ if(window.MC3D_I18N)MC3D_I18N.applyDOM();
 
 fillDesigns();fit();siteChanged();applySec();refresh();view('iso');if(firstMsg)setTimeout(()=>flash(firstMsg),600);
 syncLangUI();
+{if(curName)designs[curName]=clone(state);const okInit=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);appBooted=true;flushLocalSaveClean(okInit);}
+window.addEventListener('beforeunload',e=>{if(!unsavedTracker)return;unsavedTracker.handleBeforeUnload(e,state,curName,hasActiveCanvasGesture())});
 let lastT=0;(function loop(t){requestAnimationFrame(loop);
  if(playing&&t-lastT>60){lastT=t;state.sun.hour+=0.1;if(state.sun.hour>19.5){state.sun.hour=5.5}setSun()}
  if(spin)spinStep(t);else O.update();draw(C);labels();if(typeof pinsUpd==='function')pinsUpd()})(0);
