@@ -37,6 +37,7 @@ The tool is an in-browser 3D massing modeller with sheets (A4–A1) and exports.
   - `RQ = {tex, ao, sky}` holds the render-quality toggles.
   - Captures use `prepRender()` and `endRender()`. The HQ sheet export re-renders the saved cameras.
 - **Sheets:** sheets v3, with separate undo (`sHist`/`sRedoS`). The quick-undo buttons route by context.
+  - Analysis images on sheets carry `it.an` (bubble, prog, solar, wind, noise, morph, sections); 2D ones redraw on sheet open, `morph`/`sections` (3D-based) when added again. `finalBoard()` builds the A1 board; `applySheetTheme(white|fn|mat)` re-renders every 3D shot through `hqPass` plus the 3D-based diagrams.
 - **Notes:** `state.notes`. Each note is anchored to a block id, shown as DOM pins (`pinsBuild`/`pinsUpd`), and managed in the notes modal.
 - **Program allocation:** `state.prog = {eff, sp:[{id,n,a,fn,bid,fl}]}`. The UI is the `prog` modal (`renderProg`, `progAuto`).
 - **Cloud:**

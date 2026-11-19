@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { computeCodeChecks, distToCore, parkLayout } = require('./code-check-logic.js');
+const { computeCodeChecks, distToCore, parkLayout, suggestCores } = require('./code-check-logic.js');
 
 const box = (o) => Object.assign({ shape: 'box', mat: 'brick', fn: 'main', x: 0, z: 0, w: 10, d: 10, f: 1, y0: 0 }, o);
 
@@ -86,4 +86,35 @@ test('distance to a core is zero inside and rectilinear outside', () => {
   assert.equal(distToCore(core, 0, 0), 0);
   assert.equal(distToCore(core, 8, 0), 3);
   assert.equal(distToCore(core, 8, 9), 7);
+});
+
+test('suggested cores fix a long wing with no stairs: every block within reach, two cores at least', () => {
+  const blocks = [box({ name: 'wing', w: 90, d: 12, f: 3 })];
+  const sug = suggestCores({ blocks, opts: { escapeMax: 45 }, site: { w: 120, d: 60 } });
+  assert.ok(sug.cores.length >= 2);
+  assert.equal(sug.uncovered, 0);
+  const after = blocks.concat(sug.cores.map(c => box(Object.assign({ mat: 'joint', fn: 'circ' }, c))));
+  const r = computeCodeChecks({ blocks: after, opts: { escapeMax: 45 } });
+  assert.equal(r.escape.ok, true);
+  assert.equal(r.stairs.ok, true);
+});
+
+test('suggested cores stay inside the site and clear of other blocks', () => {
+  const blocks = [
+    box({ name: 'A', x: -20, w: 30, d: 10, f: 3 }),
+    box({ name: 'B', x: 20, w: 30, d: 10, f: 3 }),
+    box({ name: 'garden', mat: 'green', fn: '', z: 15, w: 70, d: 8 })
+  ];
+  const sug = suggestCores({ blocks, opts: { escapeMax: 30 }, site: { w: 80, d: 50 } });
+  sug.cores.forEach(c => {
+    assert.ok(Math.abs(c.x) + c.w / 2 <= 40 + 1e-6 && Math.abs(c.z) + c.d / 2 <= 25 + 1e-6);
+    blocks.forEach(b => {
+      const sep = Math.abs(c.x - b.x) >= (c.w + b.w) / 2 - 0.31 || Math.abs(c.z - b.z) >= (c.d + b.d) / 2 - 0.31;
+      assert.ok(sep, 'core overlaps ' + b.name);
+    });
+  });
+});
+
+test('nothing to suggest for single-storey designs', () => {
+  assert.equal(suggestCores({ blocks: [box({ f: 1 })] }).cores.length, 0);
 });

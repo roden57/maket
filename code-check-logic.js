@@ -176,5 +176,98 @@
     };
   }
 
-  return { DEFAULT_OPTS, BAY_W, STRIP, computeCodeChecks, parkLayout, isCore, distToCore: (b, x, z) => distToCore(frame(b), x, z) };
+  // ---- suggest stair / lift cores so every multi-storey block is within the escape distance ----
+  // Cores (6 m along the wall × 7 m deep) are placed against the long sides or the ends of multi-storey wings,
+  // inside the site and clear of other blocks; greedy set cover over sample points, then at least two cores
+  // (two escape stairs) and enough lift shafts (two per core).
+  const CORE_W = 6, CORE_D = 7;
+  function aabb(f) {
+    const xs = [], zs = [];
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([i, j]) => { const p = toWorld(f, i * f.hw, j * f.hd); xs.push(p[0]); zs.push(p[1]); });
+    return { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
+  }
+  function suggestCores(input) {
+    const src = input || {};
+    const blocks = Array.isArray(src.blocks) ? src.blocks : [];
+    const o = opts(src.opts);
+    const counts = typeof src.counts === 'function' ? src.counts : defaultCounts;
+    const area = typeof src.area === 'function' ? src.area : (b => (Number(b.w) || 0) * (Number(b.d) || 0));
+    const site = src.site || {}, SW = Math.max(10, Number(site.w) || 100), SD = Math.max(10, Number(site.d) || 100);
+    const reach = o.escapeMax * 0.9; // keep a margin under the limit
+
+    const cores = [], hosts = [], others = [];
+    let upperGfa = 0;
+    blocks.forEach((b, idx) => {
+      if (!b || b.hidden || PROPS.includes(b.shape)) return;
+      const fr = frame(b);
+      others.push({ idx, box: aabb(fr) });
+      if (!counts(b)) return;
+      const f = Math.max(1, Math.round(Number(b.f) || 1));
+      upperGfa += area(b) * Math.max(0, f - 1);
+      if (isCore(b)) { if (f >= 2) cores.push(fr); } else if (f >= 2) hosts.push({ idx, b, f, fr });
+    });
+    if (!hosts.length) return { cores: [], uncovered: 0, before: 0 };
+
+    // sample points every ~6 m inside each multi-storey footprint
+    const pts = [];
+    hosts.forEach(h => {
+      const nx = Math.max(1, Math.ceil(2 * h.fr.hw / 6)), nz = Math.max(1, Math.ceil(2 * h.fr.hd / 6));
+      for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
+        const p = toWorld(h.fr, -h.fr.hw + 2 * h.fr.hw * i / nx, -h.fr.hd + 2 * h.fr.hd * j / nz);
+        pts.push({ x: p[0], z: p[1] });
+      }
+    });
+    const covered = (p, list) => list.some(c => distToCore(c, p.x, p.z) <= reach);
+    let open = pts.filter(p => !covered(p, cores));
+    const before = open.length;
+
+    // candidate core footprints around every host
+    const cands = [];
+    hosts.forEach(h => {
+      const fr = h.fr, longX = fr.hw >= fr.hd, hl = longX ? fr.hw : fr.hd, hs = longX ? fr.hd : fr.hw;
+      const rotDeg = ((h.b.shape === 'box' || h.b.shape === 'riwaq') ? 0 : (Number(h.b.ry) || 0)) + (Number(h.b.rot) || 0);
+      const put = (al, ac, alongW) => { // al: along long axis, ac: across; alongW: core long side follows the wall
+        const lx = longX ? al : ac, lz = longX ? ac : al;
+        const w = (longX === alongW) ? CORE_W : CORE_D, d = (longX === alongW) ? CORE_D : CORE_W;
+        const [x, z] = toWorld(fr, lx, lz);
+        cands.push({ x, z, w, d, rot: rotDeg, f: h.f, host: h.idx, fr: Object.assign({}, fr, { cx: x, cz: z, hw: w / 2, hd: d / 2 }) });
+      };
+      [-0.33, 0, 0.33].forEach(t => [-1, 1].forEach(s => put(t * 2 * hl, s * (hs + CORE_D / 2), true)));
+      [-1, 1].forEach(s => put(s * (hl + CORE_D / 2), 0, false));
+    });
+    const blocked = others.map(o2 => o2.box);
+    const fits = c => {
+      const bx = aabb(c.fr);
+      if (bx.minX < -SW / 2 || bx.maxX > SW / 2 || bx.minZ < -SD / 2 || bx.maxZ > SD / 2) return false;
+      return blocked.every(q => bx.maxX <= q.minX + 0.3 || bx.minX >= q.maxX - 0.3 || bx.maxZ <= q.minZ + 0.3 || bx.minZ >= q.maxZ - 0.3);
+    };
+    const chosen = [];
+    const take = c => { chosen.push(c); blocked.push(aabb(c.fr)); };
+
+    while (open.length) {
+      let best = null, bestN = 0;
+      cands.forEach(c => { if (!fits(c)) return; const n = open.filter(p => distToCore(c.fr, p.x, p.z) <= reach).length; if (n > bestN) { bestN = n; best = c; } });
+      if (!best) break;
+      take(best);
+      open = open.filter(p => distToCore(best.fr, p.x, p.z) > reach);
+    }
+    // farthest fitting candidate from all cores so far (a second, separate escape route / more lifts)
+    const farthest = () => {
+      const all = cores.concat(chosen.map(c => c.fr));
+      let best = null, bestD = -1;
+      cands.forEach(c => { if (!fits(c)) return; const dmin = all.length ? Math.min(...all.map(a => Math.hypot(a.cx - c.x, a.cz - c.z))) : 1e9; if (dmin > bestD) { bestD = dmin; best = c; } });
+      return best;
+    };
+    while (cores.length + chosen.length < 2) { const c = farthest(); if (!c) break; take(c); }
+    const liftsReq = Math.max(1, Math.ceil(upperGfa / o.liftM2)) + o.serviceLift;
+    while ((cores.length + chosen.length) * 2 < liftsReq) { const c = farthest(); if (!c) break; take(c); }
+
+    return {
+      cores: chosen.map(c => ({ x: +c.x.toFixed(2), z: +c.z.toFixed(2), w: c.w, d: c.d, rot: c.rot, f: c.f, host: c.host })),
+      uncovered: open.length,
+      before
+    };
+  }
+
+  return { DEFAULT_OPTS, BAY_W, STRIP, CORE_W, CORE_D, computeCodeChecks, parkLayout, suggestCores, isCore, distToCore: (b, x, z) => distToCore(frame(b), x, z) };
 });

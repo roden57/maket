@@ -1269,7 +1269,7 @@ function dlToCanvas(c,dl,ox,oy,ppm){dl.cmds.forEach(k=>{
  else{c.font=`${k.bold?700:400} ${k.s*ppm}px Tajawal, sans-serif`;c.fillStyle='#111';c.textAlign=k.anchor==='middle'?'center':k.anchor==='end'?'left':'right';c.direction=L('rtl','ltr');c.textBaseline='top';c.fillText(k.txt,(ox+k.x)*ppm,(oy+k.y)*ppm)}})}
 function planMeters(it){if(!it.cam||!it.cam.o||!it.cam.fr||!it.crop)return null;const fr=it.cam.fr;return (fr[1]-fr[0])/(it.cam.zoom||1)*(it.crop.x1-it.crop.x0)}
 // ---- render editor ----
-function renderSheet(){pg.innerHTML='';
+function renderSheet(){syncThemeBtns();pg.innerHTML='';
  if(sheet.frame){const f=document.createElement('div');f.className='sframe';Object.assign(f.style,{left:8*sK+'px',top:8*sK+'px',width:(PW()-16)*sK+'px',height:(PH()-16)*sK+'px'});pg.appendChild(f)}
  sheet.items.forEach(it=>{const d=document.createElement('div');d.className='sitem'+(sSel.has(it.id)?' sel':'')+(it.lock?' lk':'');d.dataset.id=it.id;
   Object.assign(d.style,{left:it.x*sK+'px',top:it.y*sK+'px',width:it.w*sK+'px',height:it.h*sK+'px'});
@@ -1552,6 +1552,23 @@ function layoutBoxes(n,mode,W,H,top,bot,mx,gap,cap,leg){const AW=W-2*mx,AH=H-top
  const cols=n<=2?2:n<=4?2:3,rows=Math.ceil(n/cols),cw=(AW-(cols-1)*gap)/cols,ch=(AH-(leg?48:0)-(rows-1)*gap)/rows-cap;
  for(let i=0;i<n;i++){const c=i%cols,r=Math.floor(i/cols);out.push({x:W-mx-(c+1)*cw-c*gap,y:top+r*(ch+cap+gap),w:cw,h:ch})}return out}
 $('shQuick').onclick=openQuick;$('qGo').onclick=runQuick;
+// one colour style for every 3D view on the sheet: re-render each shot from its saved camera and model
+let themeBusy=false;
+async function applySheetTheme(mode){
+ if(themeBusy)return;const items=sheet.items.filter(i=>i.type==='img'&&i.cam&&i.sk&&sheet.states[i.sk]);
+ if(!items.length&&!sheet.items.some(i=>i.an==='sections'||i.an==='morph'))return flash(L('ما بيها لقطات ثلاثية الأبعاد بهذه اللوحة — أضف لقطة أو لوحة العرض أولاً','No 3D views on this sheet yet'));
+ themeBusy=true;sPush();flash(L('جارٍ تطبيق الأسلوب على ','Applying the style to ')+items.length+L(' لقطة…',' views…'));
+ items.forEach(it=>{it.cm=mode});
+ try{await hqPass(items,6,async(it,cv)=>{const data=cv.toDataURL('image/jpeg',.9),id=uid();imgSrc[id]=data;IDB.put(id,data);it.src=id});
+  // the 3D-based diagrams (sections, evolution strip) are redrawn in the same colour mode
+  const d3=sheet.items.filter(i=>i.type==='img'&&(i.an==='sections'||i.an==='morph'));
+  if(d3.length){const cm0=colorMode;colorMode=mode;build();try{for(const it of d3){const c=await anSheetCanvas(it.an);if(c)shPutImage(it,c,it.an)}}finally{colorMode=cm0;build();draw(C)}}}
+ finally{themeBusy=false}
+ sheet.theme=mode;saveSheet();if(sheetOpen)renderSheet();syncThemeBtns();
+ flash(L('طُبّق الأسلوب على كل لقطات اللوحة ✓','Style applied to every view on the sheet ✓'));
+}
+function syncThemeBtns(){document.querySelectorAll('#shThemes [data-th]').forEach(b=>b.classList.toggle('on',b.dataset.th===(sheet&&sheet.theme)))}
+document.querySelectorAll('#shThemes [data-th]').forEach(b=>{b.onclick=()=>applySheetTheme(b.dataset.th)});
 // One-click A1 presentation board: 3D views + analysis diagrams in a fixed layout (current design, functions colouring)
 let finalBusy=false;
 async function finalBoard(){
@@ -1779,7 +1796,8 @@ $('shAddM').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('صور�
  [L('مخططات التحليل','Analysis diagrams'),null],
  [L('◉ المخطط الفقاعي للزونات','◉ Zoning Bubble Diagram'),()=>addAnToSheet('bubble')],[L('▦ جدول البرنامج والمساحات','▦ Program & Areas Table'),()=>addAnToSheet('prog')],
  [L('☀ مسار الشمس والحمل الحراري','☀ Sun Path & Heat Load'),()=>addAnToSheet('solar')],[L('≋ حركة الرياح','≋ Wind Flow'),()=>addAnToSheet('wind')],[L('◍ خريطة الضوضاء','◍ Noise Map'),()=>addAnToSheet('noise')],
- [L('▤ تسلسل تكوّن الكتلة (من زاوية الكاميرا الحالية)','▤ Massing Evolution (current camera)'),()=>addAnToSheet('morph')]])};
+ [L('▤ تسلسل تكوّن الكتلة (من زاوية الكاميرا الحالية)','▤ Massing Evolution (current camera)'),()=>addAnToSheet('morph')],
+ [L('▭ المقاطع التلقائية (أ-أ و ب-ب مع مفتاح)','▭ Automatic Sections (A-A, B-B + key)'),()=>addAnToSheet('sections')]])};
 $('shSnapOpt').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[(shGround?'☑':'☐')+' '+L('أرضية الموقع باللقطة','Include Site Ground'),()=>$('shGround').click()],[(shNames?'☑':'☐')+' '+L('أسماء الكتل باللقطة','Include Mass Labels'),()=>$('shNamesB').click()]])};
 function openExport(){$('expSheetName').textContent='('+curSheet+' · '+sheet.size+')';['shDown','shAll'].forEach(id=>$(id).style.display=DL?'':'none');$('exp3D').disabled=!DL;$('exp3D').title=DL?'':L('التنزيل غير متاح في هذا العرض','Download unavailable in this view');modal('export')}
 $('shExpDlg').onclick=openExport;$('b3D').onclick=openExport;$('qExp').onclick=openExport;
@@ -2762,6 +2780,19 @@ function addParking(){
  refresh();flash(L(`أُضيف ${total} موقف سيارات`,`Added ${total} parking spaces`)+(lots.length>1?L(` بـ ${lots.length} ساحات`,` in ${lots.length} lots`):'')+where);
 }
 
+// ----- suggested stair / lift cores (code-check-logic suggestCores) -----
+function addCores(){
+ if(!window.MC3D_CODE)return;
+ const before=anGet('code'),sug=MC3D_CODE.suggestCores({blocks:state.blocks,opts:state.codeCfg,site:state.site,area:areaOf,counts:b=>!b.hidden&&counts(b)});
+ if(!sug.cores.length)return flash(sug.before?L('ما لكيت مكان فاضي للنوى حول الكتل — قرّب الكتل من بعض أو أضف مفصلاً يدوياً','No free spot found for cores — draw a joint manually'):L('النوى الحالية كافية ✓','Existing cores are sufficient ✓'));
+ snap(true);const n0=state.blocks.filter(b=>/نواة حركة مقترحة|Suggested core/.test(b.name||'')).length;
+ sug.cores.forEach((c,k)=>state.blocks.push(norm({name:L('نواة حركة مقترحة ','Suggested core ')+(n0+k+1),shape:'box',mat:'joint',fn:'circ',x:c.x,z:c.z,w:c.w,d:c.d,f:c.f,rot:c.rot})));
+ refresh();const after=anGet('code');
+ flash(L(`أُضيفت ${sug.cores.length} نواة حركة (سلم + مصعدين لكل نواة)`,`Added ${sug.cores.length} cores (stair + 2 lifts each)`)+
+  (before.escape.worst!==after.escape.worst?L(` — أبعد مسافة هروب صارت ${after.escape.worst} م بدل ${before.escape.worst===null?'—':before.escape.worst+' م'}`,` — max escape distance now ${after.escape.worst} m (was ${before.escape.worst===null?'—':before.escape.worst+' m'})`):'')+
+  (sug.uncovered?L(` · بقيت ${sug.uncovered} نقطة بعيدة، حرّك الكتل أو أضف مفصلاً`,` · ${sug.uncovered} far points remain`):''));
+}
+
 // ----- regulations: parking, escape distance, lifts, stairs, coverage, FAR -----
 function anRenderCode(){
  if(!window.MC3D_CODE)return;
@@ -2793,6 +2824,7 @@ function anRenderCode(){
  if(far>maxFar)h+=anRec(`FAR ${far} ${L('أعلى من الحد','exceeds the limit')} ${maxFar} — ${L('قلّل المساحة الطابقية.','reduce floor area.')}`,'warn');
  $('anCodeRecs').innerHTML=h;
  if($('anCodeParkBtn'))$('anCodeParkBtn').style.display=r.parking.ok?'none':'';
+ if($('anCodeCoreBtn'))$('anCodeCoreBtn').style.display=(r.escape.ok&&r.stairs.ok&&r.lifts.ok)?'none':'';
  const list=$('anCodeList');
  list.innerHTML=r.escape.items.length?r.escape.items.map(it=>`<button type="button" class="mass-row${selSet.has(it.idx)?' on':''}" data-mi="${it.idx}"><div class="mass-row-top"><span class="mass-row-name"><span class="mass-row-dot" style="background:${it.ok?'#16a34a':'#dc2626'}"></span>${anEsc(it.name)}</span><span style="font-family:var(--font-mono);font-size:10.5px;color:${it.ok?'var(--acc)':'#b91c1c'}">${it.worst===null?L('لا يوجد مفصل','no core'):it.worst+' '+um}</span></div><div class="mass-row-metrics"><span>${it.floors} ${L('طوابق','floors')}</span><span>${L('مفاصل ضمن الحد','cores in reach')}: ${it.coresInReach}</span></div></button>`).join('')
   :`<div class="hint">${L('لا توجد كتل متعددة الطوابق للفحص.','No multi-storey blocks to check.')}</div>`;
@@ -2826,6 +2858,7 @@ function initAnStudio(){
  document.querySelectorAll('#anEnvTabs [data-env]').forEach(b=>{b.onclick=()=>{AN.env=b.dataset.env;renderAnStudio()}});
  document.querySelectorAll('#anBubbleModeSeg [data-zb]').forEach(b=>{b.onclick=()=>{AN.zb=b.dataset.zb;renderAnStudio()}});
  if($('anCodeParkBtn'))$('anCodeParkBtn').onclick=addParking;
+ if($('anCodeCoreBtn'))$('anCodeCoreBtn').onclick=addCores;
  [['anCodePark','parkM2'],['anCodeEsc','escapeMax'],['anCodeLift','liftM2']].forEach(([id,k])=>{if($(id))$(id).onchange=e=>{const v=parseFloat(e.target.value);if(!(v>0))return;snap(true);state.codeCfg=Object.assign({},state.codeCfg||{},{[k]:v});save();renderAnStudio()}});
  [['anEnv3dBtn','env'],['anZones3dBtn','zones'],['anMorph3dBtn','morph'],['anCode3dBtn','code']].forEach(([id,k])=>{if($(id))$(id).onclick=()=>{AN.show3d[k]=!AN.show3d[k];renderAnStudio()}});
  if($('anEnvSiteBtn'))$('anEnvSiteBtn').onclick=()=>showTab('site');
@@ -2839,7 +2872,7 @@ initAnStudio();
 const SH_AN={
  bubble:['المخطط الفقاعي للزونات','Zoning Bubble Diagram'],prog:['جدول البرنامج والمساحات','Program & Areas'],
  solar:['مسار الشمس والحمل الحراري الصيفي','Sun Path & Summer Heat Load'],wind:['حركة الرياح والتهوية','Wind Flow & Ventilation'],
- noise:['خريطة الضوضاء','Site Noise Map'],morph:['تسلسل تكوّن الكتلة','Massing Evolution']
+ noise:['خريطة الضوضاء','Site Noise Map'],morph:['تسلسل تكوّن الكتلة','Massing Evolution'],sections:['المقاطع التلقائية','Automatic Sections']
 };
 const shFont=(px,w)=>`${w||500} ${Math.round(px)}px Tajawal, "IBM Plex Sans Arabic", Arial, sans-serif`;
 const shRtl=()=>!L(0,1);
@@ -2902,8 +2935,59 @@ async function shMorphStrip(){
   g.fillStyle='#64748b';g.font=shFont(20);g.fillText(st.metricBadge||'',rtl?x+FW-58:x+58,y+FH+72)});
  return shFrame(c,L(SH_AN.morph[0],SH_AN.morph[1])+' — '+L(r.partiAr,r.partiEn),[['#f59e0b',L('المضاف في هذه المرحلة','Added in this step')],['#cbd5e1',L('لم يُضف بعد','Not yet added')]]);
 }
+// automatic sections A-A (along the long axis) and B-B (across), through the building's centroid,
+// with floor-level lines and a key plan marking both cuts; uses the existing section clipping and elevation views
+async function shSections(){
+ const arch=state.blocks.filter(b=>!b.hidden&&counts(b));if(!arch.length)return null;
+ if(el.clientWidth<80||el.clientHeight<80)return null;
+ let ax=0,az=0,at=0,minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
+ arch.forEach(b=>{const o=MC3D_ANALYSIS.getObb(b),a=areaOf(b)*Math.max(1,b.f||1);ax+=b.x*a;az+=b.z*a;at+=a;minX=Math.min(minX,o.minX);maxX=Math.max(maxX,o.maxX);minZ=Math.min(minZ,o.minZ);maxZ=Math.max(maxZ,o.maxZ)});
+ const cx=+(ax/at).toFixed(2),cz=+(az/at).toFixed(2),longX=(maxX-minX)>=(maxZ-minZ);
+ const cuts=[{id:'A',axis:longX?'z':'x',pos:longX?cz:cx,view:longX?'front':'side'},{id:'B',axis:longX?'x':'z',pos:longX?cx:cz,view:longX?'side':'front'}];
+ const keep={sec:clone(sec),plan:isPlan,pos:C.position.clone(),tgt:O.target.clone()},raf=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+ const V=(x,y,z)=>new THREE.Vector3(x,y,z),px=(c,v)=>{const p=v.clone().project(C);return [(p.x+1)/2*c.width,(1-p.y)/2*c.height]};
+ const rtl=shRtl(),lab={A:L('أ','A'),B:L('ب','B')},out={};
+ try{
+  for(const cut of cuts){
+   Object.assign(sec,{on:true,axis:cut.axis,pos:cut.pos,flip:false,angle:0,slice:false,cap:true});setSecOn(true);view(cut.view,0);O.update();await raf();
+   const c=shRawShot();if(!c)continue;const g=c.getContext('2d'),u=c.width/100;
+   // floor levels of the blocks this cut passes through
+   const hit=arch.filter(b=>{const o=MC3D_ANALYSIS.getObb(b);return cut.axis==='z'?o.minZ<=cut.pos&&o.maxZ>=cut.pos:o.minX<=cut.pos&&o.maxX>=cut.pos});
+   const topF=Math.max(1,...hit.map(b=>Math.round((b.y0||0)/state.fh)+(b.f||1)));
+   const a0=cut.axis==='z'?minX-4:minZ-4,a1=cut.axis==='z'?maxX+4:maxZ+4,P=(s,y)=>cut.axis==='z'?V(s,y,cut.pos):V(cut.pos,y,s);
+   g.font=shFont(u*1.6,600);g.textBaseline='middle';
+   for(let k=0;k<=topF;k++){const y=k*state.fh,[x1,y1]=px(c,P(a0,y)),[x2]=px(c,P(a1,y)),L0=Math.min(x1,x2),L1=Math.max(x1,x2);
+    g.strokeStyle=k?'rgba(71,85,105,.55)':'#0f172a';g.lineWidth=k?Math.max(1,u*.12):u*.3;g.setLineDash(k?[u*.8,u*.6]:[]);g.beginPath();g.moveTo(L0,y1);g.lineTo(L1,y1);g.stroke();g.setLineDash([]);
+    const tx=L0-u*.8;g.fillStyle='#0f172a';g.beginPath();g.moveTo(tx,y1);g.lineTo(tx-u*.9,y1-u*.9);g.lineTo(tx+u*.9,y1-u*.9);g.closePath();g.fill();
+    g.textAlign='right';g.fillText((y?'+':'±')+y.toFixed(2),tx-u*1.4,y1-u*.45)}
+   const t=trimBox(c)||{x0:0,y0:0,x1:1,y1:1};out[cut.id]=cropCanvas(c,t);
+  }
+  // key plan with both cut lines
+  setSecOn(false);view('top');O.update();await raf();
+  const k=shRawShot();if(k){const g=k.getContext('2d'),u=k.width/100;
+   cuts.forEach(cut=>{const e0=cut.axis==='z'?V(minX-8,0,cut.pos):V(cut.pos,0,minZ-8),e1=cut.axis==='z'?V(maxX+8,0,cut.pos):V(cut.pos,0,maxZ+8),[x0,y0]=px(k,e0),[x1,y1]=px(k,e1);
+    g.strokeStyle='#dc2626';g.lineWidth=u*.45;g.setLineDash([u*2.2,u*.8,u*.4,u*.8]);g.beginPath();g.moveTo(x0,y0);g.lineTo(x1,y1);g.stroke();g.setLineDash([]);
+    // view arrows point away from the camera side (towards the part that is kept)
+    const dir=cut.axis==='z'?V(0,0,-1):V(-1,0,0),[ax0,ay0]=px(k,e0.clone()),[ax1,ay1]=px(k,e0.clone().addScaledVector(dir,6)),ang=Math.atan2(ay1-ay0,ax1-ax0);
+    [[x0,y0],[x1,y1]].forEach(([x,y])=>{g.fillStyle='#dc2626';g.beginPath();g.moveTo(x+Math.cos(ang)*u*3,y+Math.sin(ang)*u*3);g.lineTo(x+Math.cos(ang+2.5)*u*1.6,y+Math.sin(ang+2.5)*u*1.6);g.lineTo(x+Math.cos(ang-2.5)*u*1.6,y+Math.sin(ang-2.5)*u*1.6);g.closePath();g.fill();
+     g.beginPath();g.arc(x,y,u*1.5,0,7);g.fill();g.fillStyle='#fff';g.font=shFont(u*1.7,700);g.textAlign='center';g.textBaseline='middle';g.fillText(lab[cut.id],x,y+u*.1)})});
+   out.key=cropCanvas(k,trimBox(k)||{x0:0,y0:0,x1:1,y1:1})}
+ }finally{
+  Object.assign(sec,keep.sec);setSecOn(keep.sec.on);
+  if(keep.plan)view('top');else{usePlan(false);C.position.copy(keep.pos);O.target.copy(keep.tgt);O.update()}draw(C);
+ }
+ if(!out.A||!out.B)return null;
+ // layout: A-A full width on top; B-B and the key plan side by side underneath
+ const W=2400,gap=40,fA=shFrame(out.A,L(`مقطع ${lab.A}-${lab.A} — طولي`,`Section ${lab.A}-${lab.A} — long`),null),fB=shFrame(out.B,L(`مقطع ${lab.B}-${lab.B} — عرضي`,`Section ${lab.B}-${lab.B} — cross`),null),fK=out.key?shFrame(out.key,L('مفتاح المقاطع','Key plan'),null):null;
+ const hA=W*fA.height/fA.width,wK=fK?W*.3:0,wB=W-wK-(fK?gap:0),hB=Math.min(wB*fB.height/fB.width,fK?wK*fK.height/fK.width*1.6:1e9),row=Math.max(hB,fK?wK*fK.height/fK.width:0);
+ const c=document.createElement('canvas');c.width=W;c.height=Math.round(hA+gap+row);const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);
+ g.drawImage(fA,0,0,W,hA);const bw=hB*fB.width/fB.height;g.drawImage(fB,rtl?W-bw:0,hA+gap,bw,hB);
+ if(fK){const kh=wK*fK.height/fK.width;g.drawImage(fK,rtl?0:W-wK,hA+gap,wK,kh)}
+ return c;
+}
 async function anSheetCanvas(kind){
  if(!window.MC3D_ANALYSIS)return null;
+ if(kind==='sections')return shSections();
  if(kind==='prog')return shProgTable();
  if(kind==='morph')return shMorphStrip();
  if(kind==='bubble'){const z=anGet('zones'),pm=AN.zb;AN.zb='zones';anBubbleSvg(z);const c=await svgToCanvas($('anBubbleSvg'),6);AN.zb=pm;if(curTab==='mass')renderAnStudio();
@@ -2915,7 +2999,7 @@ async function anSheetCanvas(kind){
  return shFrame(c,L(SH_AN[kind][0],SH_AN[kind][1]),key);
 }
 function shPutImage(it,c,kind){
- const data=kind==='morph'?c.toDataURL('image/jpeg',.92):c.toDataURL('image/png'),id=uid();
+ const data=(kind==='morph'||kind==='sections')?c.toDataURL('image/jpeg',.92):c.toDataURL('image/png'),id=uid();
  imgSrc[id]=data;IDB.put(id,data);it.src=id;const ar=c.height/c.width;it.h=+(it.w*ar).toFixed(1);it.ak=anModelKey();
 }
 async function addAnToSheet(kind){
@@ -2925,17 +3009,17 @@ async function addAnToSheet(kind){
  sPush();
  const ex=sheet.items.find(i=>i.type==='img'&&i.an===kind);
  if(ex){shPutImage(ex,c,kind);saveSheet();renderSheet();flash(L('حُدّث المخطط في اللوحة ✓','Diagram updated on the sheet ✓'));return}
- const data=kind==='morph'?c.toDataURL('image/jpeg',.92):c.toDataURL('image/png');
+ const data=(kind==='morph'||kind==='sections')?c.toDataURL('image/jpeg',.92):c.toDataURL('image/png');
  const it=addImgItem({data,ar:c.height/c.width},null,L(SH_AN[kind][0],SH_AN[kind][1]));
  it.an=kind;it.ak=anModelKey();
- if(kind==='morph'||kind==='prog'){const W=PW();it.w=+Math.min(W-40,kind==='morph'?W*.8:W*.45).toFixed(1);it.h=+(it.w*c.height/c.width).toFixed(1)}
+ if(kind==='morph'||kind==='prog'||kind==='sections'){const W=PW();it.w=+Math.min(W-40,kind==='prog'?W*.45:W*.8).toFixed(1);it.h=+(it.w*c.height/c.width).toFixed(1)}
  saveSheet();setSSel([it.id]);renderSheet();
- flash(L('أُضيف إلى اللوحة: ','Added to sheet: ')+L(SH_AN[kind][0],SH_AN[kind][1])+(kind==='morph'?L(' — لتحديثه أضفه مرة ثانية',' — add it again to refresh it'):L(' — يتحدث وحده عند تعديل الكتل',' — refreshes itself when the model changes')));
+ flash(L('أُضيف إلى اللوحة: ','Added to sheet: ')+L(SH_AN[kind][0],SH_AN[kind][1])+((kind==='morph'||kind==='sections')?L(' — لتحديثه أضفه مرة ثانية',' — add it again to refresh it'):L(' — يتحدث وحده عند تعديل الكتل',' — refreshes itself when the model changes')));
 }
 // redraw 2D diagrams whose model changed (called when the sheet opens)
 let shAnBusy=false;
 async function refreshSheetDiagrams(){
- if(shAnBusy||!sheet||!sheet.items)return;const k=anModelKey(),stale=sheet.items.filter(i=>i.type==='img'&&i.an&&i.an!=='morph'&&i.ak!==k);
+ if(shAnBusy||!sheet||!sheet.items)return;const k=anModelKey(),stale=sheet.items.filter(i=>i.type==='img'&&i.an&&i.an!=='morph'&&i.an!=='sections'&&i.ak!==k);
  if(!stale.length)return;shAnBusy=true;
  try{for(const it of stale){const c=await anSheetCanvas(it.an);if(c)shPutImage(it,c,it.an)}saveSheet();if(sheetOpen)renderSheet()}finally{shAnBusy=false}
 }
