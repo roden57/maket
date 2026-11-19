@@ -1,12 +1,30 @@
-"""Build Maket from src/.  Run:  python build.py
+"""Build Maket from src/.  Run:  python build.py   (add --force to overwrite hand-edited outputs)
 Outputs:
   index.html + app.js        -> the public site (GitHub Pages: https://roden57.github.io/maket/)
   dist/claude-artifact.html  -> single-file version for the Claude artifact
 The helper modules (MODULES below) stay as separate files next to index.html;
 the single-file artifact gets them inlined.
+Safety: .build-hash.json remembers the outputs of the last build. If index.html or app.js
+were edited directly since then (instead of src/), the build stops so those edits are not lost.
+After building, when Node is available, it syntax-checks the scripts and runs all *.test.js.
 """
-import os, time
+import os, sys, time, json, hashlib, shutil, subprocess
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
 D = os.path.dirname(os.path.abspath(__file__))
+GUARD = os.path.join(D, '.build-hash.json')
+OUTS = ['index.html', 'app.js']
+fp = lambda p: (hashlib.sha256(open(os.path.join(D, p), 'rb').read()).hexdigest()
+                if os.path.exists(os.path.join(D, p)) else None)
+if os.path.exists(GUARD) and '--force' not in sys.argv:
+    last = json.load(open(GUARD, encoding='utf-8'))
+    edited = [p for p in OUTS if fp(p) != last.get(p)]
+    if edited:
+        print('STOPPED: %s changed since the last build (edited directly, not in src/).' % ', '.join(edited))
+        print('توقّف البناء: الملف %s انعدل مباشرة. انقل التعديل إلى src/ أولاً، أو شغّل  python build.py --force  لمسحه.' % '، '.join(edited))
+        sys.exit(1)
 R = lambda p: open(os.path.join(D, p), encoding='utf-8').read()
 S = lambda f: R(os.path.join('src', f))
 h, b, js = S('head.html'), S('body.html'), S('app.src.js')
@@ -38,4 +56,21 @@ W('index.html', hp + b + tags + loader)
 W('app.js', full)
 os.makedirs(os.path.join(D, 'dist'), exist_ok=True)
 W(os.path.join('dist', 'claude-artifact.html'), h + b + inline + '<script>\n' + full + '</script></body></html>')
+json.dump({p: fp(p) for p in OUTS}, open(GUARD, 'w', encoding='utf-8'), indent=1)
 print('built: index.html, app.js, dist/claude-artifact.html')
+
+node = shutil.which('node') or next((p for p in [r'C:\Program Files\nodejs\node.exe'] if os.path.exists(p)), None)
+if not node:
+    print('note: Node not found - skipped syntax checks and tests')
+    sys.exit(0)
+bad = [f for f in ['app.js'] + [m + '.js' for m in MODULES]
+       if subprocess.run([node, '--check', f], cwd=D, capture_output=True).returncode != 0]
+if bad:
+    print('SYNTAX ERROR in: ' + ', '.join(bad))
+    sys.exit(1)
+t = subprocess.run([node, '--test'], cwd=D, capture_output=True, text=True, encoding='utf-8')
+summary = [l for l in t.stdout.splitlines() if l.startswith(('ℹ tests', 'ℹ pass', 'ℹ fail'))]
+print('checks: syntax OK · ' + ' · '.join(s[2:] for s in summary))
+if t.returncode != 0:
+    print('\n'.join(l for l in t.stdout.splitlines() if l.startswith('✖'))[:4000])
+    sys.exit(1)

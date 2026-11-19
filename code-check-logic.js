@@ -74,6 +74,28 @@
     return pts;
   }
 
+  // Parking-lot layout inside a w×d rectangle (local coords, centred): bays 2.5 m wide × 5 m deep,
+  // two rows facing a 6 m aisle per 16 m strip; a leftover strip ≥ 11 m gets one row + aisle.
+  const BAY_W = 2.5, BAY_D = 5, STRIP = 16, SINGLE = 11;
+  function parkLayout(w, d) {
+    const W = Math.max(0, Number(w) || 0), D = Math.max(0, Number(d) || 0);
+    const longX = W >= D, L = longX ? W : D, S = longX ? D : W;
+    const n = Math.floor(L / BAY_W), lines = [];
+    const rows = [];
+    let s = 0;
+    while (S - s >= STRIP - 1e-6) { rows.push([s, 1]); rows.push([s + STRIP, -1]); s += STRIP; }
+    if (S - s >= SINGLE - 1e-6) rows.push([s, 1]);
+    const t0 = -L / 2 + (L - n * BAY_W) / 2;
+    rows.forEach(([o, dir]) => {
+      const a = -S / 2 + o, b = a + dir * BAY_D;
+      for (let k = 0; k <= n; k++) {
+        const t = t0 + k * BAY_W;
+        lines.push(longX ? [t, a, t, b] : [a, t, b, t]);
+      }
+    });
+    return { count: n * rows.length, rows: rows.length, lines };
+  }
+
   function computeCodeChecks(input) {
     const src = input || {};
     const blocks = Array.isArray(src.blocks) ? src.blocks : [];
@@ -81,11 +103,14 @@
     const counts = typeof src.counts === 'function' ? src.counts : defaultCounts;
     const area = typeof src.area === 'function' ? src.area : (b => (Number(b.w) || 0) * (Number(b.d) || 0));
 
-    let gfa = 0, upperGfa = 0, asphalt = 0, maxFloors = 0;
+    let gfa = 0, upperGfa = 0, asphalt = 0, lotSpaces = 0, maxFloors = 0;
     const arch = [], cores = [];
     blocks.forEach((b, idx) => {
       if (!b || b.hidden) return;
-      if (b.mat === 'asphalt' && !PROPS.includes(b.shape)) asphalt += (Number(b.w) || 0) * (Number(b.d) || 0);
+      if (b.mat === 'asphalt' && !PROPS.includes(b.shape)) {
+        if (b.park) lotSpaces += parkLayout(b.w, b.d).count; // a drawn parking lot: count its real bays
+        else asphalt += (Number(b.w) || 0) * (Number(b.d) || 0);
+      }
       if (!counts(b)) return;
       const f = Math.max(1, Math.round(Number(b.f) || 1));
       const a = area(b);
@@ -98,8 +123,8 @@
 
     // parking
     const required = gfa > 0 ? Math.ceil(gfa / o.parkM2) : 0;
-    const provided = Math.floor(asphalt / o.spaceM2);
-    const parking = { required, provided, asphaltArea: Math.round(asphalt), ok: provided >= required };
+    const provided = lotSpaces + Math.floor(asphalt / o.spaceM2);
+    const parking = { required, provided, lotSpaces, asphaltArea: Math.round(asphalt), ok: provided >= required };
 
     // escape distance: only multi-storey blocks need a stair; ground floors exit straight outside
     const escItems = arch.filter(a => a.f >= 2).map(a => {
@@ -151,5 +176,5 @@
     };
   }
 
-  return { DEFAULT_OPTS, computeCodeChecks, isCore, distToCore: (b, x, z) => distToCore(frame(b), x, z) };
+  return { DEFAULT_OPTS, BAY_W, STRIP, computeCodeChecks, parkLayout, isCore, distToCore: (b, x, z) => distToCore(frame(b), x, z) };
 });

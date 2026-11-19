@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { computeCodeChecks, distToCore } = require('./code-check-logic.js');
+const { computeCodeChecks, distToCore, parkLayout } = require('./code-check-logic.js');
 
 const box = (o) => Object.assign({ shape: 'box', mat: 'brick', fn: 'main', x: 0, z: 0, w: 10, d: 10, f: 1, y0: 0 }, o);
 
@@ -58,6 +58,27 @@ test('lifts: passenger lifts by upper-floor area plus one service lift', () => {
   assert.equal(r.lifts.required, 4); // 5000/2500 = 2 (+ core upper area rounds up to 3) + 1
   assert.equal(r.lifts.capacity, 2);
   assert.equal(r.lifts.ok, false);
+});
+
+test('parking lot layout: two rows per 16 m strip, single row for an 11 m leftover', () => {
+  assert.equal(parkLayout(50, 16).count, 40);   // 20 bays × 2 rows
+  assert.equal(parkLayout(16, 50).count, 40);   // same lot turned 90°
+  assert.equal(parkLayout(50, 27).count, 60);   // 16 + 11 → 3 rows
+  assert.equal(parkLayout(50, 10).count, 0);    // too narrow for a row + aisle
+  assert.equal(parkLayout(50, 16).lines.length, 2 * 21);
+});
+
+test('a drawn parking lot counts its real bays, plain asphalt counts by area', () => {
+  const r = computeCodeChecks({
+    blocks: [
+      box({ w: 20, d: 25, f: 2 }),
+      box({ mat: 'asphalt', fn: '', park: true, x: 40, w: 50, d: 16 }),
+      box({ mat: 'asphalt', fn: '', x: -60, w: 10, d: 10 })
+    ],
+    opts: { spaceM2: 25 }
+  });
+  assert.equal(r.parking.lotSpaces, 40);
+  assert.equal(r.parking.provided, 44);
 });
 
 test('distance to a core is zero inside and rectilinear outside', () => {

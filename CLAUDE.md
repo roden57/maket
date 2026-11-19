@@ -22,7 +22,9 @@ The tool is an in-browser 3D massing modeller with sheets (A4–A1) and exports.
   - `index.html` and `app.js` (the public site; module tags get a cache-busting `?v=`);
   - `dist/claude-artifact.html` (the single-file version used inside Claude, with modules inlined).
 - **Do not edit `index.html` or `app.js` by hand.** They are generated, so edit `src/` and rebuild. (A Nov 2026 AI Studio update edited them directly and `src/` went stale; that was repaired by copying them back into `src/`.)
-- The user's machine (Windows) has Git and Python 3.12 (`python`, not `python3`) since 2026-11-18, but no Node, so `node --check` is not available locally.
+- The user's machine (Windows) has Git, Python 3.12 (`python`, not `python3`) and Node (installed 2026-11-19 at `C:\Program Files\nodejs`; a session started before that may need the full path).
+- `build.py` refuses to overwrite `index.html`/`app.js` if they changed since the last build (fingerprints in `.build-hash.json`, committed); `--force` overrides. With Node available it also runs `node --check` and `node --test` and exits non-zero on failure.
+- `og.jpg`, `icon-192.png`, `icon-512.png` are the link-preview image and icons referenced from `src/head.html`.
 
 ## Main concepts in app.src.js
 - **Block:** `{id,name,shape,mat,fn,x,z,w,d,f,y0,ry,rot,pts?,hidden,lock,t?,gw?,gf?,rh?,fac?}`.
@@ -68,6 +70,5 @@ The tool is an in-browser 3D massing modeller with sheets (A4–A1) and exports.
 - Iso and eye views cycle to a new angle on each click.
 
 ## Testing
-There is no test suite. At minimum:
-- run `node --check app.js` after building;
-- open `index.html` through a local server (`python3 -m http.server`) and click through the ribbon with the console open.
+- `python build.py` runs the syntax checks and all `*.test.js` (`npm test` runs the tests alone). Add tests next to any helper module you change.
+- Then open the site through a local server (`python -m http.server`, or the "python" entry in `.claude/launch.json`) and click through the ribbon with the console open.

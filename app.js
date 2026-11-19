@@ -293,6 +293,8 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
  else{const gg=geom(b,h);const mt=matOf(b);if(mt.map)worldUV(gg,b);const m=new THREE.Mesh(gg,mt);m.castShadow=b.mat!=='glass'&&!isFlat(b);m.receiveShadow=true;grp.add(m);pick=m;
   const ec=isSel?'#ffb000':colorMode==='white'?'#55534e':(b.mat==='glass'||b.mat==='joint'?'#16285c':(isFlat(b)?'#7d7d70':'#5a2a18'));
   grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry,25),LM(ec)));
+  if(b.park&&b.mat==='asphalt'&&b.shape==='box'&&window.MC3D_CODE){const pts=[],y=h/2+.03;MC3D_CODE.parkLayout(b.w,b.d).lines.forEach(([x1,z1,x2,z2])=>pts.push(x1,y,z1,x2,y,z2));
+   if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM('#f8fafc',.95)))}}
   if(b.shape==='box'&&!isFlat(b)){const pts=[],x=b.w/2+.02,z=b.d/2+.02;
    for(let k=1;k<b.f;k++){const y=-h/2+k*state.fh;pts.push(-x,y,z,x,y,z, x,y,z,x,y,-z, x,y,-z,-x,y,-z, -x,y,-z,-x,y,z)}
    if(b.mat==='glass'){const sx=Math.max(1,Math.round(b.w/2.5)),sz=Math.max(1,Math.round(b.d/2.5));
@@ -1633,16 +1635,35 @@ $('restoreFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=ne
   fillDesigns();flash(L(`استُعيدت ${nd} تصاميم و ${ns} لوحات ✓ — افتحها من التصاميم المحفوظة`,`Restored ${nd} design(s) & ${ns} sheet(s) ✓ — open from Saved Designs`))}catch(er){flash(L('الملف ليس نسخة احتياطية صالحة','Invalid backup file'))}};rd.readAsText(f);e.target.value=''};
 // ---- video ----
 let spin=null;
-function spinStep(t){const s=spin;const k=Math.min(1,(t-s.t0)/s.dur);if(s.mode==='orbit'){const a=s.a0+k*Math.PI*2;C.position.set(s.tg.x+Math.cos(a)*s.r,s.y,s.tg.z+Math.sin(a)*s.r);C.lookAt(s.tg)}else{state.sun.hour=5.5+k*13.5;setSun()}}
+// massing-evolution video: hold each morph step for an equal share of the clip while the camera turns a quarter circle
+function spinMorph(s,k){const r=s.morph,n=r.steps.length,i=Math.min(n-1,Math.floor(k*n));
+ const a=s.a0+k*Math.PI/2;C.position.set(s.tg.x+Math.cos(a)*s.r,s.y,s.tg.z+Math.sin(a)*s.r);C.lookAt(s.tg);
+ if(i!==s.step){s.step=i;const {prev,cur}=anMorphSets(r,i);anGhost=cur;anColorMap={};cur.forEach(x=>{if(!prev.has(x))anColorMap[x]='#f59e0b'});build()}}
+// caption band drawn over each video frame (the 3D canvas itself has no text)
+function spinComp(){const s=spin;if(!s||!s.vc)return;const cv=R.domElement,c=s.vc,g=c.getContext('2d');
+ if(c.width!==cv.width||c.height!==cv.height){c.width=cv.width;c.height=cv.height}
+ g.drawImage(cv,0,0);const st=s.morph.steps[Math.max(0,s.step)];if(!st)return;
+ const H=c.height,W=c.width,bh=Math.round(H*.12),fs=Math.round(bh*.36),rtl=shRtl(),pad=Math.round(bh*.4);
+ g.fillStyle='rgba(255,255,255,.9)';g.fillRect(0,H-bh,W,bh);g.direction=rtl?'rtl':'ltr';g.textBaseline='middle';
+ const cx=rtl?W-pad-fs*.75:pad+fs*.75;g.fillStyle='#1e40af';g.beginPath();g.arc(cx,H-bh/2,fs*.75,0,7);g.fill();
+ g.fillStyle='#fff';g.font=shFont(fs,700);g.textAlign='center';g.fillText(String(s.step+1),cx,H-bh/2+1);
+ g.fillStyle='#0f172a';g.textAlign=rtl?'right':'left';g.fillText(L(st.titleAr,st.titleEn),rtl?cx-fs*1.3:cx+fs*1.3,H-bh/2-fs*.35);
+ g.fillStyle='#64748b';g.font=shFont(fs*.62);g.fillText(`${s.step+1} / ${s.morph.steps.length} · ${st.metricBadge||''}`,rtl?cx-fs*1.3:cx+fs*1.3,H-bh/2+fs*.55)}
+function spinStep(t){const s=spin;const k=Math.min(1,(t-s.t0)/s.dur);if(s.mode==='morph'){spinMorph(s,k);return}if(s.mode==='orbit'){const a=s.a0+k*Math.PI*2;C.position.set(s.tg.x+Math.cos(a)*s.r,s.y,s.tg.z+Math.sin(a)*s.r);C.lookAt(s.tg)}else{state.sun.hour=5.5+k*13.5;setSun()}}
 async function recordVideo(){if(!DL)return flash(L('التنزيل غير متاح في هذا العرض','Download unavailable in this view'));const cv=R.domElement;if(!cv.captureStream||!window.MediaRecorder)return flash(L('المتصفح لا يدعم تسجيل الفيديو — جرّب Chrome','Browser does not support video capture — try Chrome'));
- const mode=$('vidMode').value,dur=parseInt($('vidDur').value)*1000;if(isPlan&&mode==='orbit')view('iso');clearSel();refresh();hG.visible=false;
+ const mode=$('vidMode').value,dur=parseInt($('vidDur').value)*1000;
+ const morph=mode==='morph'?anGet('morph'):null;if(mode==='morph'&&(!morph||!morph.steps.length))return flash(L('أضف كتلاً أولاً حتى تظهر مراحل التشكيل','Add blocks first to get massing steps'));
+ if(isPlan&&(mode==='orbit'||mode==='morph'))view('iso');clearSel();refresh();hG.visible=false;
  const keepSun=clone(state.sun);if(mode==='sun'){state.sun.on=true;setSun()}
- const tg=O.target.clone(),off=C.position.clone().sub(tg);const stream=cv.captureStream(30);const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
+ const keepAn={cm:anColorMap,gh:anGhost,s3:AN.s3},vc=morph?document.createElement('canvas'):null;if(vc){vc.width=cv.width;vc.height=cv.height}
+ const tg=O.target.clone(),off=C.position.clone().sub(tg);const stream=(vc||cv).captureStream(30);const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
  let rec;try{rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:10e6})}catch(e){return flash(L('تعذّر بدء التسجيل','Failed to start recording'))}const chunks=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
  const done=new Promise(r=>rec.onstop=r);$('bVideo').classList.add('on');flash(L(`جارٍ التسجيل… ${dur/1000} ثانية — يُرجى عدم تحريك الشاشة`,`Recording… ${dur/1000}s — please keep window steady`));
- spin={mode,t0:performance.now(),dur,tg,r:Math.hypot(off.x,off.z),y:C.position.y,a0:Math.atan2(off.z,off.x)};rec.start(200);
- await new Promise(r=>setTimeout(r,dur+150));spin=null;rec.stop();await done;$('bVideo').classList.remove('on');hG.visible=true;state.sun=keepSun;setSun();O.update();
- const blob=new Blob(chunks,{type:'video/webm'});try{await DL.save({filename:`${curName} - ${mode==='orbit'?L('دوران','Orbit'):L('حركة الظلال','Sun Study')}.webm`,data:blob});flash(L('حُفظ الفيديو ✓','Video saved ✓'))}catch(e){flash(L('أُلغي التنزيل','Download cancelled'))}}
+ spin={mode,t0:performance.now(),dur,tg,r:Math.hypot(off.x,off.z),y:C.position.y,a0:Math.atan2(off.z,off.x),morph,vc,step:-1};if(morph){spinMorph(spin,0);draw(C);spinComp()}rec.start(200);
+ await new Promise(r=>setTimeout(r,dur+150));spin=null;rec.stop();await done;$('bVideo').classList.remove('on');hG.visible=true;state.sun=keepSun;setSun();
+ if(morph){anColorMap=keepAn.cm;anGhost=keepAn.gh;AN.s3=keepAn.s3;build()}O.update();
+ const vname=mode==='orbit'?L('دوران','Orbit'):mode==='morph'?L('تكوّن الكتلة','Massing Evolution'):L('حركة الظلال','Sun Study');
+ const blob=new Blob(chunks,{type:'video/webm'});try{await DL.save({filename:`${curName} - ${vname}.webm`,data:blob});flash(L('حُفظ الفيديو ✓','Video saved ✓'))}catch(e){flash(L('أُلغي التنزيل','Download cancelled'))}}
 $('bVideo').onclick=recordVideo;
 // ---- wind ----
 const windG=new THREE.Group();S.add(windG);let showWind=false;
@@ -2726,6 +2747,37 @@ function anRenderMorph(){
  box.querySelectorAll('[data-si]').forEach(b=>{b.onclick=()=>{AN.morphI=+b.dataset.si;renderAnStudio()}});
 }
 
+// ----- one-click parking lot sized for the missing spaces, placed along a free site edge (street side first) -----
+function addParking(){
+ if(!window.MC3D_CODE||!window.MC3D_ANALYSIS)return;
+ const r=anGet('code'),miss=r.parking.required-r.parking.provided;
+ if(miss<=0)return flash(L('المواقف كافية ✓','Parking is already sufficient ✓'));
+ const site=state.site||{},W=+site.w||100,D=+site.d||100,sb=Math.max(0,+site.sb||0),st=site.streets||{s:true},BW=MC3D_CODE.BAY_W,SD=MC3D_CODE.STRIP;
+ const boxes=state.blocks.filter(b=>!b.hidden&&!isProp(b)).map(b=>MC3D_ANALYSIS.getObb(b));
+ const free=(x,z,w,d)=>boxes.every(o=>x+w/2+1<=o.minX||x-w/2-1>=o.maxX||z+d/2+1<=o.minZ||z-d/2-1>=o.maxZ);
+ const order=['s','n','e','w'].sort((a,b)=>(st[b]?1:0)-(st[a]?1:0));
+ // one lot of `strips` 16 m strips holding `need` spaces along `edge`; slides along the edge to a free spot
+ const plan=(edge,need,strips,outside)=>{const horiz=edge==='s'||edge==='n',along=horiz?W:D,avail=Math.max(BW*4,along-2*sb-4);
+  const len=Math.max(SD+BW,Math.ceil(need/(2*strips))*BW);if(len>avail+1e-6)return null; // ≥ 18.5 m so bays run along the edge
+  const dep=SD*strips,inset=outside?-(dep/2+3):sb+dep/2+1,sign=edge==='s'||edge==='e'?1:-1;
+  const w=horiz?len:dep,d=horiz?dep:len,fix=sign*((horiz?D:W)/2-inset),span=Math.max(0,avail-len);
+  for(let t=0;t<=span+1e-6;t+=2.5){for(const off of t?[t/2,-t/2]:[0]){const x=horiz?off:fix,z=horiz?fix:off;if(outside||free(x,z,w,d))return {x,z,w,d}}}
+  return null};
+ const lots=[];let left=miss;
+ // 1) one lot on a single edge (fewest strips that fit); 2) otherwise fill single strips edge by edge
+ for(const e of order){for(let k=1;k<=3&&!lots.length;k++){const p=plan(e,left,k,false);if(p){lots.push(p);left=0}}if(lots.length)break}
+ if(left>0)for(const e of order){if(left<=0)break;const horiz=e==='s'||e==='n',cap=2*Math.floor((Math.max(BW*4,(horiz?W:D)-2*sb-4))/BW);
+  for(let need=Math.min(left,cap);need>0;need-=2){const p=plan(e,need,1,false);if(p&&MC3D_CODE.parkLayout(p.w,p.d).count>0){lots.push(p);boxes.push({minX:p.x-p.w/2,maxX:p.x+p.w/2,minZ:p.z-p.d/2,maxZ:p.z+p.d/2});left-=MC3D_CODE.parkLayout(p.w,p.d).count;break}}}
+ let where='';
+ if(left>0){const p=plan(order[order.length-1],left,Math.max(1,Math.ceil(left/(2*Math.floor(((order[order.length-1]==='s'||order[order.length-1]==='n')?W:D)/BW)))),true);
+  if(p){lots.push(p);where=L(' — جزء منها انحط خارج حدود الموقع لعدم وجود مكان فاضي؛ حرّكه لمكان مناسب',' — part was placed just outside the site (no free room); move it')}}
+ if(!lots.length)return flash(L('ما لكيت مكان للمواقف','Could not find room for parking'));
+ snap(true);let total=0;
+ lots.forEach(p=>{const count=MC3D_CODE.parkLayout(p.w,p.d).count;total+=count;
+  state.blocks.push(norm({name:L(`موقف سيارات (${count} موقف)`,`Parking (${count} spaces)`),shape:'box',mat:'asphalt',fn:'',f:1,x:+p.x.toFixed(2),z:+p.z.toFixed(2),w:+p.w.toFixed(2),d:+p.d.toFixed(2),park:true}))});
+ refresh();flash(L(`أُضيف ${total} موقف سيارات`,`Added ${total} parking spaces`)+(lots.length>1?L(` بـ ${lots.length} ساحات`,` in ${lots.length} lots`):'')+where);
+}
+
 // ----- regulations: parking, escape distance, lifts, stairs, coverage, FAR -----
 function anRenderCode(){
  if(!window.MC3D_CODE)return;
@@ -2756,6 +2808,7 @@ function anRenderCode(){
  if(covPct>maxCov)h+=anRec(`${L('التغطية','Coverage')} ${covPct}% ${L('أعلى من الحد','exceeds the limit')} ${maxCov}% — ${L('قلّل البصمة الأرضية أو ارفع طابقاً.','reduce the footprint or add a floor.')}`,'warn');
  if(far>maxFar)h+=anRec(`FAR ${far} ${L('أعلى من الحد','exceeds the limit')} ${maxFar} — ${L('قلّل المساحة الطابقية.','reduce floor area.')}`,'warn');
  $('anCodeRecs').innerHTML=h;
+ if($('anCodeParkBtn'))$('anCodeParkBtn').style.display=r.parking.ok?'none':'';
  const list=$('anCodeList');
  list.innerHTML=r.escape.items.length?r.escape.items.map(it=>`<button type="button" class="mass-row${selSet.has(it.idx)?' on':''}" data-mi="${it.idx}"><div class="mass-row-top"><span class="mass-row-name"><span class="mass-row-dot" style="background:${it.ok?'#16a34a':'#dc2626'}"></span>${anEsc(it.name)}</span><span style="font-family:var(--font-mono);font-size:10.5px;color:${it.ok?'var(--acc)':'#b91c1c'}">${it.worst===null?L('لا يوجد مفصل','no core'):it.worst+' '+um}</span></div><div class="mass-row-metrics"><span>${it.floors} ${L('طوابق','floors')}</span><span>${L('مفاصل ضمن الحد','cores in reach')}: ${it.coresInReach}</span></div></button>`).join('')
   :`<div class="hint">${L('لا توجد كتل متعددة الطوابق للفحص.','No multi-storey blocks to check.')}</div>`;
@@ -2788,6 +2841,7 @@ function initAnStudio(){
  document.querySelectorAll('#anSubTabs [data-an]').forEach(b=>{b.onclick=()=>{AN.sub=b.dataset.an;if(AN.sub!=='geom'&&massOverlay!=='none'){massOverlay='none';syncMassOverlayUI(null)}renderAnStudio();if(AN.sub==='geom')renderMassStudio()}});
  document.querySelectorAll('#anEnvTabs [data-env]').forEach(b=>{b.onclick=()=>{AN.env=b.dataset.env;renderAnStudio()}});
  document.querySelectorAll('#anBubbleModeSeg [data-zb]').forEach(b=>{b.onclick=()=>{AN.zb=b.dataset.zb;renderAnStudio()}});
+ if($('anCodeParkBtn'))$('anCodeParkBtn').onclick=addParking;
  [['anCodePark','parkM2'],['anCodeEsc','escapeMax'],['anCodeLift','liftM2']].forEach(([id,k])=>{if($(id))$(id).onchange=e=>{const v=parseFloat(e.target.value);if(!(v>0))return;snap(true);state.codeCfg=Object.assign({},state.codeCfg||{},{[k]:v});save();renderAnStudio()}});
  [['anEnv3dBtn','env'],['anZones3dBtn','zones'],['anMorph3dBtn','morph'],['anCode3dBtn','code']].forEach(([id,k])=>{if($(id))$(id).onclick=()=>{AN.show3d[k]=!AN.show3d[k];renderAnStudio()}});
  if($('anEnvSiteBtn'))$('anEnvSiteBtn').onclick=()=>showTab('site');
@@ -2995,8 +3049,10 @@ async function publishOnline(){try{await CL.rdb.collection('review').doc(keyOf('
 async function unpublishAll(){try{const q=await CL.rdb.collection('review').get();for(const d of q.docs)await CL.rdb.collection('review').doc(d.id).delete();flash(L('سُحب كل المنشور ('+q.docs.length+')','Unpublished '+q.docs.length+' item(s)'))}catch(e){flash(L('تعذّر السحب','Unable to unpublish'))}}
 // review mode UI
 if(REV){document.body.classList.add('revmode');const bar=document.createElement('div');bar.id='rvBar';
- bar.innerHTML=`<b>${L('وضع المراجعة','Review Mode')}</b><span>${L('تصميم:','Design:')} <b></b> · ${L('انقر على كتلة ثم','Click a block then')}</span><button id="rvNote">${L('ملاحظة','Add Note')}</button><button id="rvNotes">${L('الملاحظات','Notes')} <span class="cnt"></span></button><button id="rvSend" class="pri">${L('إرسال الملاحظات','Send Notes')}</button><span class="rvv"><button data-rv="iso">${L('أيزو','Iso')}</button><button data-rv="top">${L('مسقط','Plan')}</button><button data-rv="front">${L('واجهة','Front')}</button><button data-rv="eye">${L('منظور','Eye')}</button><button id="rvFn">${L('الوظائف','Zones')}</button></span>`;
+ bar.innerHTML=`<b>${L('وضع المراجعة','Review Mode')}</b><span class="rvn">${L('تصميم:','Design:')} <b></b></span><span class="rvh">· ${L('انقر على كتلة ثم','Click a block then')}</span><span class="rva"><button id="rvNote">${L('＋ ملاحظة','＋ Add Note')}</button><button id="rvNotes">${L('الملاحظات','Notes')} <span class="cnt"></span></button><button id="rvSend" class="pri">${L('إرسال الملاحظات','Send Notes')}</button></span><span class="rvv"><button data-rv="iso">${L('أيزو','Iso')}</button><button data-rv="top">${L('مسقط','Plan')}</button><button data-rv="front">${L('واجهة','Front')}</button><button data-rv="eye">${L('منظور','Eye')}</button><button id="rvFn">${L('الوظائف','Zones')}</button></span>`;
  bar.querySelector('span b').textContent=REV.name;bar.querySelectorAll('[data-rv]').forEach(x=>x.onclick=()=>view(x.dataset.rv));state.blocks.forEach(b=>b.lock=true);$('titlebar').after(bar);$('rvNote').onclick=()=>askNote(sel);$('rvNotes').onclick=()=>openNotes();$('rvSend').onclick=()=>{openNotes()};
+ // keep the 3D view just below the review bar, whatever its height (it wraps on narrow screens)
+ const fitRv=()=>{document.documentElement.style.setProperty('--rv-h',bar.offsetHeight+'px');fit()};addEventListener('resize',()=>setTimeout(fitRv,50));setTimeout(fitRv,0);
  $('cloudSt').style.display='none';$('rvFn').onclick=()=>{setColor(colorMode==='fn'?'mat':'fn');tg('rvFn',colorMode==='fn')};if(colorMode!=='fn')setColor('fn');tg('rvFn',true);setTimeout(()=>{fit();flash(L('هذا تصميم "'+REV.name+'" للمراجعة — انقر على أي كتلة لإضافة ملاحظة','Viewing "'+REV.name+'" for review — click any block to add a note'))},800)}
 setTimeout(()=>{pinsBuild();notesBadge()},500);
 {const _r=refresh;refresh=function(){_r.apply(this,arguments);if(typeof pinsBuild==='function'){pinsBuild();notesBadge()}}}
@@ -3315,5 +3371,5 @@ syncLangUI();
 window.addEventListener('beforeunload',e=>{if(!unsavedTracker)return;unsavedTracker.handleBeforeUnload(e,state,curName,hasActiveCanvasGesture())});
 let lastT=0;(function loop(t){requestAnimationFrame(loop);
  if(playing&&t-lastT>60){lastT=t;state.sun.hour+=0.1;if(state.sun.hour>19.5){state.sun.hour=5.5}setSun()}
- if(spin)spinStep(t);else O.update();draw(C);labels();if(typeof pinsUpd==='function')pinsUpd()})(0);
+ if(spin)spinStep(t);else O.update();draw(C);if(spin&&spin.vc)spinComp();labels();if(typeof pinsUpd==='function')pinsUpd()})(0);
 

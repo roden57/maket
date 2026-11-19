@@ -5,8 +5,21 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>استوديو النمذجة الكتلية ثلاثية الأبعاد</title>
 <meta name="description" content="أداة نمذجة كتلية معمارية ثلاثية الأبعاد في المتصفح مع تحليل الشمس والرياح، توزيع البرنامج الوظيفي، إعداد اللوحات المعمارية A4–A1، والتصدير إلى Revit وAutoCAD وSketchUp وPDF.">
-<meta property="og:title" content="ماكيت Maket — استوديو النمذجة الكتلية ثلاثية الأبعاد">
-<meta property="og:description" content="استوديو نمذجة كتلية معمارية ثلاثية الأبعاد متكامل لجميع المصممين والمهندسين والطلاب.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ماكيت Maket">
+<meta property="og:locale" content="ar_IQ">
+<meta property="og:url" content="https://roden57.github.io/maket/">
+<meta property="og:title" content="ماكيت — المركز التعليمي والتدريبي الطبي">
+<meta property="og:description" content="نموذج كتلي ثلاثي الأبعاد لمشروع تخرج — افتح الرابط لمراجعة التصميم وإضافة ملاحظاتك على الكتل مباشرة.">
+<meta property="og:image" content="https://roden57.github.io/maket/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="نموذج كتلي للمركز التعليمي والتدريبي الطبي — باب المعظم، بغداد">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://roden57.github.io/maket/og.jpg">
+<meta name="theme-color" content="#1e40af">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700&family=Cairo:wght@400;700&family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;700&family=Reem+Kufi:wght@400;700&display=swap" rel="stylesheet">
@@ -2118,7 +2131,21 @@ body.revmode #toolRail{display:none}
 #rvBar .rvv{display:flex;gap:4px;margin-inline-start:auto}
 #rvBar button.on{background:var(--acc-soft);color:var(--acc);border-color:var(--acc-line)}
 .revmode #tabs,.revmode #inspector,.revmode #inspToggle{display:none}
-.revmode #v{right:0;top:calc(var(--top-h) + 46px)}
+.revmode #v{right:0;top:calc(var(--top-h) + var(--rv-h,46px))}
+#rvBar .rva{display:flex;gap:8px}
+#rvBar .rvn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
+/* Review mode on phones: compact top line, big action buttons fixed at the bottom */
+@media (max-width:640px){
+  #rvBar{padding:6px 10px;gap:6px;font-size:12px;flex-wrap:nowrap}
+  #rvBar .rvh,#rvBar .rvv button[data-rv]{display:none}
+  #rvBar .rvn{max-width:none;flex:1;min-width:0}
+  #rvBar .rvv{margin-inline-start:0}
+  #rvBar .rva{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(15,23,42,.08)}
+  #rvBar .rva button{flex:1;min-height:44px;font-size:14px;font-weight:600;padding:0 6px}
+  .revmode #status{display:none}
+  .revmode #v{bottom:64px}
+  .revmode #camHud{bottom:74px}
+}
 
 /* Responsive */
 @media (max-width:960px){

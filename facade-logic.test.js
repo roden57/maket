@@ -126,3 +126,35 @@ test('computeBlockFacadeMetrics & computeProjectFacadeSummary calculate WWR, gla
   assert.equal(summary.plainCount, 1);
   assert.ok(summary.projectWwr > 30 && summary.projectWwr < 74);
 });
+
+test('new simple types ribbon and slit produce glass and frames', () => {
+  for (const fac of ['ribbon', 'slit']) {
+    const block = { shape: 'box', mat: 'brick', x: 0, z: 0, w: 20, d: 12, f: 3, fac, facCfg: {} };
+    const r = generateFacadeBoxes({ block, fh: 4, height: 12 });
+    assert.ok(r.glass.length > 0, fac + ' has glass');
+    assert.ok(r.lite.length > 0, fac + ' has frames/sills');
+  }
+});
+
+test('sideFac gives each side its own element; normalize keeps only valid types', () => {
+  const cfg = normalizeFacadeConfig({ sideFac: { f: 'hfins', b: 'win', r: 'nope' } }, 'win');
+  assert.deepEqual(cfg.sideFac, { f: 'hfins', b: 'win' });
+  const only = s => ({ shape: 'box', mat: 'brick', x: 0, z: 0, w: 20, d: 12, f: 2, fac: 'win',
+    facCfg: { sides: { f: s === 'f', b: s === 'b', r: false, l: false }, sideFac: { f: 'mash', b: 'win' } } });
+  const front = generateFacadeBoxes({ block: only('f'), fh: 4, height: 8 });
+  const back = generateFacadeBoxes({ block: only('b'), fh: 4, height: 8 });
+  assert.ok(front.wood.length > 0, 'mashrabiya side uses wood screens');
+  assert.equal(back.wood.length, 0, 'window side has no wood');
+});
+
+test('ground-floor elements draw even with no facade type, only on chosen sides', () => {
+  const block = { shape: 'box', mat: 'brick', x: 0, z: 0, w: 24, d: 12, f: 3, fac: '',
+    facCfg: { ground: { type: 'colon', sides: { f: true } } } };
+  const r = generateFacadeBoxes({ block, fh: 4, height: 12 });
+  assert.ok(r.lite.length >= 3, 'columns + roof slab');
+  assert.equal(r.glass.length, 0);
+  const entry = generateFacadeBoxes({ block: Object.assign({}, block, { facCfg: { ground: { type: 'entry', sides: { f: true, b: true } } } }), fh: 4, height: 12 });
+  assert.equal(entry.glass.length, 2, 'one glazed door per chosen side');
+  const none = generateFacadeBoxes({ block: Object.assign({}, block, { facCfg: {} }), fh: 4, height: 12 });
+  assert.equal(none.lite.length + none.glass.length + none.dark.length, 0);
+});
