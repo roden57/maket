@@ -2166,6 +2166,15 @@ body.revmode #toolRail{display:none}
   #camHud button span{display:none}
   #cloudSt span{display:none}
 }
+/* Massing animation: floating control bar while previewing / recording (not part of the video) */
+#maBar{position:fixed;top:calc(var(--top-h) + 10px);left:50%;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:10px;
+  padding:7px 12px;background:#fff;border:1px solid var(--line);border-radius:999px;box-shadow:0 6px 20px rgba(15,23,42,.15);font-size:12.5px}
+#maBar .ma-dot{width:9px;height:9px;border-radius:50%;background:#1e40af}
+#maBar .ma-dot.rec{background:#dc2626;animation:maPulse 1s infinite}
+#maBar .ma-t{font-family:var(--font-mono);color:var(--muted)}
+#maBar button{border:1px solid var(--line-strong);background:#fff;border-radius:999px;padding:4px 12px;cursor:pointer;font:inherit}
+@keyframes maPulse{50%{opacity:.35}}
+body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-playing .pin{display:none!important}
 /* Draw menu (opens from the Draw button on the tool rail) */
 #drawMenu{
   position:fixed;z-index:30;display:none;flex-direction:column;gap:4px;

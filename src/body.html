@@ -261,12 +261,13 @@
       <div class="grp">
         <div class="gc">إخراج صورة وفيديو</div>
         <div class="gb">
-          <div class="fld"><span class="fld-lbl">نمط الفيديو</span><select id="vidMode"><option value="orbit">دوران 360°</option><option value="sun">حركة الشمس</option><option value="morph">تكوّن الكتلة (مراحل التشكيل)</option></select></div>
+          <div class="fld"><span class="fld-lbl">نمط الفيديو</span><select id="vidMode"><option value="orbit">دوران 360°</option><option value="sun">حركة الشمس</option></select></div>
           <div class="fld"><span class="fld-lbl">المدة</span><select id="vidDur"><option>6</option><option selected>10</option><option>15</option></select> ثانية</div>
           <div class="gb-row">
             <button class="big" id="bVideo"><i><svg class="ic"><use href="#i-video"/></svg></i>تسجيل فيديو</button>
             <button class="big" id="bShot2"><i><svg class="ic"><use href="#i-camera"/></svg></i>حفظ صورة</button>
           </div>
+          <button class="sm pri2" id="bAnimStudio" style="width:100%">🎬 استوديو فيديو تكوّن الكتلة…</button>
           <button class="sm" id="bWhite">خلفية بيضاء عند الحفظ</button>
         </div>
       </div>
@@ -878,6 +879,7 @@
               <button type="button" class="sm" id="anMorphNext">التالي ›</button>
             </div>
             <button type="button" class="big on" id="anMorph3dBtn">عزل المرحلة في المشهد 3D</button>
+            <button type="button" class="sm pri2" id="anMorphFilm" style="width:100%">🎬 فيديو تكوّن الكتلة (تساقط، علاقات، مناخ)</button>
           </div>
         </div>
 
@@ -1189,6 +1191,20 @@
     <div class="fld" style="margin:6px 0"><span class="fld-lbl">كلمة المرور</span><input type="password" id="auK" autocomplete="current-password" style="width:min(240px,60vw);direction:ltr"></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="sm pri2" id="auIn">دخول</button><button class="sm" id="auNew">إنشاء حساب جديد</button></div>
     <div id="auMsg" style="margin-top:8px;color:var(--danger);font-size:12px"></div>
+  </div>
+  <div id="mAnim" style="display:none;font-size:13px">
+    <div class="hint" id="maIntro" style="margin-bottom:8px">فيلم قصير يشرح فكرة التصميم: الموقع ← الكتل تتساقط مرحلة بمرحلة ← العلاقات الوظيفية ← الشمس والرياح ← الشكل النهائي، مع عنوان لكل مشهد.</div>
+    <div class="fld"><span class="fld-lbl" id="maDurLbl">المدة</span><select id="maDur"><option value="20">20 ثانية</option><option value="30" selected>30 ثانية</option><option value="45">45 ثانية</option><option value="60">60 ثانية</option></select></div>
+    <div class="fld"><span class="fld-lbl" id="maStyleLbl">ظهور الكتل</span><select id="maStyle"><option value="drop" selected>تساقط من الأعلى</option><option value="grow">نمو من الأرض</option><option value="fade">ظهور تدريجي</option></select></div>
+    <div class="fld"><span class="fld-lbl" id="maColLbl">الألوان</span><select id="maCol"><option value="fn" selected>حسب الوظيفة</option><option value="white">أبيض معماري</option><option value="mat">المواد</option></select></div>
+    <label class="qchk"><input type="checkbox" id="maIntroChk" checked> <span id="maIntroLbl">شاشة عنوان المشروع</span></label>
+    <label class="qchk"><input type="checkbox" id="maLinksChk" checked> <span id="maLinksLbl">العلاقات الوظيفية بين الكتل</span></label>
+    <label class="qchk"><input type="checkbox" id="maClimChk" checked> <span id="maClimLbl">مسار الشمس وحركة الرياح</span></label>
+    <div class="hint" id="maCamHint" style="margin:6px 0 8px">الكاميرا تبدأ من زاوية المشهد الحالية وتدور ببطء — رتّب المنظور قبل البدء.</div>
+    <div class="gb-row" style="gap:8px">
+      <button class="sm" id="maPreview">▶ معاينة</button>
+      <button class="sm pri2" id="maRecord">⏺ تسجيل وحفظ الفيديو</button>
+    </div>
   </div>
   <div id="mQuick" style="display:none;font-size:13px">
     <div class="fld" style="margin:8px 0">التصميم <select id="qDesign" style="width:260px"></select></div>

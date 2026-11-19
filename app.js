@@ -498,7 +498,7 @@ $('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.c
   const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;refresh();flushLocalSaveClean(ok);flash(L('حُذف نهائياً: ','Permanently deleted: ')+n+(designs[curName]?L(' — المفتوح حالياً: ',' — current: ')+curName:''))})};
 addEventListener('storage',e=>{if(e.key==='mc3d_designs'){syncDesigns();fillDesigns();$('dsel').value=curName}
  if(e.key==='mc3d_sheets'&&typeof sheets!=='undefined'){const d=LS.get('mc3d_sheets');if(d){Object.keys(sheets).forEach(k=>{if(!(k in d)&&k!==curSheet)delete sheets[k]});Object.keys(d).forEach(k=>{if(k!==curSheet)sheets[k]=d[k]});fillSheets()}}});
-const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة']};
+const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة']};
 function modal(kind){$('modal').style.display='flex';Object.entries(MODALS).forEach(([k,[id]])=>{const e=$(id);if(e)e.style.display=k===kind?'block':'none'});$('modal').querySelector('.box').classList.toggle('wide',kind==='prog');$('mTitle').textContent=dn('modals',kind,(MODALS[kind]||[0,''])[1])}
 $('bIO').onclick=()=>{$('ioText').value=JSON.stringify(state);modal('io')};
 $('mClose').onclick=()=>{$('modal').style.display='none';crop=null};
@@ -1635,34 +1635,18 @@ $('restoreFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=ne
   fillDesigns();flash(L(`استُعيدت ${nd} تصاميم و ${ns} لوحات ✓ — افتحها من التصاميم المحفوظة`,`Restored ${nd} design(s) & ${ns} sheet(s) ✓ — open from Saved Designs`))}catch(er){flash(L('الملف ليس نسخة احتياطية صالحة','Invalid backup file'))}};rd.readAsText(f);e.target.value=''};
 // ---- video ----
 let spin=null;
-// massing-evolution video: hold each morph step for an equal share of the clip while the camera turns a quarter circle
-function spinMorph(s,k){const r=s.morph,n=r.steps.length,i=Math.min(n-1,Math.floor(k*n));
- const a=s.a0+k*Math.PI/2;C.position.set(s.tg.x+Math.cos(a)*s.r,s.y,s.tg.z+Math.sin(a)*s.r);C.lookAt(s.tg);
- if(i!==s.step){s.step=i;const {prev,cur}=anMorphSets(r,i);anGhost=cur;anColorMap={};cur.forEach(x=>{if(!prev.has(x))anColorMap[x]='#f59e0b'});build()}}
-// caption band drawn over each video frame (the 3D canvas itself has no text)
-function spinComp(){const s=spin;if(!s||!s.vc)return;const cv=R.domElement,c=s.vc,g=c.getContext('2d');
- if(c.width!==cv.width||c.height!==cv.height){c.width=cv.width;c.height=cv.height}
- g.drawImage(cv,0,0);const st=s.morph.steps[Math.max(0,s.step)];if(!st)return;
- const H=c.height,W=c.width,bh=Math.round(H*.12),fs=Math.round(bh*.36),rtl=shRtl(),pad=Math.round(bh*.4);
- g.fillStyle='rgba(255,255,255,.9)';g.fillRect(0,H-bh,W,bh);g.direction=rtl?'rtl':'ltr';g.textBaseline='middle';
- const cx=rtl?W-pad-fs*.75:pad+fs*.75;g.fillStyle='#1e40af';g.beginPath();g.arc(cx,H-bh/2,fs*.75,0,7);g.fill();
- g.fillStyle='#fff';g.font=shFont(fs,700);g.textAlign='center';g.fillText(String(s.step+1),cx,H-bh/2+1);
- g.fillStyle='#0f172a';g.textAlign=rtl?'right':'left';g.fillText(L(st.titleAr,st.titleEn),rtl?cx-fs*1.3:cx+fs*1.3,H-bh/2-fs*.35);
- g.fillStyle='#64748b';g.font=shFont(fs*.62);g.fillText(`${s.step+1} / ${s.morph.steps.length} · ${st.metricBadge||''}`,rtl?cx-fs*1.3:cx+fs*1.3,H-bh/2+fs*.55)}
-function spinStep(t){const s=spin;const k=Math.min(1,(t-s.t0)/s.dur);if(s.mode==='morph'){spinMorph(s,k);return}if(s.mode==='orbit'){const a=s.a0+k*Math.PI*2;C.position.set(s.tg.x+Math.cos(a)*s.r,s.y,s.tg.z+Math.sin(a)*s.r);C.lookAt(s.tg)}else{state.sun.hour=5.5+k*13.5;setSun()}}
+function spinStep(t){const s=spin;const k=Math.min(1,(t-s.t0)/s.dur);if(s.mode==='orbit'){const a=s.a0+k*Math.PI*2;C.position.set(s.tg.x+Math.cos(a)*s.r,s.y,s.tg.z+Math.sin(a)*s.r);C.lookAt(s.tg)}else{state.sun.hour=5.5+k*13.5;setSun()}}
 async function recordVideo(){if(!DL)return flash(L('التنزيل غير متاح في هذا العرض','Download unavailable in this view'));const cv=R.domElement;if(!cv.captureStream||!window.MediaRecorder)return flash(L('المتصفح لا يدعم تسجيل الفيديو — جرّب Chrome','Browser does not support video capture — try Chrome'));
  const mode=$('vidMode').value,dur=parseInt($('vidDur').value)*1000;
- const morph=mode==='morph'?anGet('morph'):null;if(mode==='morph'&&(!morph||!morph.steps.length))return flash(L('أضف كتلاً أولاً حتى تظهر مراحل التشكيل','Add blocks first to get massing steps'));
- if(isPlan&&(mode==='orbit'||mode==='morph'))view('iso');clearSel();refresh();hG.visible=false;
+ if(isPlan&&mode==='orbit')view('iso');clearSel();refresh();hG.visible=false;
  const keepSun=clone(state.sun);if(mode==='sun'){state.sun.on=true;setSun()}
- const keepAn={cm:anColorMap,gh:anGhost,s3:AN.s3},vc=morph?document.createElement('canvas'):null;if(vc){vc.width=cv.width;vc.height=cv.height}
- const tg=O.target.clone(),off=C.position.clone().sub(tg);const stream=(vc||cv).captureStream(30);const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
+ const tg=O.target.clone(),off=C.position.clone().sub(tg);const stream=cv.captureStream(30);const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
  let rec;try{rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:10e6})}catch(e){return flash(L('تعذّر بدء التسجيل','Failed to start recording'))}const chunks=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
  const done=new Promise(r=>rec.onstop=r);$('bVideo').classList.add('on');flash(L(`جارٍ التسجيل… ${dur/1000} ثانية — يُرجى عدم تحريك الشاشة`,`Recording… ${dur/1000}s — please keep window steady`));
- spin={mode,t0:performance.now(),dur,tg,r:Math.hypot(off.x,off.z),y:C.position.y,a0:Math.atan2(off.z,off.x),morph,vc,step:-1};if(morph){spinMorph(spin,0);draw(C);spinComp()}rec.start(200);
+ spin={mode,t0:performance.now(),dur,tg,r:Math.hypot(off.x,off.z),y:C.position.y,a0:Math.atan2(off.z,off.x)};rec.start(200);
  await new Promise(r=>setTimeout(r,dur+150));spin=null;rec.stop();await done;$('bVideo').classList.remove('on');hG.visible=true;state.sun=keepSun;setSun();
- if(morph){anColorMap=keepAn.cm;anGhost=keepAn.gh;AN.s3=keepAn.s3;build()}O.update();
- const vname=mode==='orbit'?L('دوران','Orbit'):mode==='morph'?L('تكوّن الكتلة','Massing Evolution'):L('حركة الظلال','Sun Study');
+ O.update();
+ const vname=mode==='orbit'?L('دوران','Orbit'):L('حركة الظلال','Sun Study');
  const blob=new Blob(chunks,{type:'video/webm'});try{await DL.save({filename:`${curName} - ${vname}.webm`,data:blob});flash(L('حُفظ الفيديو ✓','Video saved ✓'))}catch(e){flash(L('أُلغي التنزيل','Download cancelled'))}}
 $('bVideo').onclick=recordVideo;
 // ---- wind ----
@@ -2955,6 +2939,107 @@ async function refreshSheetDiagrams(){
  if(!stale.length)return;shAnBusy=true;
  try{for(const it of stale){const c=await anSheetCanvas(it.an);if(c)shPutImage(it,c,it.an)}saveSheet();if(sheetOpen)renderSheet()}finally{shAnBusy=false}
 }
+
+// ================= MASSING ANIMATION STUDIO: a short film of how the massing came about =================
+// Timeline logic lives in massing-anim-logic.js (MC3D_ANIM). Here: 3D overlays, per-frame update, captions, recording.
+const MA={play:null};
+const maG=new THREE.Group();S.add(maG);
+function openAnimStudio(){if(!window.MC3D_ANIM)return flash(L('ميزة الفيديو غير محمّلة','Animation module not loaded'));modal('anim')}
+function maOpts(){return {duration:+$('maDur').value||30,style:$('maStyle').value,intro:$('maIntroChk').checked,links:$('maLinksChk').checked,climate:$('maClimChk').checked,colors:$('maCol').value}}
+// a tube along a curve whose drawn length can grow (index order follows the path)
+function maTube(curve,seg,r,color){const g=new THREE.TubeGeometry(curve,seg,r,6,false),m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color}));m.userData.full=g.index?g.index.count:g.attributes.position.count;g.setDrawRange(0,0);m.visible=false;maG.add(m);return m}
+function maReveal(m,p){p=Math.max(0,Math.min(1,p));m.geometry.setDrawRange(0,Math.floor(m.userData.full*p/36)*36);m.visible=p>0}
+function maPath(pts){const cp=new THREE.CurvePath();for(let i=1;i<pts.length;i++)cp.add(new THREE.LineCurve3(pts[i-1],pts[i]));return cp}
+function maClearOverlays(){maG.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()});maG.clear()}
+async function maStart(record){
+ if(MA.play)return;if(!window.MC3D_ANIM||!window.MC3D_ANALYSIS)return;
+ if(el.clientWidth<80||el.clientHeight<80)return flash(L('اعرض المشهد ثلاثي الأبعاد أولاً','Show the 3D view first'));
+ const o=maOpts(),morph=anGet('morph');if(!morph||!morph.steps.length)return flash(L('ارسم كتلاً أولاً','Draw some blocks first'));
+ if(record&&(!DL||!R.domElement.captureStream||!window.MediaRecorder))return flash(L('المتصفح لا يدعم تسجيل الفيديو — جرّب Chrome','This browser cannot record video — try Chrome'));
+ $('modal').style.display='none';if(sheetOpen)openSheet(false);
+ const keep={cm:colorMode,anCm:anColorMap,anGh:anGhost,s3:AN.s3,cam:C.position.clone(),tgt:O.target.clone()};
+ if(isPlan)view('iso');clearSel();anColorMap=null;anGhost=null;colorMode=o.colors;build();hG.visible=false;
+ const blocks=state.blocks,staticIdx=[],allIdx=[];
+ blocks.forEach((b,i)=>{if(b.hidden||!groups[i])return;(isProp(b)||b.mat==='context'||b.mat==='asphalt'?staticIdx:allIdx).push(i)});
+ const zl=o.links?anGet('zones').links.filter(l=>groups[l.a]&&groups[l.b]).sort((a,b)=>(a.strength==='strong'?0:1)-(b.strength==='strong'?0:1)).slice(0,24):[];
+ const meta=state.meta||{},title=meta.title||L('المركز التعليمي والتدريبي الطبي','Medical Educational & Training Center');
+ const tl=MC3D_ANIM.buildTimeline({steps:morph.steps,links:zl,allIdx,staticIdx,opts:o,titleAr:title,titleEn:title});
+ const base={};allIdx.concat(staticIdx).forEach(i=>{base[i]={y:groups[i].position.y,h:bh(blocks[i])}});
+ const maxH=Math.max(10,...allIdx.map(i=>blocks[i].y0+bh(blocks[i])));
+ // overlays: site outline + setback, relationship arcs + nodes, sun arcs, wind streams
+ maClearOverlays();const W=+state.site.w||100,D=+state.site.d||100,sb=+state.site.sb||0,V=(x,y,z)=>new THREE.Vector3(x,y,z);
+ const rect=(w,d,y)=>[V(-w/2,y,-d/2),V(w/2,y,-d/2),V(w/2,y,d/2),V(-w/2,y,d/2),V(-w/2,y,-d/2)];
+ const site={out:maTube(maPath(rect(W,D,.08)),120,.22,'#1e40af'),sb:sb>0?maTube(maPath(rect(W-2*sb,D-2*sb,.1)),120,.14,'#ef4444'):null};
+ const top=b=>V(b.x,b.y0+bh(b)+1.2,b.z);
+ const links=zl.map(l=>{const A=blocks[l.a],B=blocks[l.b],pa=top(A),pb=top(B),strong=l.strength==='strong';
+  const mid=V((pa.x+pb.x)/2,Math.max(pa.y,pb.y)+4+pa.distanceTo(pb)*.18,(pa.z+pb.z)/2);
+  return {tube:maTube(new THREE.QuadraticBezierCurve3(pa,mid,pb),32,strong?.42:.2,strong?'#1e293b':'#94a3b8'),a:l.a,b:l.b}});
+ const nodes={};zl.forEach(l=>[l.a,l.b].forEach(i=>{if(nodes[i])return;const b=blocks[i],m=new THREE.Mesh(new THREE.SphereGeometry(1.1,16,12),new THREE.MeshBasicMaterial({color:(FNS[b.fn||'']||FNS['']).c}));m.position.copy(top(b));m.scale.setScalar(.01);m.visible=false;maG.add(m);nodes[i]=m}));
+ const clim={tubes:[],sun:null,sunCurve:null};
+ if(o.climate){const sol=anGet('solar'),R0=Math.max(W,D)*.42,arc=id=>{const a=(sol.arcSamples||[]).find(s=>s.id===id);return a&&a.dirs.length>1?a.dirs.map(d=>V(d.x*R0,Math.max(.5,d.y*R0),d.z*R0)):null};
+  const su=arc('summer'),wi=arc('winter');
+  if(su){clim.sunCurve=new THREE.CatmullRomCurve3(su);clim.tubes.push({m:maTube(clim.sunCurve,64,.45,'#f59e0b'),d:0});clim.sun=new THREE.Mesh(new THREE.SphereGeometry(2.6,20,16),new THREE.MeshBasicMaterial({color:'#fbbf24'}));clim.sun.visible=false;maG.add(clim.sun)}
+  if(wi)clim.tubes.push({m:maTube(new THREE.CatmullRomCurve3(wi),64,.3,'#38bdf8'),d:.1});
+  (anGet('wind').streamlines||[]).forEach((pts,k)=>{if(pts.length<2)return;const vs=pts.map(p=>V(p[0],p[1],p[2]));clim.tubes.push({m:maTube(new THREE.CatmullRomCurve3(vs),48,.24,'#0ea5e9'),d:.25+k*.04});
+   const tip=new THREE.Mesh(new THREE.ConeGeometry(.9,2.6,12),new THREE.MeshBasicMaterial({color:'#0ea5e9'}));const a=vs[vs.length-2],b=vs[vs.length-1];tip.position.copy(b);tip.quaternion.setFromUnitVectors(V(0,1,0),b.clone().sub(a).normalize());tip.visible=false;maG.add(tip);clim.tubes[clim.tubes.length-1].tip=tip})}
+ // 2D layer over the viewport: the WebGL frame + captions (this is also what gets recorded)
+ const oc=document.createElement('canvas');oc.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:6';el.appendChild(oc);
+ const bar=document.createElement('div');bar.id='maBar';bar.innerHTML=`<span class="ma-dot${record?' rec':''}"></span><b>${record?L('جارٍ التسجيل','Recording'):L('معاينة','Preview')}</b><span class="ma-t">0 / ${tl.total} ${L('ث','s')}</span><button type="button">${L('■ إيقاف','■ Stop')}</button>`;document.body.appendChild(bar);bar.querySelector('button').onclick=()=>maStop(false);
+ O.enabled=false;document.body.classList.add('ma-playing');const tg=O.target.clone(),off=C.position.clone().sub(tg);
+ MA.play={tl,o,base,keep,tg,r:Math.hypot(off.x,off.z),y:C.position.y,a0:Math.atan2(off.z,off.x),t0:performance.now(),site,links,nodes,clim,oc,bar,dropH:Math.max(25,maxH*1.6),record,rec:null,chunks:[],title};
+ if(record){const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
+  try{const rec=new MediaRecorder(oc.captureStream(30),{mimeType:mime,videoBitsPerSecond:12e6});rec.ondataavailable=e=>{if(e.data&&e.data.size)MA.play&&MA.play.chunks.push(e.data)};MA.play.done=new Promise(r=>rec.onstop=r);MA.play.rec=rec;
+   maFrame(performance.now());draw(C);maComp();rec.start(200)}catch(e){maStop(false);return flash(L('تعذّر بدء التسجيل','Failed to start recording'))}}
+}
+function maFrame(now){
+ const P=MA.play;if(!P)return;const t=(now-P.t0)/1000,tl=P.tl;
+ if(t>=tl.total+.5){maStop(true);return}
+ Object.keys(P.base).forEach(k=>{const i=+k,g=groups[i];if(!g)return;const st=MC3D_ANIM.blockState(tl,i,t,P.dropH),b=P.base[i];
+  g.visible=st.visible;g.scale.y=st.sy;g.position.y=b.y+st.dy-(b.h/2)*(1-st.sy);
+  g.traverse(o=>{if(!o.material)return;if(o.isMesh&&o.material.emissive)o.material.emissive.setHex(st.fresh&&st.visible?0x7a3d00:0);if(P.o.style==='fade'){o.material.transparent=st.alpha<1;o.material.opacity=st.alpha}})});
+ const sc=n=>tl.scenes.find(s=>s.kind===n),prog=s=>s?Math.max(0,Math.min(1,(t-s.t0)/(s.t1-s.t0))):1;
+ const ss=sc('site');maReveal(P.site.out,prog(ss)*1.6);if(P.site.sb)maReveal(P.site.sb,prog(ss)*1.6-.6);
+ const cs=sc('climate'),linksOff=cs&&t>=cs.t0; // relationships give way to the climate scene and the clean final view
+ P.links.forEach((l,j)=>{const p=linksOff?0:MC3D_ANIM.linkProgress(tl,t,j,P.links.length);maReveal(l.tube,p);[l.a,l.b].forEach(i=>{const n=P.nodes[i];if(!n)return;if(linksOff){n.visible=false;return}if(p>0){n.visible=true;n.scale.setScalar(Math.min(1,Math.max(n.scale.x,p*1.8))||.01)}})});
+ if(cs){const on=t>=cs.t0&&t<cs.t1+.4,k=prog(cs);P.clim.tubes.forEach(c=>{if(!on){c.m.visible=false;if(c.tip)c.tip.visible=false;return}const p=(k-c.d)*1.7;maReveal(c.m,p);if(c.tip)c.tip.visible=p>=1});
+  if(P.clim.sun){P.clim.sun.visible=on&&k>0;if(P.clim.sunCurve)P.clim.sun.position.copy(P.clim.sunCurve.getPoint(Math.min(1,k*1.15)))}}
+ const a=P.a0+MC3D_ANIM.cameraAngle(tl,t);C.position.set(P.tg.x+Math.cos(a)*P.r,P.y,P.tg.z+Math.sin(a)*P.r);C.lookAt(P.tg);
+ const tt=P.bar.querySelector('.ma-t');if(tt)tt.textContent=`${Math.min(tl.total,Math.floor(t))} / ${tl.total} ${L('ث','s')}`;
+}
+function maComp(){
+ const P=MA.play;if(!P)return;const cv=R.domElement,c=P.oc,g=c.getContext('2d');
+ if(c.width!==cv.width||c.height!==cv.height){c.width=cv.width;c.height=cv.height}
+ g.drawImage(cv,0,0);const t=(performance.now()-P.t0)/1000,{scene,index,k}=MC3D_ANIM.sceneAt(P.tl,t),W=c.width,H=c.height,rtl=shRtl(),u=Math.min(W,H)/100;
+ g.direction=rtl?'rtl':'ltr';g.textBaseline='middle';
+ if(scene.kind==='title'){const al=k<.7?1:Math.max(0,1-(k-.7)/.3);g.globalAlpha=al;g.fillStyle='#ffffff';g.fillRect(0,0,W,H);
+  g.fillStyle='#1e40af';g.font=shFont(u*3.4,700);g.textAlign='center';g.fillText(L('ماكيت · تكوّن الكتلة','Maket · Massing Evolution'),W/2,H*.38);
+  g.fillStyle='#0f172a';g.font=shFont(u*6.2,800);g.fillText(P.title,W/2,H*.5);
+  g.fillStyle='#64748b';g.font=shFont(u*3);g.fillText(L('من الموقع إلى الشكل النهائي','From site to final form'),W/2,H*.61);g.globalAlpha=1;return}
+ const scenes=P.tl.scenes.filter(s=>s.kind!=='title'),num=scenes.indexOf(scene)+1,bh=Math.round(H*.11),fs=Math.max(12,Math.round(bh*.34)),pad=Math.round(bh*.38);
+ g.fillStyle='rgba(255,255,255,.92)';g.fillRect(0,H-bh,W,bh);g.fillStyle='#1e40af';g.fillRect(0,H-bh,W*(t/P.tl.total),Math.max(2,u*.35));
+ const cx=rtl?W-pad-fs*.8:pad+fs*.8;g.beginPath();g.arc(cx,H-bh/2,fs*.8,0,7);g.fill();g.fillStyle='#fff';g.font=shFont(fs,700);g.textAlign='center';g.fillText(String(num),cx,H-bh/2+1);
+ const tx=rtl?cx-fs*1.4:cx+fs*1.4;g.textAlign=rtl?'right':'left';g.fillStyle='#0f172a';g.font=shFont(fs,700);g.fillText(L(scene.ar,scene.en),tx,H-bh/2-fs*.38);
+ g.fillStyle='#64748b';g.font=shFont(fs*.62);g.fillText(`${num} / ${scenes.length}${scene.badge?' · '+scene.badge:''}`,tx,H-bh/2+fs*.58);
+ // small keys for the relationship / climate / final scenes
+ const key=(items)=>{let y=H-bh-pad-items.length*fs*1.1;const x=rtl?W-pad:pad;g.font=shFont(fs*.62);items.forEach(([col,lb,line])=>{g.fillStyle='rgba(255,255,255,.85)';const tw=g.measureText(lb).width+fs*1.8;g.fillRect(rtl?x-tw:x,y-fs*.5,tw,fs);g.fillStyle=col;if(line)g.fillRect(rtl?x-fs*1.3:x+fs*.3,y-fs*.08,fs*1,fs*.16);else{g.beginPath();g.arc(rtl?x-fs*.8:x+fs*.8,y,fs*.3,0,7);g.fill()}g.fillStyle='#334155';g.textAlign=rtl?'right':'left';g.fillText(lb,rtl?x-fs*1.6:x+fs*1.6,y);y+=fs*1.1})};
+ if(scene.kind==='links')key([['#1e293b',L('اتصال مباشر','Direct link'),1],['#64748b',L('علاقة قريبة','Near'),1]]);
+ if(scene.kind==='climate')key([['#f59e0b',L('مسار الشمس صيفاً','Summer sun path'),1],['#38bdf8',L('مسار الشمس شتاءً','Winter sun path'),1],['#0ea5e9',L('الرياح السائدة','Prevailing wind'),1]]);
+ if(scene.kind==='final'&&P.o.colors==='fn'){const used=[...new Set(state.blocks.filter(b=>!b.hidden&&counts(b)).map(b=>b.fn||''))];key(used.map(f=>[(FNS[f]||FNS['']).c,fnName(f)]))}
+}
+async function maStop(finished){
+ const P=MA.play;if(!P)return;MA.play=null;
+ if(P.rec){try{P.rec.stop()}catch(e){}await P.done}
+ maClearOverlays();P.oc.remove();P.bar.remove();document.body.classList.remove('ma-playing');O.enabled=true;hG.visible=true;
+ colorMode=P.keep.cm;anColorMap=P.keep.anCm;anGhost=P.keep.anGh;AN.s3=P.keep.s3;C.position.copy(P.keep.cam);O.target.copy(P.keep.tgt);O.update();refresh();
+ if(P.rec){if(!finished)return flash(L('أُلغي التسجيل','Recording cancelled'));
+  const blob=new Blob(P.chunks,{type:'video/webm'});try{await DL.save({filename:`${curName} - ${L('تكوّن الكتلة','Massing Evolution')}.webm`,data:blob});flash(L('حُفظ الفيديو ✓','Video saved ✓'))}catch(e){flash(L('أُلغي التنزيل','Download cancelled'))}}
+ else if(finished)flash(L('انتهت المعاينة — اضغط تسجيل لحفظه كفيديو','Preview finished — press Record to save it'));
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&MA.play)maStop(false)});
+if($('maPreview'))$('maPreview').onclick=()=>maStart(false);
+if($('maRecord'))$('maRecord').onclick=()=>maStart(true);
+if($('bAnimStudio'))$('bAnimStudio').onclick=openAnimStudio;
+if($('anMorphFilm'))$('anMorphFilm').onclick=openAnimStudio;
 // ---- sky & fog ----
 const skyTex=(()=>{const c=document.createElement('canvas');c.width=4;c.height=256;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#8fb4dc');gr.addColorStop(.6,'#d4e2ee');gr.addColorStop(1,'#efeee8');g.fillStyle=gr;g.fillRect(0,0,4,256);return new THREE.CanvasTexture(c)})();
 const FOG=new THREE.Fog('#eceee9',200,900);
@@ -3371,5 +3456,5 @@ syncLangUI();
 window.addEventListener('beforeunload',e=>{if(!unsavedTracker)return;unsavedTracker.handleBeforeUnload(e,state,curName,hasActiveCanvasGesture())});
 let lastT=0;(function loop(t){requestAnimationFrame(loop);
  if(playing&&t-lastT>60){lastT=t;state.sun.hour+=0.1;if(state.sun.hour>19.5){state.sun.hour=5.5}setSun()}
- if(spin)spinStep(t);else O.update();draw(C);if(spin&&spin.vc)spinComp();labels();if(typeof pinsUpd==='function')pinsUpd()})(0);
+ if(MA.play)maFrame(t);else if(spin)spinStep(t);else O.update();draw(C);if(MA.play)maComp();labels();if(typeof pinsUpd==='function')pinsUpd()})(0);
 
