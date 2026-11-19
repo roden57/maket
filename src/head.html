@@ -1938,7 +1938,20 @@ body.revmode #toolRail{display:none}
   min-width:190px;
   padding:4px;
   font-size:13px;
+  max-height:calc(100vh - 16px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
 }
+#ctx div.ctx-h{
+  cursor:default;
+  margin-top:4px;
+  padding:8px 12px 4px;
+  border-top:1px solid var(--line);
+  font-size:11px;
+  font-weight:600;
+  color:var(--muted);
+}
+#ctx div.ctx-h:hover{background:transparent;color:var(--muted)}
 #ctx div{
   padding:7px 12px;
   cursor:pointer;

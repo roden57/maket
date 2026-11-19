@@ -1717,12 +1717,19 @@ const scriptP={};function loadScript(src){if(!scriptP[src])scriptP[src]=new Prom
 (function(){const last=LS.get('mc3d_lastbk')||0,days=(Date.now()-last)/864e5;if(Object.keys(designs).length>=1&&days>3){document.querySelector('.tab[data-t=file]').classList.add('dotted');setTimeout(()=>flash(last?L(`مضى ${Math.floor(days)} يوماً دون حفظ نسخة احتياطية — ملف ← حفظ نسخة كاملة`,`${Math.floor(days)} days since last backup — File → Full Backup`):L('تنبيه: يُنصح بحفظ نسخة احتياطية — ملف ← حفظ نسخة كاملة','Tip: Save a backup copy — File → Full Backup')),2500)}})();
 
 // ================= EXPORT DIALOG & CAD WRITERS =================
-function popMenu(btn,items){const r=btn.getBoundingClientRect();ctx.innerHTML='';items.forEach(([t,f])=>{const d=document.createElement('div');d.textContent=t;d.onclick=()=>{hideCtx();f()};ctx.appendChild(d)});ctx.style.display='block';
- ctx.style.left=Math.max(6,Math.min(r.left,innerWidth-200))+'px';ctx.style.top=(r.bottom+4)+'px'}
+// items: [label, fn]; an item with fn === null is a non-clickable group heading
+function popMenu(btn,items){const r=btn.getBoundingClientRect();ctx.innerHTML='';items.forEach(([t,f])=>{const d=document.createElement('div');d.textContent=t;if(f){d.onclick=()=>{hideCtx();f()}}else d.className='ctx-h';ctx.appendChild(d)});
+ ctx.style.maxHeight='';ctx.style.top='0px';ctx.style.display='block';ctx.scrollTop=0;
+ ctx.style.left=Math.max(6,Math.min(r.left,innerWidth-ctx.offsetWidth-6))+'px';
+ // fit on screen: open below the button, or above it when there is more room there; scroll if still too tall
+ const h=ctx.scrollHeight,below=innerHeight-r.bottom-10,above=r.top-10;
+ if(h<=below||below>=above){ctx.style.top=(r.bottom+4)+'px';ctx.style.maxHeight=Math.max(120,below)+'px'}
+ else{const mh=Math.max(120,above);ctx.style.maxHeight=mh+'px';ctx.style.top=Math.max(6,r.top-4-Math.min(h,mh))+'px'}}
 let inpCb=null;function showInput(title,val,cb){$('inpVal').value=val||'';inpCb=cb;modal('input');$('mTitle').textContent=title;setTimeout(()=>$('inpVal').focus(),50)}
 $('inpOk').onclick=()=>{const v=$('inpVal').value.trim();$('modal').style.display='none';if(inpCb&&v)inpCb(v);inpCb=null};$('inpVal').onkeydown=e=>{if(e.key==='Enter')$('inpOk').click()};
 $('shMoreS').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('✎ تسمية اللوحة','✎ Rename Sheet'),()=>showInput(L('اسم اللوحة','Sheet Name'),curSheet,v=>{$('shName').value=v;$('shRen').click()})],[L('نسخ اللوحة','Duplicate Sheet'),()=>$('shDupS').click()],[L('مسح محتوى اللوحة','Clear Sheet'),()=>{const b=$('shClear');b.click();b.click()}],[L('حذف اللوحة','Delete Sheet'),()=>{const b=$('shDelS');b.click();b.click()}]])};
 $('shAddM').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('صورة من جهازك','Upload Image'),()=>$('shUp').click()],[L('T نص','T Text'),()=>$('shText').click()],[L('عنوان اللوحة','Sheet Title'),()=>$('shTitle').click()],[L('▤ جدول عنوان','▤ Title Block'),()=>$('shTB').click()],[L('▭ إطار','▭ Frame Box'),()=>$('shBox').click()],[L('— خط أفقي','— Horizontal Line'),()=>$('shLine').click()],[L('| خط عمودي','| Vertical Line'),()=>$('shLineV').click()],[L('سهم الشمال','North Arrow'),()=>$('shNorth').click()],[L('مقياس رسم','Scale Bar'),()=>$('shScale').click()],[L('مفتاح ألوان الوظائف','Zone Color Legend'),()=>$('shLegend').click()],
+ [L('مخططات التحليل','Analysis diagrams'),null],
  [L('◉ المخطط الفقاعي للزونات','◉ Zoning Bubble Diagram'),()=>addAnToSheet('bubble')],[L('▦ جدول البرنامج والمساحات','▦ Program & Areas Table'),()=>addAnToSheet('prog')],
  [L('☀ مسار الشمس والحمل الحراري','☀ Sun Path & Heat Load'),()=>addAnToSheet('solar')],[L('≋ حركة الرياح','≋ Wind Flow'),()=>addAnToSheet('wind')],[L('◍ خريطة الضوضاء','◍ Noise Map'),()=>addAnToSheet('noise')],
  [L('▤ تسلسل تكوّن الكتلة (من زاوية الكاميرا الحالية)','▤ Massing Evolution (current camera)'),()=>addAnToSheet('morph')]])};
