@@ -696,6 +696,7 @@
             <button type="button" id="anTabEnv" data-an="env" role="tab">البيئة</button>
             <button type="button" id="anTabZones" data-an="zones" role="tab">الزونات</button>
             <button type="button" id="anTabMorph" data-an="morph" role="tab">التشكيل</button>
+            <button type="button" id="anTabCode" data-an="code" role="tab">الأنظمة</button>
           </div>
         </div>
       </div>
@@ -887,6 +888,33 @@
           </div>
         </div>
       </div>
+
+      <!-- SUB-VIEW 5: REGULATIONS (parking, escape, lifts, stairs, coverage, FAR) -->
+      <div class="an-subsec" id="anSecCode">
+        <div class="grp" id="anCodeGrp">
+          <div class="gc" id="anCodeTitle">فحص الأنظمة والقوانين (تقريبي)</div>
+          <div class="gb">
+            <div class="hm-kpis" id="anCodeKpis"></div>
+            <div id="anCodeRecs" style="display:flex;flex-direction:column;gap:5px"></div>
+            <button type="button" class="big on" id="anCode3dBtn">تلوين مسافات الهروب في المشهد 3D</button>
+          </div>
+        </div>
+        <div class="grp" id="anCodeEscGrp">
+          <div class="gc" id="anCodeEscTitle">مسافة الهروب لكل كتلة (لأقرب مفصل / سلم)</div>
+          <div class="gb">
+            <div id="anCodeList" class="mass-table"></div>
+          </div>
+        </div>
+        <div class="grp" id="anCodeOptGrp">
+          <div class="gc" id="anCodeOptTitle">المعايير المعتمدة</div>
+          <div class="gb">
+            <div class="fld"><span class="fld-lbl" id="anCodeParkLbl">موقف لكل (م² طابقي)</span><input type="number" id="anCodePark" min="10" max="500" step="5"></div>
+            <div class="fld"><span class="fld-lbl" id="anCodeEscLbl">أقصى مسافة هروب (م)</span><input type="number" id="anCodeEsc" min="10" max="120" step="5"></div>
+            <div class="fld"><span class="fld-lbl" id="anCodeLiftLbl">مصعد لكل (م² طوابق علوية)</span><input type="number" id="anCodeLift" min="500" max="10000" step="250"></div>
+            <div class="hint" id="anCodeHint">قيم إرشادية شائعة — طابقها مع الكود المعتمد عند مشرفك. المسافة محسوبة كممرات متعامدة لأقرب مفصل (مادة المفصل أو وظيفة الحركة) بطابقين فأكثر.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- SHEETS -->
@@ -906,6 +934,7 @@
             <button class="big" id="shQuick"><i><svg class="ic"><use href="#i-zap"/></svg></i>لوحة سريعة</button>
             <button class="big" id="shShot"><i><svg class="ic"><use href="#i-camera"/></svg></i>التقاط لقطة</button>
           </div>
+          <button class="big pri2" id="shFinal" title="لوحة A1 كاملة: منظور، مسقط، واجهة، تسلسل تكوّن الكتلة، الزونات، البرنامج، الشمس والرياح"><i><svg class="ic"><use href="#i-sheet"/></svg></i>لوحة العرض النهائية A1</button>
           <button class="big" id="shAddM"><i><svg class="ic"><use href="#i-plus"/></svg></i>إضافة عنصر للوحة ▾</button>
         </div>
       </div>

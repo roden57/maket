@@ -1,0 +1,155 @@
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.MC3D_CODE = factory();
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  // Rough planning checks for a massing model (not a substitute for the building code):
+  // parking, escape travel distance to a vertical core, lifts and escape stairs.
+  const DEFAULT_OPTS = {
+    parkM2: 50,      // gross floor area per required parking space
+    spaceM2: 25,     // asphalt area per provided space (bay + share of aisle)
+    escapeMax: 45,   // max travel distance to an escape stair / core (m)
+    liftM2: 2500,    // upper-floor gross area served by one passenger lift
+    serviceLift: 1   // extra stretcher / service lift for a medical training building
+  };
+
+  const PROPS = ['tree', 'person', 'car'];
+  const FLAT = ['green', 'paving', 'asphalt', 'water'];
+
+  function opts(o) {
+    const src = o && typeof o === 'object' ? o : {};
+    const out = {};
+    Object.keys(DEFAULT_OPTS).forEach(k => {
+      const v = Number(src[k]);
+      out[k] = Number.isFinite(v) && v >= 0 ? v : DEFAULT_OPTS[k];
+    });
+    out.parkM2 = Math.max(5, out.parkM2);
+    out.spaceM2 = Math.max(5, out.spaceM2);
+    out.escapeMax = Math.max(5, out.escapeMax);
+    out.liftM2 = Math.max(100, out.liftM2);
+    return out;
+  }
+
+  function defaultCounts(b) {
+    return !!b && !b.hidden && !PROPS.includes(b.shape) && !FLAT.includes(b.mat) && b.shape !== 'riwaq' && b.mat !== 'context';
+  }
+
+  function isCore(b) {
+    return b.mat === 'joint' || (b.fn || '') === 'circ';
+  }
+
+  // same footprint frame as the 3D model: local x/z axes rotated by (ry for non-box shapes) + rot
+  function frame(b) {
+    const rotDeg = ((b.shape === 'box' || b.shape === 'riwaq') ? 0 : (Number(b.ry) || 0)) + (Number(b.rot) || 0);
+    const swap = Math.abs((b.shape === 'box' || b.shape === 'riwaq') ? 0 : (Number(b.ry) || 0)) % 180 !== 0;
+    const w = Math.max(0.5, Number(swap ? b.d : b.w) || 10);
+    const d = Math.max(0.5, Number(swap ? b.w : b.d) || 10);
+    const rad = (-rotDeg * Math.PI) / 180;
+    return { cx: Number(b.x) || 0, cz: Number(b.z) || 0, hw: w / 2, hd: d / 2, ux: [Math.cos(rad), -Math.sin(rad)], uz: [Math.sin(rad), Math.cos(rad)] };
+  }
+
+  function toLocal(f, x, z) {
+    const dx = x - f.cx, dz = z - f.cz;
+    return [dx * f.ux[0] + dz * f.ux[1], dx * f.uz[0] + dz * f.uz[1]];
+  }
+
+  function toWorld(f, lx, lz) {
+    return [f.cx + f.ux[0] * lx + f.uz[0] * lz, f.cz + f.ux[1] * lx + f.uz[1] * lz];
+  }
+
+  // corridor-like (rectilinear) distance from a point to a core footprint; 0 when inside
+  function distToCore(core, x, z) {
+    const [lx, lz] = toLocal(core, x, z);
+    return Math.max(0, Math.abs(lx) - core.hw) + Math.max(0, Math.abs(lz) - core.hd);
+  }
+
+  // corners, edge midpoints and centre of a footprint
+  function samplePoints(f) {
+    const pts = [];
+    [-1, 0, 1].forEach(i => [-1, 0, 1].forEach(j => pts.push(toWorld(f, i * f.hw, j * f.hd))));
+    return pts;
+  }
+
+  function computeCodeChecks(input) {
+    const src = input || {};
+    const blocks = Array.isArray(src.blocks) ? src.blocks : [];
+    const o = opts(src.opts);
+    const counts = typeof src.counts === 'function' ? src.counts : defaultCounts;
+    const area = typeof src.area === 'function' ? src.area : (b => (Number(b.w) || 0) * (Number(b.d) || 0));
+
+    let gfa = 0, upperGfa = 0, asphalt = 0, maxFloors = 0;
+    const arch = [], cores = [];
+    blocks.forEach((b, idx) => {
+      if (!b || b.hidden) return;
+      if (b.mat === 'asphalt' && !PROPS.includes(b.shape)) asphalt += (Number(b.w) || 0) * (Number(b.d) || 0);
+      if (!counts(b)) return;
+      const f = Math.max(1, Math.round(Number(b.f) || 1));
+      const a = area(b);
+      gfa += a * f;
+      upperGfa += a * Math.max(0, f - 1);
+      maxFloors = Math.max(maxFloors, f);
+      const item = { idx, b, f, fr: frame(b) };
+      if (isCore(b)) { if (f >= 2) cores.push(item); } else arch.push(item);
+    });
+
+    // parking
+    const required = gfa > 0 ? Math.ceil(gfa / o.parkM2) : 0;
+    const provided = Math.floor(asphalt / o.spaceM2);
+    const parking = { required, provided, asphaltArea: Math.round(asphalt), ok: provided >= required };
+
+    // escape distance: only multi-storey blocks need a stair; ground floors exit straight outside
+    const escItems = arch.filter(a => a.f >= 2).map(a => {
+      let worst = 0;
+      samplePoints(a.fr).forEach(([x, z]) => {
+        let best = Infinity;
+        cores.forEach(c => { best = Math.min(best, distToCore(c.fr, x, z)); });
+        worst = Math.max(worst, best);
+      });
+      const reach = cores.filter(c => distToCore(c.fr, a.fr.cx, a.fr.cz) <= o.escapeMax).length;
+      return {
+        idx: a.idx,
+        name: a.b.name || ('Block ' + (a.idx + 1)),
+        floors: a.f,
+        worst: Number.isFinite(worst) ? +worst.toFixed(1) : null,
+        coresInReach: reach,
+        ok: Number.isFinite(worst) && worst <= o.escapeMax
+      };
+    }).sort((p, q) => (q.worst === null ? 1e9 : q.worst) - (p.worst === null ? 1e9 : p.worst));
+    const worstAll = escItems.reduce((m, it) => Math.max(m, it.worst === null ? Infinity : it.worst), 0);
+    const escape = {
+      limit: o.escapeMax,
+      items: escItems,
+      failCount: escItems.filter(it => !it.ok).length,
+      worst: escItems.length ? (Number.isFinite(worstAll) ? +worstAll.toFixed(1) : null) : 0,
+      ok: escItems.every(it => it.ok)
+    };
+
+    // lifts: only needed when there are upper floors
+    const needLifts = maxFloors >= 2;
+    const liftsReq = needLifts ? Math.max(1, Math.ceil(upperGfa / o.liftM2)) + o.serviceLift : 0;
+    const liftsCap = cores.length * 2; // a core can usually take two lift shafts
+    const lifts = { required: liftsReq, cores: cores.length, capacity: liftsCap, ok: !needLifts || liftsCap >= liftsReq };
+
+    // escape stairs: at least two separate stair cores when any floor is above ground
+    const stairs = { required: needLifts ? 2 : 0, cores: cores.length, ok: !needLifts || cores.length >= 2 };
+
+    return {
+      opts: o,
+      gfa: Math.round(gfa),
+      upperGfa: Math.round(upperGfa),
+      maxFloors,
+      coreIdx: cores.map(c => c.idx),
+      parking,
+      escape,
+      lifts,
+      stairs,
+      okCount: [parking.ok, escape.ok, lifts.ok, stairs.ok].filter(Boolean).length
+    };
+  }
+
+  return { DEFAULT_OPTS, computeCodeChecks, isCore, distToCore: (b, x, z) => distToCore(frame(b), x, z) };
+});

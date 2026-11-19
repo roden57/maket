@@ -2870,6 +2870,7 @@ body.revmode #toolRail{display:none}
             <button type="button" id="anTabEnv" data-an="env" role="tab">البيئة</button>
             <button type="button" id="anTabZones" data-an="zones" role="tab">الزونات</button>
             <button type="button" id="anTabMorph" data-an="morph" role="tab">التشكيل</button>
+            <button type="button" id="anTabCode" data-an="code" role="tab">الأنظمة</button>
           </div>
         </div>
       </div>
@@ -3061,6 +3062,33 @@ body.revmode #toolRail{display:none}
           </div>
         </div>
       </div>
+
+      <!-- SUB-VIEW 5: REGULATIONS (parking, escape, lifts, stairs, coverage, FAR) -->
+      <div class="an-subsec" id="anSecCode">
+        <div class="grp" id="anCodeGrp">
+          <div class="gc" id="anCodeTitle">فحص الأنظمة والقوانين (تقريبي)</div>
+          <div class="gb">
+            <div class="hm-kpis" id="anCodeKpis"></div>
+            <div id="anCodeRecs" style="display:flex;flex-direction:column;gap:5px"></div>
+            <button type="button" class="big on" id="anCode3dBtn">تلوين مسافات الهروب في المشهد 3D</button>
+          </div>
+        </div>
+        <div class="grp" id="anCodeEscGrp">
+          <div class="gc" id="anCodeEscTitle">مسافة الهروب لكل كتلة (لأقرب مفصل / سلم)</div>
+          <div class="gb">
+            <div id="anCodeList" class="mass-table"></div>
+          </div>
+        </div>
+        <div class="grp" id="anCodeOptGrp">
+          <div class="gc" id="anCodeOptTitle">المعايير المعتمدة</div>
+          <div class="gb">
+            <div class="fld"><span class="fld-lbl" id="anCodeParkLbl">موقف لكل (م² طابقي)</span><input type="number" id="anCodePark" min="10" max="500" step="5"></div>
+            <div class="fld"><span class="fld-lbl" id="anCodeEscLbl">أقصى مسافة هروب (م)</span><input type="number" id="anCodeEsc" min="10" max="120" step="5"></div>
+            <div class="fld"><span class="fld-lbl" id="anCodeLiftLbl">مصعد لكل (م² طوابق علوية)</span><input type="number" id="anCodeLift" min="500" max="10000" step="250"></div>
+            <div class="hint" id="anCodeHint">قيم إرشادية شائعة — طابقها مع الكود المعتمد عند مشرفك. المسافة محسوبة كممرات متعامدة لأقرب مفصل (مادة المفصل أو وظيفة الحركة) بطابقين فأكثر.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- SHEETS -->
@@ -3080,6 +3108,7 @@ body.revmode #toolRail{display:none}
             <button class="big" id="shQuick"><i><svg class="ic"><use href="#i-zap"/></svg></i>لوحة سريعة</button>
             <button class="big" id="shShot"><i><svg class="ic"><use href="#i-camera"/></svg></i>التقاط لقطة</button>
           </div>
+          <button class="big pri2" id="shFinal" title="لوحة A1 كاملة: منظور، مسقط، واجهة، تسلسل تكوّن الكتلة، الزونات، البرنامج، الشمس والرياح"><i><svg class="ic"><use href="#i-sheet"/></svg></i>لوحة العرض النهائية A1</button>
           <button class="big" id="shAddM"><i><svg class="ic"><use href="#i-plus"/></svg></i>إضافة عنصر للوحة ▾</button>
         </div>
       </div>
@@ -7016,6 +7045,164 @@ body.revmode #toolRail{display:none}
   if (typeof module === 'object' && module.exports) {
     module.exports = factory();
   } else {
+    root.MC3D_CODE = factory();
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  // Rough planning checks for a massing model (not a substitute for the building code):
+  // parking, escape travel distance to a vertical core, lifts and escape stairs.
+  const DEFAULT_OPTS = {
+    parkM2: 50,      // gross floor area per required parking space
+    spaceM2: 25,     // asphalt area per provided space (bay + share of aisle)
+    escapeMax: 45,   // max travel distance to an escape stair / core (m)
+    liftM2: 2500,    // upper-floor gross area served by one passenger lift
+    serviceLift: 1   // extra stretcher / service lift for a medical training building
+  };
+
+  const PROPS = ['tree', 'person', 'car'];
+  const FLAT = ['green', 'paving', 'asphalt', 'water'];
+
+  function opts(o) {
+    const src = o && typeof o === 'object' ? o : {};
+    const out = {};
+    Object.keys(DEFAULT_OPTS).forEach(k => {
+      const v = Number(src[k]);
+      out[k] = Number.isFinite(v) && v >= 0 ? v : DEFAULT_OPTS[k];
+    });
+    out.parkM2 = Math.max(5, out.parkM2);
+    out.spaceM2 = Math.max(5, out.spaceM2);
+    out.escapeMax = Math.max(5, out.escapeMax);
+    out.liftM2 = Math.max(100, out.liftM2);
+    return out;
+  }
+
+  function defaultCounts(b) {
+    return !!b && !b.hidden && !PROPS.includes(b.shape) && !FLAT.includes(b.mat) && b.shape !== 'riwaq' && b.mat !== 'context';
+  }
+
+  function isCore(b) {
+    return b.mat === 'joint' || (b.fn || '') === 'circ';
+  }
+
+  // same footprint frame as the 3D model: local x/z axes rotated by (ry for non-box shapes) + rot
+  function frame(b) {
+    const rotDeg = ((b.shape === 'box' || b.shape === 'riwaq') ? 0 : (Number(b.ry) || 0)) + (Number(b.rot) || 0);
+    const swap = Math.abs((b.shape === 'box' || b.shape === 'riwaq') ? 0 : (Number(b.ry) || 0)) % 180 !== 0;
+    const w = Math.max(0.5, Number(swap ? b.d : b.w) || 10);
+    const d = Math.max(0.5, Number(swap ? b.w : b.d) || 10);
+    const rad = (-rotDeg * Math.PI) / 180;
+    return { cx: Number(b.x) || 0, cz: Number(b.z) || 0, hw: w / 2, hd: d / 2, ux: [Math.cos(rad), -Math.sin(rad)], uz: [Math.sin(rad), Math.cos(rad)] };
+  }
+
+  function toLocal(f, x, z) {
+    const dx = x - f.cx, dz = z - f.cz;
+    return [dx * f.ux[0] + dz * f.ux[1], dx * f.uz[0] + dz * f.uz[1]];
+  }
+
+  function toWorld(f, lx, lz) {
+    return [f.cx + f.ux[0] * lx + f.uz[0] * lz, f.cz + f.ux[1] * lx + f.uz[1] * lz];
+  }
+
+  // corridor-like (rectilinear) distance from a point to a core footprint; 0 when inside
+  function distToCore(core, x, z) {
+    const [lx, lz] = toLocal(core, x, z);
+    return Math.max(0, Math.abs(lx) - core.hw) + Math.max(0, Math.abs(lz) - core.hd);
+  }
+
+  // corners, edge midpoints and centre of a footprint
+  function samplePoints(f) {
+    const pts = [];
+    [-1, 0, 1].forEach(i => [-1, 0, 1].forEach(j => pts.push(toWorld(f, i * f.hw, j * f.hd))));
+    return pts;
+  }
+
+  function computeCodeChecks(input) {
+    const src = input || {};
+    const blocks = Array.isArray(src.blocks) ? src.blocks : [];
+    const o = opts(src.opts);
+    const counts = typeof src.counts === 'function' ? src.counts : defaultCounts;
+    const area = typeof src.area === 'function' ? src.area : (b => (Number(b.w) || 0) * (Number(b.d) || 0));
+
+    let gfa = 0, upperGfa = 0, asphalt = 0, maxFloors = 0;
+    const arch = [], cores = [];
+    blocks.forEach((b, idx) => {
+      if (!b || b.hidden) return;
+      if (b.mat === 'asphalt' && !PROPS.includes(b.shape)) asphalt += (Number(b.w) || 0) * (Number(b.d) || 0);
+      if (!counts(b)) return;
+      const f = Math.max(1, Math.round(Number(b.f) || 1));
+      const a = area(b);
+      gfa += a * f;
+      upperGfa += a * Math.max(0, f - 1);
+      maxFloors = Math.max(maxFloors, f);
+      const item = { idx, b, f, fr: frame(b) };
+      if (isCore(b)) { if (f >= 2) cores.push(item); } else arch.push(item);
+    });
+
+    // parking
+    const required = gfa > 0 ? Math.ceil(gfa / o.parkM2) : 0;
+    const provided = Math.floor(asphalt / o.spaceM2);
+    const parking = { required, provided, asphaltArea: Math.round(asphalt), ok: provided >= required };
+
+    // escape distance: only multi-storey blocks need a stair; ground floors exit straight outside
+    const escItems = arch.filter(a => a.f >= 2).map(a => {
+      let worst = 0;
+      samplePoints(a.fr).forEach(([x, z]) => {
+        let best = Infinity;
+        cores.forEach(c => { best = Math.min(best, distToCore(c.fr, x, z)); });
+        worst = Math.max(worst, best);
+      });
+      const reach = cores.filter(c => distToCore(c.fr, a.fr.cx, a.fr.cz) <= o.escapeMax).length;
+      return {
+        idx: a.idx,
+        name: a.b.name || ('Block ' + (a.idx + 1)),
+        floors: a.f,
+        worst: Number.isFinite(worst) ? +worst.toFixed(1) : null,
+        coresInReach: reach,
+        ok: Number.isFinite(worst) && worst <= o.escapeMax
+      };
+    }).sort((p, q) => (q.worst === null ? 1e9 : q.worst) - (p.worst === null ? 1e9 : p.worst));
+    const worstAll = escItems.reduce((m, it) => Math.max(m, it.worst === null ? Infinity : it.worst), 0);
+    const escape = {
+      limit: o.escapeMax,
+      items: escItems,
+      failCount: escItems.filter(it => !it.ok).length,
+      worst: escItems.length ? (Number.isFinite(worstAll) ? +worstAll.toFixed(1) : null) : 0,
+      ok: escItems.every(it => it.ok)
+    };
+
+    // lifts: only needed when there are upper floors
+    const needLifts = maxFloors >= 2;
+    const liftsReq = needLifts ? Math.max(1, Math.ceil(upperGfa / o.liftM2)) + o.serviceLift : 0;
+    const liftsCap = cores.length * 2; // a core can usually take two lift shafts
+    const lifts = { required: liftsReq, cores: cores.length, capacity: liftsCap, ok: !needLifts || liftsCap >= liftsReq };
+
+    // escape stairs: at least two separate stair cores when any floor is above ground
+    const stairs = { required: needLifts ? 2 : 0, cores: cores.length, ok: !needLifts || cores.length >= 2 };
+
+    return {
+      opts: o,
+      gfa: Math.round(gfa),
+      upperGfa: Math.round(upperGfa),
+      maxFloors,
+      coreIdx: cores.map(c => c.idx),
+      parking,
+      escape,
+      lifts,
+      stairs,
+      okCount: [parking.ok, escape.ok, lifts.ok, stairs.ok].filter(Boolean).length
+    };
+  }
+
+  return { DEFAULT_OPTS, computeCodeChecks, isCore, distToCore: (b, x, z) => distToCore(frame(b), x, z) };
+});
+
+</script>
+<script>
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
+  } else {
     root.MC3D_SNAP = factory();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
@@ -7537,6 +7724,7 @@ body.revmode #toolRail{display:none}
     ['#shNew', '+ New'],
     ['#p_sheet .grp:nth-child(2) .gc', 'Content & Captures'],
     ['#shQuick', 'Quick Sheet'],
+    ['#shFinal', 'Final A1 Board'],
     ['#shShot', 'Capture View'],
     ['#shAddM', 'Add Element to Sheet ▾'],
     ['#p_sheet .grp:nth-child(3) .gc', 'Page Setup'],
@@ -7586,6 +7774,15 @@ body.revmode #toolRail{display:none}
     ['#anTabEnv', 'Environment'],
     ['#anTabZones', 'Zones'],
     ['#anTabMorph', 'Evolution'],
+    ['#anTabCode', 'Regulations'],
+    ['#anCodeTitle', 'Regulation Checks (approximate)'],
+    ['#anCode3dBtn', 'Colour escape distances in 3D'],
+    ['#anCodeEscTitle', 'Escape distance per block (to nearest core)'],
+    ['#anCodeOptTitle', 'Criteria used'],
+    ['#anCodeParkLbl', 'One space per (m² floor area)'],
+    ['#anCodeEscLbl', 'Max escape distance (m)'],
+    ['#anCodeLiftLbl', 'One lift per (m² upper floors)'],
+    ['#anCodeHint', 'Common guideline values — match them to the code your supervisor uses. Distance is measured as right-angle corridors to the nearest core (joint material or circulation function) of two floors or more.'],
     ['#massOverlayGrp .gc', '3D Analytical Viewport Mode'],
     ['#massOvNone', 'Off'],
     ['#massOvHeight', 'Height'],
@@ -10197,6 +10394,48 @@ function layoutBoxes(n,mode,W,H,top,bot,mx,gap,cap,leg){const AW=W-2*mx,AH=H-top
  const cols=n<=2?2:n<=4?2:3,rows=Math.ceil(n/cols),cw=(AW-(cols-1)*gap)/cols,ch=(AH-(leg?48:0)-(rows-1)*gap)/rows-cap;
  for(let i=0;i<n;i++){const c=i%cols,r=Math.floor(i/cols);out.push({x:W-mx-(c+1)*cw-c*gap,y:top+r*(ch+cap+gap),w:cw,h:ch})}return out}
 $('shQuick').onclick=openQuick;$('qGo').onclick=runQuick;
+// One-click A1 presentation board: 3D views + analysis diagrams in a fixed layout (current design, functions colouring)
+let finalBusy=false;
+async function finalBoard(){
+ if(finalBusy)return;if(!state.blocks.some(b=>!b.hidden&&counts(b)))return flash(L('ارسم كتلاً أولاً','Draw some blocks first'));
+ if(el.clientWidth<80||el.clientHeight<80)return flash(L('افتح المشهد ثلاثي الأبعاد أولاً','Show the 3D view first'));
+ finalBusy=true;flash(L('جارٍ تجهيز لوحة العرض النهائية… (ثوانٍ)','Building the presentation board… (a few seconds)'));
+ const wasSheet=sheetOpen;if(wasSheet)openSheet(false);
+ const keep={sel,selSet,cm:colorMode,plan:isPlan},secWas=sec.on;if(sec.on)setSecOn(false);
+ colorMode='fn';clearSel();siteChanged();build();
+ const capState=clone(state),shots={},raf=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+ try{
+  for(const v of ['iso','top','front']){view(v,0);O.update();await raf();const g=await grab(true,false);if(g){g.state=clone(capState);shots[v]=g}}
+  view('iso',0);O.update();await raf();
+  const diag={};for(const k of ['morph','bubble','prog','solar','wind'])diag[k]=await anSheetCanvas(k);
+  colorMode=keep.cm;sel=keep.sel;selSet=keep.selSet;if(secWas)setSecOn(true);view(keep.plan?'top':'iso');refresh();
+  const m=state.meta||{},title=(m.title||L('المركز التعليمي والتدريبي الطبي','Medical Educational & Training Center'))+L(' — لوحة العرض',' — Presentation Board');
+  const n=newSheet(L('لوحة العرض — ','Board — ')+curName);
+  sheet.orient='land';sheet.size='A1';sheet.frame=true;sheet.items=defSheet().items;const f=SIZES.A1[0]/420;sheet.items.forEach(i=>{i.size*=f});sheet.items[0].text=title;fixTitles();
+  const W=PW(),H=PH(),mx=14,gap=8,cap=11,top=44,mid=292,bot=530,rtl=!L(0,1);
+  // x measured from the reading start side (right in Arabic)
+  const X=(fromStart,w)=>rtl?W-mx-fromStart-w:mx+fromStart;
+  const caption=(t,b,it)=>addText(t,b.x,it.y+it.h+1.5,b.w,6.5,{bold:true,color:'#9C3F24'});
+  const putShot=(v,b,t)=>{if(!shots[v])return null;const it=addImgItem(shots[v],b);caption(t,b,it);return it};
+  const putDiag=(k,b)=>{const c=diag[k];if(!c)return null;const it=addImgItem({data:k==='morph'?c.toDataURL('image/jpeg',.92):c.toDataURL('image/png'),ar:c.height/c.width},b,L(SH_AN[k][0],SH_AN[k][1]));it.an=k;it.ak=anModelKey();return it};
+  const AW=W-2*mx,topH=mid-top-cap-gap,botH=bot-mid-cap;
+  const bigW=Math.round(AW*.49);
+  putShot('iso',{x:X(0,bigW),y:top,w:bigW,h:topH},L('منظور عام','Perspective'));
+  putDiag('morph',{x:X(bigW+gap,AW-bigW-gap),y:top,w:AW-bigW-gap,h:topH+cap});
+  const wPlan=185,wEl=185,wBub=150,wProg=160,wEnv=AW-wPlan-wEl-wBub-wProg-4*gap;let s=0;
+  const planIt=putShot('top',{x:X(s,wPlan),y:mid,w:wPlan,h:botH-cap},L('المسقط الأفقي','Site Plan'));s+=wPlan+gap;
+  putShot('front',{x:X(s,wEl),y:mid,w:wEl,h:botH-cap},L('الواجهة','Elevation'));s+=wEl+gap;
+  putDiag('bubble',{x:X(s,wBub),y:mid,w:wBub,h:botH});s+=wBub+gap;
+  putDiag('prog',{x:X(s,wProg),y:mid,w:wProg,h:botH});s+=wProg+gap;
+  const hh=(botH-gap)/2;putDiag('solar',{x:X(s,wEnv),y:mid,w:wEnv,h:hh});putDiag('wind',{x:X(s,wEnv),y:mid+hh+gap,w:wEnv,h:hh});
+  if(planIt)sheet.items.push({id:uid(),type:'north',x:planIt.x+3,y:planIt.y+3,w:16,h:19,rot:state.site.north||0});
+  addLegend(mx+4,bot+8);addTitleBlock(); // title block sits bottom-right, legend bottom-left
+  saveSheet();fillSheets();openSheet(true);
+  flash(L('لوحة العرض جاهزة ✓ ','Board ready ✓ ')+n+L(' — رتّب العناصر كما تحب، والتصدير يعيد اللقطات بدقة عالية',' — rearrange freely; export re-renders views in HQ'));
+ }catch(e){colorMode=keep.cm;refresh();flash(L('تعذّر تجهيز اللوحة','Could not build the board'));console.error(e)}
+ finally{finalBusy=false}
+}
+if($('shFinal'))$('shFinal').onclick=finalBoard;
 document.querySelector('[data-t=sheet]').addEventListener('click',()=>{if(!sheetOpen)openSheet(true)});
 
 // ================= MORE: report, compare, backup, video, wind =================
@@ -11102,7 +11341,7 @@ function initMassStudio(){
 initMassStudio();
 
 // ---------- analysis studio: environment / zones / morphology (uses MC3D_ANALYSIS) ----------
-var AN={sub:'geom',env:'solar',zb:'zones',morphI:0,show3d:{env:true,zones:true,morph:true},cache:{},sig:'',s3:''};
+var AN={sub:'geom',env:'solar',zb:'zones',morphI:0,show3d:{env:true,zones:true,morph:true,code:true},cache:{},sig:'',s3:''};
 const anEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 const anShort=(s,n)=>{s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s};
 function anRamp(t,stops){t=Math.max(0,Math.min(1,+t||0));const n=stops.length-1,i=Math.min(n-1,Math.floor(t*n)),f=t*n-i;
@@ -11118,9 +11357,10 @@ const anRec=(txt,cls)=>`<div class="an-rec-line${cls?' '+cls:''}">${txt}</div>`;
 const anFace=k=>({N:L('الشمالية','North'),S:L('الجنوبية','South'),E:L('الشرقية','East'),W:L('الغربية','West'),Roof:L('السطح','Roof')})[k]||k;
 function anGet(kind){
  const A=window.MC3D_ANALYSIS;if(!A)return null;
- const sig=JSON.stringify([state.blocks,state.site,state.fh]);
+ const sig=JSON.stringify([state.blocks,state.site,state.fh,state.codeCfg]);
  if(sig!==AN.sig){AN.sig=sig;AN.cache={}}
  if(!AN.cache[kind]){const inp={blocks:state.blocks,site:state.site,fh:state.fh};
+  if(kind==='code'){if(!window.MC3D_CODE)return null;AN.cache.code=MC3D_CODE.computeCodeChecks({blocks:state.blocks,fh:state.fh,opts:state.codeCfg,area:areaOf,counts:b=>!b.hidden&&counts(b)});return AN.cache.code}
   AN.cache[kind]=kind==='solar'?A.computeSolarAnalysis(inp):kind==='wind'?A.computeWindAnalysis(inp):kind==='noise'?A.computeNoiseAnalysis(inp):kind==='zones'?A.computeZoningAndBubbles(inp):A.computeMorphologyEvolution(inp)}
  return AN.cache[kind];
 }
@@ -11330,12 +11570,49 @@ function anRenderMorph(){
  box.querySelectorAll('[data-si]').forEach(b=>{b.onclick=()=>{AN.morphI=+b.dataset.si;renderAnStudio()}});
 }
 
+// ----- regulations: parking, escape distance, lifts, stairs, coverage, FAR -----
+function anRenderCode(){
+ if(!window.MC3D_CODE)return;
+ const r=anGet('code');if(!r)return;const o=r.opts,st=computeStats(state),site=state.site||{};
+ if($('anCode3dBtn'))$('anCode3dBtn').classList.toggle('on',AN.show3d.code);
+ [['anCodePark','parkM2'],['anCodeEsc','escapeMax'],['anCodeLift','liftM2']].forEach(([id,k])=>{if($(id)&&document.activeElement!==$(id))$(id).value=o[k]});
+ const covPct=Math.round(st.cov*100),far=+st.far.toFixed(2),maxCov=+site.maxCovPct||60,maxFar=+site.maxFar||2.4;
+ const um=L('م','m'),yes=ok=>ok?'✓':'✗';
+ $('anCodeKpis').innerHTML=
+  anKpi(L('مواقف السيارات','Parking')+' '+yes(r.parking.ok),`${r.parking.provided} / ${r.parking.required}`,L('موجود / مطلوب','provided / required'))+
+  anKpi(L('أبعد مسافة هروب','Max escape distance')+' '+yes(r.escape.ok),r.escape.worst===null?'—':r.escape.worst+' '+um,L('الحد ','limit ')+o.escapeMax+' '+um)+
+  anKpi(L('المصاعد المطلوبة','Lifts required')+' '+yes(r.lifts.ok),r.lifts.required,`${r.lifts.cores} ${L('نوى تستوعب','cores fit')} ${r.lifts.capacity}`)+
+  anKpi(L('سلالم الهروب','Escape stairs')+' '+yes(r.stairs.ok),r.stairs.cores,L('المطلوب ','required ')+r.stairs.required)+
+  anKpi(L('نسبة التغطية','Coverage')+' '+yes(covPct<=maxCov),covPct+'%',L('الحد ','limit ')+maxCov+'%')+
+  anKpi(L('معامل الاستغلال FAR','FAR')+' '+yes(far<=maxFar),far,L('الحد ','limit ')+maxFar);
+ const nm=a=>a.slice(0,3).map(x=>anEsc(x.name)).join('، ')+(a.length>3?'…':'');
+ let h='';
+ h+=r.parking.ok?anRec(`${L('المواقف كافية','Parking is sufficient')}: ${r.parking.provided} ${L('موقف مقابل','vs')} ${r.parking.required} ${L('مطلوب','required')} ✓`,'good')
+  :anRec(`${L('المواقف ناقصة','Parking short')}: ${L('مطلوب','required')} ${r.parking.required} ${L('موقف','spaces')} (${r.gfa.toLocaleString('en')} ${L('م² ÷','m² ÷')} ${o.parkM2}) ${L('والموجود','provided')} ${r.parking.provided} — ${L('ارسم «شارع / موقف سيارات» من قائمة الرسم؛ كل','draw "Road / parking" from the Draw menu; every')} ${o.spaceM2} ${L('م² = موقف واحد','m² = one space')}.`,'warn');
+ const fails=r.escape.items.filter(i=>!i.ok);
+ if(!r.escape.items.length)h+=anRec(L('كل الكتل بطابق واحد — الخروج مباشرة للخارج ✓','All blocks are single-storey — direct exit outside ✓'),'good');
+ else if(!r.lifts.cores)h+=anRec(L('لا توجد مفاصل أو نوى حركة بطابقين فأكثر — ارسم «مفصل / نواة حركة» من قائمة الرسم لكل جناح.','No cores of two floors or more — draw a "Joint / core" from the Draw menu for each wing.'),'warn');
+ else if(fails.length)h+=anRec(`${fails.length} ${L('كتل أبعد من','blocks farther than')} ${o.escapeMax} ${um} ${L('عن أقرب مفصل','from the nearest core')} (${nm(fails)}) — ${L('أضف مفصلاً/سلماً قريباً أو قصّر الجناح.','add a nearby core/stair or shorten the wing.')}`,'warn');
+ else h+=anRec(`${L('كل الكتل ضمن مسافة الهروب','All blocks are within escape distance')} (${L('أبعد نقطة','farthest point')} ${r.escape.worst} ${um}) ✓`,'good');
+ if(r.lifts.required)h+=r.lifts.ok?anRec(`${L('المصاعد','Lifts')}: ${r.lifts.required} ${L('مطلوبة (منها مصعد نقالات) والنوى تستوعب','required (incl. a stretcher lift); cores fit')} ${r.lifts.capacity} ✓`,'good')
+  :anRec(`${L('المصاعد','Lifts')}: ${r.lifts.required} ${L('مطلوبة (منها مصعد نقالات) لكن','required (incl. a stretcher lift) but')} ${r.lifts.cores} ${L('نوى تستوعب','cores fit')} ${r.lifts.capacity} ${L('فقط — أضف نواة حركة.','only — add a core.')}`,'warn');
+ if(r.stairs.required&&!r.stairs.ok)h+=anRec(L('مطلوب سلّما هروب منفصلان على الأقل (نواتان) لأي مبنى بأكثر من طابق.','At least two separate escape stairs (two cores) are required above ground floor.'),'warn');
+ if(covPct>maxCov)h+=anRec(`${L('التغطية','Coverage')} ${covPct}% ${L('أعلى من الحد','exceeds the limit')} ${maxCov}% — ${L('قلّل البصمة الأرضية أو ارفع طابقاً.','reduce the footprint or add a floor.')}`,'warn');
+ if(far>maxFar)h+=anRec(`FAR ${far} ${L('أعلى من الحد','exceeds the limit')} ${maxFar} — ${L('قلّل المساحة الطابقية.','reduce floor area.')}`,'warn');
+ $('anCodeRecs').innerHTML=h;
+ const list=$('anCodeList');
+ list.innerHTML=r.escape.items.length?r.escape.items.map(it=>`<button type="button" class="mass-row${selSet.has(it.idx)?' on':''}" data-mi="${it.idx}"><div class="mass-row-top"><span class="mass-row-name"><span class="mass-row-dot" style="background:${it.ok?'#16a34a':'#dc2626'}"></span>${anEsc(it.name)}</span><span style="font-family:var(--font-mono);font-size:10.5px;color:${it.ok?'var(--acc)':'#b91c1c'}">${it.worst===null?L('لا يوجد مفصل','no core'):it.worst+' '+um}</span></div><div class="mass-row-metrics"><span>${it.floors} ${L('طوابق','floors')}</span><span>${L('مفاصل ضمن الحد','cores in reach')}: ${it.coresInReach}</span></div></button>`).join('')
+  :`<div class="hint">${L('لا توجد كتل متعددة الطوابق للفحص.','No multi-storey blocks to check.')}</div>`;
+ list.querySelectorAll('[data-mi]').forEach(rw=>{rw.onclick=()=>focusMassBlocks([+rw.dataset.mi])});
+}
+
 // ----- 3D overlay + wiring -----
 function anSync3d(){
  let cm=null,gh=null;
  if(curTab==='mass'&&window.MC3D_ANALYSIS&&!(typeof sheetOpen!=='undefined'&&sheetOpen)){
   if(AN.sub==='env'&&AN.show3d.env){const r=anGet(AN.env);cm={};r.items.forEach(it=>{cm[it.idx]=anEnvColor(AN.env,it)})}
   else if(AN.sub==='zones'&&AN.show3d.zones){const r=anGet('zones');cm={};r.nodes.forEach(nd=>{if(!nd.isOutdoor)cm[nd.idx]=anFnCol(nd.fn)})}
+  else if(AN.sub==='code'&&AN.show3d.code){const r=anGet('code');if(r){cm={};state.blocks.forEach((b,i)=>{if(!b.hidden&&counts(b))cm[i]='#cbd5e1'});r.coreIdx.forEach(i=>{cm[i]='#2563eb'});r.escape.items.forEach(it=>{cm[it.idx]=it.ok?'#16a34a':'#dc2626'})}}
   else if(AN.sub==='morph'&&AN.show3d.morph){const r=anGet('morph');if(r.steps.length){const {prev,cur}=anMorphSets(r,Math.min(AN.morphI,r.steps.length-1));gh=cur;cm={};cur.forEach(i=>{if(!prev.has(i))cm[i]='#f59e0b'})}}
  }
  const sig=JSON.stringify([cm,gh?[...gh]:null]);
@@ -11345,8 +11622,8 @@ function anSync3d(){
 function renderAnStudio(){
  if(!AN||!window.MC3D_ANALYSIS||!$('anSecEnv'))return;
  document.querySelectorAll('#anSubTabs [data-an]').forEach(b=>{const on=b.dataset.an===AN.sub;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false')});
- [['geom','anSecGeom'],['env','anSecEnv'],['zones','anSecZones'],['morph','anSecMorph']].forEach(([k,id])=>{if($(id))$(id).classList.toggle('on',k===AN.sub)});
- if(curTab==='mass'){if(AN.sub==='env')anRenderEnv();else if(AN.sub==='zones')anRenderZones();else if(AN.sub==='morph')anRenderMorph()}
+ [['geom','anSecGeom'],['env','anSecEnv'],['zones','anSecZones'],['morph','anSecMorph'],['code','anSecCode']].forEach(([k,id])=>{if($(id))$(id).classList.toggle('on',k===AN.sub)});
+ if(curTab==='mass'){if(AN.sub==='env')anRenderEnv();else if(AN.sub==='zones')anRenderZones();else if(AN.sub==='morph')anRenderMorph();else if(AN.sub==='code')anRenderCode()}
  anSync3d();
 }
 function anOnTab(){if(!AN)return;if(curTab==='mass')renderAnStudio();else anSync3d()}
@@ -11355,7 +11632,8 @@ function initAnStudio(){
  document.querySelectorAll('#anSubTabs [data-an]').forEach(b=>{b.onclick=()=>{AN.sub=b.dataset.an;if(AN.sub!=='geom'&&massOverlay!=='none'){massOverlay='none';syncMassOverlayUI(null)}renderAnStudio();if(AN.sub==='geom')renderMassStudio()}});
  document.querySelectorAll('#anEnvTabs [data-env]').forEach(b=>{b.onclick=()=>{AN.env=b.dataset.env;renderAnStudio()}});
  document.querySelectorAll('#anBubbleModeSeg [data-zb]').forEach(b=>{b.onclick=()=>{AN.zb=b.dataset.zb;renderAnStudio()}});
- [['anEnv3dBtn','env'],['anZones3dBtn','zones'],['anMorph3dBtn','morph']].forEach(([id,k])=>{if($(id))$(id).onclick=()=>{AN.show3d[k]=!AN.show3d[k];renderAnStudio()}});
+ [['anCodePark','parkM2'],['anCodeEsc','escapeMax'],['anCodeLift','liftM2']].forEach(([id,k])=>{if($(id))$(id).onchange=e=>{const v=parseFloat(e.target.value);if(!(v>0))return;snap(true);state.codeCfg=Object.assign({},state.codeCfg||{},{[k]:v});save();renderAnStudio()}});
+ [['anEnv3dBtn','env'],['anZones3dBtn','zones'],['anMorph3dBtn','morph'],['anCode3dBtn','code']].forEach(([id,k])=>{if($(id))$(id).onclick=()=>{AN.show3d[k]=!AN.show3d[k];renderAnStudio()}});
  if($('anEnvSiteBtn'))$('anEnvSiteBtn').onclick=()=>showTab('site');
  if($('anMorphPrev'))$('anMorphPrev').onclick=()=>{AN.morphI--;renderAnStudio()};
  if($('anMorphNext'))$('anMorphNext').onclick=()=>{AN.morphI++;renderAnStudio()};

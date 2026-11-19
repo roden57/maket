@@ -2870,6 +2870,7 @@ body.revmode #toolRail{display:none}
             <button type="button" id="anTabEnv" data-an="env" role="tab">البيئة</button>
             <button type="button" id="anTabZones" data-an="zones" role="tab">الزونات</button>
             <button type="button" id="anTabMorph" data-an="morph" role="tab">التشكيل</button>
+            <button type="button" id="anTabCode" data-an="code" role="tab">الأنظمة</button>
           </div>
         </div>
       </div>
@@ -3061,6 +3062,33 @@ body.revmode #toolRail{display:none}
           </div>
         </div>
       </div>
+
+      <!-- SUB-VIEW 5: REGULATIONS (parking, escape, lifts, stairs, coverage, FAR) -->
+      <div class="an-subsec" id="anSecCode">
+        <div class="grp" id="anCodeGrp">
+          <div class="gc" id="anCodeTitle">فحص الأنظمة والقوانين (تقريبي)</div>
+          <div class="gb">
+            <div class="hm-kpis" id="anCodeKpis"></div>
+            <div id="anCodeRecs" style="display:flex;flex-direction:column;gap:5px"></div>
+            <button type="button" class="big on" id="anCode3dBtn">تلوين مسافات الهروب في المشهد 3D</button>
+          </div>
+        </div>
+        <div class="grp" id="anCodeEscGrp">
+          <div class="gc" id="anCodeEscTitle">مسافة الهروب لكل كتلة (لأقرب مفصل / سلم)</div>
+          <div class="gb">
+            <div id="anCodeList" class="mass-table"></div>
+          </div>
+        </div>
+        <div class="grp" id="anCodeOptGrp">
+          <div class="gc" id="anCodeOptTitle">المعايير المعتمدة</div>
+          <div class="gb">
+            <div class="fld"><span class="fld-lbl" id="anCodeParkLbl">موقف لكل (م² طابقي)</span><input type="number" id="anCodePark" min="10" max="500" step="5"></div>
+            <div class="fld"><span class="fld-lbl" id="anCodeEscLbl">أقصى مسافة هروب (م)</span><input type="number" id="anCodeEsc" min="10" max="120" step="5"></div>
+            <div class="fld"><span class="fld-lbl" id="anCodeLiftLbl">مصعد لكل (م² طوابق علوية)</span><input type="number" id="anCodeLift" min="500" max="10000" step="250"></div>
+            <div class="hint" id="anCodeHint">قيم إرشادية شائعة — طابقها مع الكود المعتمد عند مشرفك. المسافة محسوبة كممرات متعامدة لأقرب مفصل (مادة المفصل أو وظيفة الحركة) بطابقين فأكثر.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- SHEETS -->
@@ -3080,6 +3108,7 @@ body.revmode #toolRail{display:none}
             <button class="big" id="shQuick"><i><svg class="ic"><use href="#i-zap"/></svg></i>لوحة سريعة</button>
             <button class="big" id="shShot"><i><svg class="ic"><use href="#i-camera"/></svg></i>التقاط لقطة</button>
           </div>
+          <button class="big pri2" id="shFinal" title="لوحة A1 كاملة: منظور، مسقط، واجهة، تسلسل تكوّن الكتلة، الزونات، البرنامج، الشمس والرياح"><i><svg class="ic"><use href="#i-sheet"/></svg></i>لوحة العرض النهائية A1</button>
           <button class="big" id="shAddM"><i><svg class="ic"><use href="#i-plus"/></svg></i>إضافة عنصر للوحة ▾</button>
         </div>
       </div>
@@ -3364,19 +3393,20 @@ body.revmode #toolRail{display:none}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="areas-logic.js?v=1795060583"></script>
-<script src="shadow-heatmap-logic.js?v=1795060583"></script>
-<script src="section-logic.js?v=1795060583"></script>
-<script src="site-logic.js?v=1795060583"></script>
-<script src="facade-logic.js?v=1795060583"></script>
-<script src="mass-logic.js?v=1795060583"></script>
-<script src="analysis-studio-logic.js?v=1795060583"></script>
-<script src="snap-guides-logic.js?v=1795060583"></script>
-<script src="i18n.js?v=1795060583"></script>
-<script src="occupancy-chart.js?v=1795060583"></script>
-<script src="unsaved-logic.js?v=1795060583"></script>
+<script src="areas-logic.js?v=1795062370"></script>
+<script src="shadow-heatmap-logic.js?v=1795062370"></script>
+<script src="section-logic.js?v=1795062370"></script>
+<script src="site-logic.js?v=1795062370"></script>
+<script src="facade-logic.js?v=1795062370"></script>
+<script src="mass-logic.js?v=1795062370"></script>
+<script src="analysis-studio-logic.js?v=1795062370"></script>
+<script src="code-check-logic.js?v=1795062370"></script>
+<script src="snap-guides-logic.js?v=1795062370"></script>
+<script src="i18n.js?v=1795062370"></script>
+<script src="occupancy-chart.js?v=1795062370"></script>
+<script src="unsaved-logic.js?v=1795062370"></script>
 <script>
-(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1795060583';document.body.appendChild(s)}
+(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1795062370';document.body.appendChild(s)}
 if(!q)return go();var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f1f3f5;color:#0f172a;z-index:99;font:600 16px "IBM Plex Sans Arabic",Tajawal,sans-serif';ov.textContent=(window.L?L('جارٍ فتح التصميم…','Opening design…'):'جارٍ فتح التصميم…');document.body.appendChild(ov);
 fetch('https://kwoftzpxtytcgahsgjro.supabase.co/rest/v1/reviews?select=*&id=eq.'+encodeURIComponent(q),{headers:{apikey:'sb_publishable_YHx-GmgyEdNhCqhf98Ds2w_oCZAMMDp'}}).then(function(r){return r.json()}).then(function(j){if(j&&j[0])window.MC3D_REVIEW={name:j[0].name,st:j[0].st,key:q,remote:true};else alert((window.L?L('هذا الرابط غير صالح — يُرجى التحقق من الرابط','Invalid review link — please check the URL'):'هذا الرابط غير صالح — يُرجى التحقق من الرابط'))}).catch(function(){alert((window.L?L('تعذّر فتح التصميم — يُرجى التحقق من الاتصال بالإنترنت','Unable to open design — check your internet connection'):'تعذّر فتح التصميم — يُرجى التحقق من الاتصال بالإنترنت'))}).then(function(){ov.remove();go()})})();
 </script>
