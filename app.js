@@ -1797,7 +1797,8 @@ $('shAddM').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('صور�
  [L('◉ المخطط الفقاعي للزونات','◉ Zoning Bubble Diagram'),()=>addAnToSheet('bubble')],[L('▦ جدول البرنامج والمساحات','▦ Program & Areas Table'),()=>addAnToSheet('prog')],
  [L('☀ مسار الشمس والحمل الحراري','☀ Sun Path & Heat Load'),()=>addAnToSheet('solar')],[L('≋ حركة الرياح','≋ Wind Flow'),()=>addAnToSheet('wind')],[L('◍ خريطة الضوضاء','◍ Noise Map'),()=>addAnToSheet('noise')],
  [L('▤ تسلسل تكوّن الكتلة (من زاوية الكاميرا الحالية)','▤ Massing Evolution (current camera)'),()=>addAnToSheet('morph')],
- [L('▭ المقاطع التلقائية (أ-أ و ب-ب مع مفتاح)','▭ Automatic Sections (A-A, B-B + key)'),()=>addAnToSheet('sections')]])};
+ [L('▭ المقاطع التلقائية (أ-أ و ب-ب مع مفتاح)','▭ Automatic Sections (A-A, B-B + key)'),()=>addAnToSheet('sections')],
+ [L('↝ مسارات الحركة (زوار · طلاب · خدمات)','↝ Circulation Paths'),()=>addAnToSheet('circ')]])};
 $('shSnapOpt').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[(shGround?'☑':'☐')+' '+L('أرضية الموقع باللقطة','Include Site Ground'),()=>$('shGround').click()],[(shNames?'☑':'☐')+' '+L('أسماء الكتل باللقطة','Include Mass Labels'),()=>$('shNamesB').click()]])};
 function openExport(){$('expSheetName').textContent='('+curSheet+' · '+sheet.size+')';['shDown','shAll'].forEach(id=>$(id).style.display=DL?'':'none');$('exp3D').disabled=!DL;$('exp3D').title=DL?'':L('التنزيل غير متاح في هذا العرض','Download unavailable in this view');modal('export')}
 $('shExpDlg').onclick=openExport;$('b3D').onclick=openExport;$('qExp').onclick=openExport;
@@ -2520,7 +2521,7 @@ function initMassStudio(){
 initMassStudio();
 
 // ---------- analysis studio: environment / zones / morphology (uses MC3D_ANALYSIS) ----------
-var AN={sub:'geom',env:'solar',zb:'zones',morphI:0,show3d:{env:true,zones:true,morph:true,code:true},cache:{},sig:'',s3:''};
+var AN={circ:false,circSig:'',sub:'geom',env:'solar',zb:'zones',morphI:0,show3d:{env:true,zones:true,morph:true,code:true},cache:{},sig:'',s3:''};
 const anEsc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 const anShort=(s,n)=>{s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s};
 function anRamp(t,stops){t=Math.max(0,Math.min(1,+t||0));const n=stops.length-1,i=Math.min(n-1,Math.floor(t*n)),f=t*n-i;
@@ -2539,6 +2540,7 @@ function anGet(kind){
  const sig=JSON.stringify([state.blocks,state.site,state.fh,state.codeCfg]);
  if(sig!==AN.sig){AN.sig=sig;AN.cache={}}
  if(!AN.cache[kind]){const inp={blocks:state.blocks,site:state.site,fh:state.fh};
+  if(kind==='circ'){AN.cache.circ=A.computeCirculation({blocks:state.blocks,site:state.site});return AN.cache.circ}
   if(kind==='code'){if(!window.MC3D_CODE)return null;AN.cache.code=MC3D_CODE.computeCodeChecks({blocks:state.blocks,fh:state.fh,opts:state.codeCfg,area:areaOf,counts:b=>!b.hidden&&counts(b)});return AN.cache.code}
   AN.cache[kind]=kind==='solar'?A.computeSolarAnalysis(inp):kind==='wind'?A.computeWindAnalysis(inp):kind==='noise'?A.computeNoiseAnalysis(inp):kind==='zones'?A.computeZoningAndBubbles(inp):A.computeMorphologyEvolution(inp)}
  return AN.cache[kind];
@@ -2831,6 +2833,39 @@ function anRenderCode(){
  list.querySelectorAll('[data-mi]').forEach(rw=>{rw.onclick=()=>focusMassBlocks([+rw.dataset.mi])});
 }
 
+// ----- circulation paths (computeCirculation): 3D ground arrows + sheet diagram -----
+const CIRC={visitors:{c:'#16a34a',ar:'زوار',en:'Visitors'},students:{c:'#2563eb',ar:'طلاب وكادر',en:'Students & staff'},service:{c:'#ea580c',ar:'خدمات',en:'Services',dash:true}};
+const circG=new THREE.Group();S.add(circG);circG.visible=false;
+function circClear(){circG.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose()});circG.clear()}
+function circBuild(){
+ circClear();const res=anGet('circ');if(!res||!res.flows.length)return;const y=.7,V=(x,z)=>new THREE.Vector3(x,y,z);
+ const seg=(a,b,col,r)=>{const m=new THREE.Mesh(new THREE.TubeGeometry(new THREE.LineCurve3(a,b),1,r,6,false),new THREE.MeshBasicMaterial({color:col}));circG.add(m)};
+ res.flows.forEach(f=>{const st=CIRC[f.id];f.paths.forEach(path=>{const pts=path.map(p=>V(p[0],p[1]));
+  for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],len=a.distanceTo(b);
+   if(st.dash){for(let t=0;t<len;t+=4){seg(a.clone().lerp(b,t/len),a.clone().lerp(b,Math.min(len,t+2.4)/len),st.c,.45)}}else seg(a,b,st.c,.55)}
+  const a=pts[pts.length-2],b=pts[pts.length-1],tip=new THREE.Mesh(new THREE.ConeGeometry(1.4,3.2,14),new THREE.MeshBasicMaterial({color:st.c}));
+  const dir=b.clone().sub(a).normalize();tip.position.copy(b).addScaledVector(dir,-1.2);tip.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);circG.add(tip)})});
+ if(res.entry){const star=new THREE.Mesh(new THREE.OctahedronGeometry(1.8),new THREE.MeshBasicMaterial({color:'#facc15'}));star.position.set(res.entry[0],2.6,res.entry[1]);circG.add(star)}
+}
+function circSync(){
+ const want=AN.circ&&curTab==='mass'&&AN.sub==='zones';
+ if(want){const sig=AN.sig+'|'+JSON.stringify(state.blocks.map(b=>[b.x,b.z,b.w,b.d,b.fn,b.name,b.mat,b.hidden]))+JSON.stringify(state.site);if(sig!==AN.circSig){AN.circSig=sig;circBuild()}}
+ circG.visible=!!want;
+ if($('anCircBtn'))$('anCircBtn').classList.toggle('on',AN.circ);if($('anCircKey'))$('anCircKey').style.display=AN.circ?'':'none';
+}
+if($('anCircBtn'))$('anCircBtn').onclick=()=>{AN.circ=!AN.circ;AN.circSig='';circSync();if(AN.circ)flash(L('مسارات الحركة: أخضر زوار، أزرق طلاب وكادر، برتقالي متقطع خدمات، والنجمة الصفراء المدخل الرئيسي','Circulation: green visitors, blue students & staff, dashed orange services, yellow star = main entrance'))};
+// plan diagram for sheets
+function circSvg(){
+ const res=anGet('circ'),W=Math.max(10,+state.site.w||100),D=Math.max(10,+state.site.d||100),{P,s}=anPlan(W,D,{x:6,y:6,w:252,h:182});
+ let o=`<defs>${Object.entries(CIRC).map(([k,v])=>`<marker id="ca-${k}" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0L6,3L0,6Z" fill="${v.c}"/></marker>`).join('')}</defs>`;
+ o+=anSiteRect(W,D,P,'#f8fafc');
+ anPlanBlocks(state).forEach(({b})=>{const fill=isFlat(b)?(b.mat==='green'?'#dcfce7':b.mat==='asphalt'?'#cbd5e1':'#f1f5f9'):(FNS[b.fn||'']||FNS['']).c;o+=`<polygon points="${anPoly(b,P)}" fill="${fill}" fill-opacity="${isFlat(b)?1:.35}" stroke="#475569" stroke-width=".4"/>`});
+ (res&&res.flows||[]).forEach(f=>{const st=CIRC[f.id];f.paths.forEach(path=>{o+=`<polyline points="${path.map(p=>P(p[0],p[1]).join(',')).join(' ')}" fill="none" stroke="${st.c}" stroke-width="${st.dash?1.6:2}" ${st.dash?'stroke-dasharray="4 2.5"':''} stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ca-${f.id})"/>`})});
+ if(res&&res.entry){const [x,y]=P(res.entry[0],res.entry[1]);o+=`<path d="M${x},${y-5} L${x+1.5},${y-1.5} L${x+5},${y-1.2} L${x+2.3},${y+1.2} L${x+3.1},${y+4.8} L${x},${y+2.8} L${x-3.1},${y+4.8} L${x-2.3},${y+1.2} L${x-5},${y-1.2} L${x-1.5},${y-1.5}Z" fill="#facc15" stroke="#a16207" stroke-width=".5"/>`}
+ o+=anNorth(14,18,state.site.north);
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 264 194');svg.innerHTML=o;return svg;
+}
+
 // ----- 3D overlay + wiring -----
 function anSync3d(){
  let cm=null,gh=null;
@@ -2840,6 +2875,7 @@ function anSync3d(){
   else if(AN.sub==='code'&&AN.show3d.code){const r=anGet('code');if(r){cm={};state.blocks.forEach((b,i)=>{if(!b.hidden&&counts(b))cm[i]='#cbd5e1'});r.coreIdx.forEach(i=>{cm[i]='#2563eb'});r.escape.items.forEach(it=>{cm[it.idx]=it.ok?'#16a34a':'#dc2626'})}}
   else if(AN.sub==='morph'&&AN.show3d.morph){const r=anGet('morph');if(r.steps.length){const {prev,cur}=anMorphSets(r,Math.min(AN.morphI,r.steps.length-1));gh=cur;cm={};cur.forEach(i=>{if(!prev.has(i))cm[i]='#f59e0b'})}}
  }
+ circSync();
  const sig=JSON.stringify([cm,gh?[...gh]:null]);
  if(sig===AN.s3)return;
  AN.s3=sig;anColorMap=cm;anGhost=gh;build();renderNames(true);
@@ -2872,7 +2908,7 @@ initAnStudio();
 const SH_AN={
  bubble:['المخطط الفقاعي للزونات','Zoning Bubble Diagram'],prog:['جدول البرنامج والمساحات','Program & Areas'],
  solar:['مسار الشمس والحمل الحراري الصيفي','Sun Path & Summer Heat Load'],wind:['حركة الرياح والتهوية','Wind Flow & Ventilation'],
- noise:['خريطة الضوضاء','Site Noise Map'],morph:['تسلسل تكوّن الكتلة','Massing Evolution'],sections:['المقاطع التلقائية','Automatic Sections']
+ noise:['خريطة الضوضاء','Site Noise Map'],morph:['تسلسل تكوّن الكتلة','Massing Evolution'],sections:['المقاطع التلقائية','Automatic Sections'],circ:['مسارات الحركة','Circulation Paths']
 };
 const shFont=(px,w)=>`${w||500} ${Math.round(px)}px Tajawal, "IBM Plex Sans Arabic", Arial, sans-serif`;
 const shRtl=()=>!L(0,1);
@@ -2935,15 +2971,31 @@ async function shMorphStrip(){
   g.fillStyle='#64748b';g.font=shFont(20);g.fillText(st.metricBadge||'',rtl?x+FW-58:x+58,y+FH+72)});
  return shFrame(c,L(SH_AN.morph[0],SH_AN.morph[1])+' — '+L(r.partiAr,r.partiEn),[['#f59e0b',L('المضاف في هذه المرحلة','Added in this step')],['#cbd5e1',L('لم يُضف بعد','Not yet added')]]);
 }
-// automatic sections A-A (along the long axis) and B-B (across), through the building's centroid,
-// with floor-level lines and a key plan marking both cuts; uses the existing section clipping and elevation views
-async function shSections(){
- const arch=state.blocks.filter(b=>!b.hidden&&counts(b));if(!arch.length)return null;
- if(el.clientWidth<80||el.clientHeight<80)return null;
+// the two automatic cuts: A-A along the building's long axis, B-B across it, both through the area-weighted centroid
+function autoCuts(){
+ const arch=state.blocks.filter(b=>!b.hidden&&counts(b));if(!arch.length||!window.MC3D_ANALYSIS)return null;
  let ax=0,az=0,at=0,minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
  arch.forEach(b=>{const o=MC3D_ANALYSIS.getObb(b),a=areaOf(b)*Math.max(1,b.f||1);ax+=b.x*a;az+=b.z*a;at+=a;minX=Math.min(minX,o.minX);maxX=Math.max(maxX,o.maxX);minZ=Math.min(minZ,o.minZ);maxZ=Math.max(maxZ,o.maxZ)});
  const cx=+(ax/at).toFixed(2),cz=+(az/at).toFixed(2),longX=(maxX-minX)>=(maxZ-minZ);
- const cuts=[{id:'A',axis:longX?'z':'x',pos:longX?cz:cx,view:longX?'front':'side'},{id:'B',axis:longX?'x':'z',pos:longX?cx:cz,view:longX?'side':'front'}];
+ return {arch,minX,maxX,minZ,maxZ,cuts:[{id:'A',axis:longX?'z':'x',pos:longX?cz:cx,view:longX?'front':'side'},{id:'B',axis:longX?'x':'z',pos:longX?cx:cz,view:longX?'side':'front'}]};
+}
+// Section tab: show one automatic cut live in the 3D view
+function showAutoCut(id){
+ const ac=autoCuts();if(!ac)return flash(L('ارسم كتلاً أولاً','Draw some blocks first'));
+ const cut=ac.cuts.find(c=>c.id===id);Object.assign(sec,{axis:cut.axis,pos:cut.pos,flip:false,angle:0,slice:false});
+ if(!sec.on)setSecOn(true);else applySec();alignCamToSection();
+ flash(L(id==='A'?'مقطع أ-أ طولي من مركز المبنى':'مقطع ب-ب عرضي من مركز المبنى',id==='A'?'Section A-A through the centroid':'Section B-B through the centroid')+` (${cut.axis==='z'?'ص':'س'} = ${cut.pos} ${L('م','m')})`);
+}
+if($('secAutoA'))$('secAutoA').onclick=()=>showAutoCut('A');
+if($('secAutoB'))$('secAutoB').onclick=()=>showAutoCut('B');
+if($('secAutoSheet'))$('secAutoSheet').onclick=()=>addAnToSheet('sections');
+if($('cToSheet'))$('cToSheet').onclick=()=>applySheetTheme(colorMode==='xray'?'white':colorMode);
+// automatic sections A-A (along the long axis) and B-B (across), through the building's centroid,
+// with floor-level lines and a key plan marking both cuts; uses the existing section clipping and elevation views
+async function shSections(){
+ const ac=autoCuts();if(!ac)return null;
+ if(el.clientWidth<80||el.clientHeight<80)return null;
+ const {arch,cuts,minX,maxX,minZ,maxZ}=ac;
  const keep={sec:clone(sec),plan:isPlan,pos:C.position.clone(),tgt:O.target.clone()},raf=()=>new Promise(r=>requestAnimationFrame(()=>r()));
  const V=(x,y,z)=>new THREE.Vector3(x,y,z),px=(c,v)=>{const p=v.clone().project(C);return [(p.x+1)/2*c.width,(1-p.y)/2*c.height]};
  const rtl=shRtl(),lab={A:L('أ','A'),B:L('ب','B')},out={};
@@ -2988,6 +3040,7 @@ async function shSections(){
 async function anSheetCanvas(kind){
  if(!window.MC3D_ANALYSIS)return null;
  if(kind==='sections')return shSections();
+ if(kind==='circ'){const c=await svgToCanvas(circSvg(),6);return c&&shFrame(c,L(SH_AN.circ[0],SH_AN.circ[1]),Object.values(CIRC).map(v=>[v.c,L(v.ar,v.en)]).concat([['#facc15',L('المدخل الرئيسي','Main entrance')]]))}
  if(kind==='prog')return shProgTable();
  if(kind==='morph')return shMorphStrip();
  if(kind==='bubble'){const z=anGet('zones'),pm=AN.zb;AN.zb='zones';anBubbleSvg(z);const c=await svgToCanvas($('anBubbleSvg'),6);AN.zb=pm;if(curTab==='mass')renderAnStudio();
@@ -3029,7 +3082,7 @@ async function refreshSheetDiagrams(){
 const MA={play:null};
 const maG=new THREE.Group();S.add(maG);
 function openAnimStudio(){if(!window.MC3D_ANIM)return flash(L('ميزة الفيديو غير محمّلة','Animation module not loaded'));modal('anim')}
-function maOpts(){return {duration:+$('maDur').value||30,style:$('maStyle').value,intro:$('maIntroChk').checked,links:$('maLinksChk').checked,climate:$('maClimChk').checked,colors:$('maCol').value}}
+function maOpts(){return {duration:+$('maDur').value||30,style:$('maStyle').value,intro:$('maIntroChk').checked,links:$('maLinksChk').checked,climate:$('maClimChk').checked,circ:$('maCircChk').checked,orbit:$('maOrbitChk').checked,sun:$('maSunChk').checked,colors:$('maCol').value}}
 // a tube along a curve whose drawn length can grow (index order follows the path)
 function maTube(curve,seg,r,color){const g=new THREE.TubeGeometry(curve,seg,r,6,false),m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color}));m.userData.full=g.index?g.index.count:g.attributes.position.count;g.setDrawRange(0,0);m.visible=false;maG.add(m);return m}
 function maReveal(m,p){p=Math.max(0,Math.min(1,p));m.geometry.setDrawRange(0,Math.floor(m.userData.full*p/36)*36);m.visible=p>0}
@@ -3041,13 +3094,14 @@ async function maStart(record){
  const o=maOpts(),morph=anGet('morph');if(!morph||!morph.steps.length)return flash(L('ارسم كتلاً أولاً','Draw some blocks first'));
  if(record&&(!DL||!R.domElement.captureStream||!window.MediaRecorder))return flash(L('المتصفح لا يدعم تسجيل الفيديو — جرّب Chrome','This browser cannot record video — try Chrome'));
  $('modal').style.display='none';if(sheetOpen)openSheet(false);
- const keep={cm:colorMode,anCm:anColorMap,anGh:anGhost,s3:AN.s3,cam:C.position.clone(),tgt:O.target.clone()};
+ const keep={cm:colorMode,anCm:anColorMap,anGh:anGhost,s3:AN.s3,cam:C.position.clone(),tgt:O.target.clone(),sun:clone(state.sun),circVis:circG.visible};circG.visible=false;
  if(isPlan)view('iso');clearSel();anColorMap=null;anGhost=null;colorMode=o.colors;build();hG.visible=false;
  const blocks=state.blocks,staticIdx=[],allIdx=[];
  blocks.forEach((b,i)=>{if(b.hidden||!groups[i])return;(isProp(b)||b.mat==='context'||b.mat==='asphalt'?staticIdx:allIdx).push(i)});
  const zl=o.links?anGet('zones').links.filter(l=>groups[l.a]&&groups[l.b]).sort((a,b)=>(a.strength==='strong'?0:1)-(b.strength==='strong'?0:1)).slice(0,24):[];
  const meta=state.meta||{},title=meta.title||L('المركز التعليمي والتدريبي الطبي','Medical Educational & Training Center');
- const tl=MC3D_ANIM.buildTimeline({steps:morph.steps,links:zl,allIdx,staticIdx,opts:o,titleAr:title,titleEn:title});
+ const circ=o.circ?anGet('circ'):null;
+ const tl=MC3D_ANIM.buildTimeline({steps:morph.steps,links:zl,allIdx,staticIdx,opts:o,titleAr:title,titleEn:title,hasCirc:!!(circ&&circ.flows.length)});
  const base={};allIdx.concat(staticIdx).forEach(i=>{base[i]={y:groups[i].position.y,h:bh(blocks[i])}});
  const maxH=Math.max(10,...allIdx.map(i=>blocks[i].y0+bh(blocks[i])));
  // overlays: site outline + setback, relationship arcs + nodes, sun arcs, wind streams
@@ -3066,11 +3120,16 @@ async function maStart(record){
   if(wi)clim.tubes.push({m:maTube(new THREE.CatmullRomCurve3(wi),64,.3,'#38bdf8'),d:.1});
   (anGet('wind').streamlines||[]).forEach((pts,k)=>{if(pts.length<2)return;const vs=pts.map(p=>V(p[0],p[1],p[2]));clim.tubes.push({m:maTube(new THREE.CatmullRomCurve3(vs),48,.24,'#0ea5e9'),d:.25+k*.04});
    const tip=new THREE.Mesh(new THREE.ConeGeometry(.9,2.6,12),new THREE.MeshBasicMaterial({color:'#0ea5e9'}));const a=vs[vs.length-2],b=vs[vs.length-1];tip.position.copy(b);tip.quaternion.setFromUnitVectors(V(0,1,0),b.clone().sub(a).normalize());tip.visible=false;maG.add(tip);clim.tubes[clim.tubes.length-1].tip=tip})}
+ // circulation routes on the ground, drawn one after another during their scene
+ const routes=[];if(circ)circ.flows.forEach(f=>f.paths.forEach(path=>{const pts=path.map(p=>V(p[0],.7,p[1]));if(pts.length<2)return;
+  const st=CIRC[f.id],tube=maTube(maPath(pts),Math.max(8,pts.length*10),st.dash?.4:.55,st.c);
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(1.4,3.2,14),new THREE.MeshBasicMaterial({color:st.c})),a=pts[pts.length-2],b=pts[pts.length-1],dir=b.clone().sub(a).normalize();
+  tip.position.copy(b).addScaledVector(dir,-1.2);tip.quaternion.setFromUnitVectors(V(0,1,0),dir);tip.visible=false;maG.add(tip);routes.push({tube,tip})}));
  // 2D layer over the viewport: the WebGL frame + captions (this is also what gets recorded)
  const oc=document.createElement('canvas');oc.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:6';el.appendChild(oc);
  const bar=document.createElement('div');bar.id='maBar';bar.innerHTML=`<span class="ma-dot${record?' rec':''}"></span><b>${record?L('جارٍ التسجيل','Recording'):L('معاينة','Preview')}</b><span class="ma-t">0 / ${tl.total} ${L('ث','s')}</span><button type="button">${L('■ إيقاف','■ Stop')}</button>`;document.body.appendChild(bar);bar.querySelector('button').onclick=()=>maStop(false);
  O.enabled=false;document.body.classList.add('ma-playing');const tg=O.target.clone(),off=C.position.clone().sub(tg);
- MA.play={tl,o,base,keep,tg,r:Math.hypot(off.x,off.z),y:C.position.y,a0:Math.atan2(off.z,off.x),t0:performance.now(),site,links,nodes,clim,oc,bar,dropH:Math.max(25,maxH*1.6),record,rec:null,chunks:[],title};
+ MA.play={routes,tl,o,base,keep,tg,r:Math.hypot(off.x,off.z),y:C.position.y,a0:Math.atan2(off.z,off.x),t0:performance.now(),site,links,nodes,clim,oc,bar,dropH:Math.max(25,maxH*1.6),record,rec:null,chunks:[],title};
  if(record){const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
   try{const rec=new MediaRecorder(oc.captureStream(30),{mimeType:mime,videoBitsPerSecond:12e6});rec.ondataavailable=e=>{if(e.data&&e.data.size)MA.play&&MA.play.chunks.push(e.data)};MA.play.done=new Promise(r=>rec.onstop=r);MA.play.rec=rec;
    maFrame(performance.now());draw(C);maComp();rec.start(200)}catch(e){maStop(false);return flash(L('تعذّر بدء التسجيل','Failed to start recording'))}}
@@ -3083,10 +3142,12 @@ function maFrame(now){
   g.traverse(o=>{if(!o.material)return;if(o.isMesh&&o.material.emissive)o.material.emissive.setHex(st.fresh&&st.visible?0x7a3d00:0);if(P.o.style==='fade'){o.material.transparent=st.alpha<1;o.material.opacity=st.alpha}})});
  const sc=n=>tl.scenes.find(s=>s.kind===n),prog=s=>s?Math.max(0,Math.min(1,(t-s.t0)/(s.t1-s.t0))):1;
  const ss=sc('site');maReveal(P.site.out,prog(ss)*1.6);if(P.site.sb)maReveal(P.site.sb,prog(ss)*1.6-.6);
- const cs=sc('climate'),linksOff=cs&&t>=cs.t0; // relationships give way to the climate scene and the clean final view
+ const cs=sc('climate'),after=tl.scenes.find(s=>s.kind==='circ'||s.kind==='climate'||s.kind==='final'),linksOff=after&&t>=after.t0; // relationships give way to the next scene
  P.links.forEach((l,j)=>{const p=linksOff?0:MC3D_ANIM.linkProgress(tl,t,j,P.links.length);maReveal(l.tube,p);[l.a,l.b].forEach(i=>{const n=P.nodes[i];if(!n)return;if(linksOff){n.visible=false;return}if(p>0){n.visible=true;n.scale.setScalar(Math.min(1,Math.max(n.scale.x,p*1.8))||.01)}})});
  if(cs){const on=t>=cs.t0&&t<cs.t1+.4,k=prog(cs);P.clim.tubes.forEach(c=>{if(!on){c.m.visible=false;if(c.tip)c.tip.visible=false;return}const p=(k-c.d)*1.7;maReveal(c.m,p);if(c.tip)c.tip.visible=p>=1});
   if(P.clim.sun){P.clim.sun.visible=on&&k>0;if(P.clim.sunCurve)P.clim.sun.position.copy(P.clim.sunCurve.getPoint(Math.min(1,k*1.15)))}}
+ const rs=sc('circ');if(rs){const on=t>=rs.t0&&t<rs.t1+.4,n=P.routes.length;P.routes.forEach((r,j)=>{if(!on){r.tube.visible=false;r.tip.visible=false;return}const st=rs.t0+(n>1?j/n*(rs.t1-rs.t0)*.55:0),p=(t-st)/((rs.t1-rs.t0)*.4);maReveal(r.tube,p);r.tip.visible=p>=1})}
+ const hr=MC3D_ANIM.sunHour(tl,t);if(hr!==null){state.sun.on=true;state.sun.hour=hr;setSun()}
  const a=P.a0+MC3D_ANIM.cameraAngle(tl,t);C.position.set(P.tg.x+Math.cos(a)*P.r,P.y,P.tg.z+Math.sin(a)*P.r);C.lookAt(P.tg);
  const tt=P.bar.querySelector('.ma-t');if(tt)tt.textContent=`${Math.min(tl.total,Math.floor(t))} / ${tl.total} ${L('ث','s')}`;
 }
@@ -3107,6 +3168,8 @@ function maComp(){
  // small keys for the relationship / climate / final scenes
  const key=(items)=>{let y=H-bh-pad-items.length*fs*1.1;const x=rtl?W-pad:pad;g.font=shFont(fs*.62);items.forEach(([col,lb,line])=>{g.fillStyle='rgba(255,255,255,.85)';const tw=g.measureText(lb).width+fs*1.8;g.fillRect(rtl?x-tw:x,y-fs*.5,tw,fs);g.fillStyle=col;if(line)g.fillRect(rtl?x-fs*1.3:x+fs*.3,y-fs*.08,fs*1,fs*.16);else{g.beginPath();g.arc(rtl?x-fs*.8:x+fs*.8,y,fs*.3,0,7);g.fill()}g.fillStyle='#334155';g.textAlign=rtl?'right':'left';g.fillText(lb,rtl?x-fs*1.6:x+fs*1.6,y);y+=fs*1.1})};
  if(scene.kind==='links')key([['#1e293b',L('اتصال مباشر','Direct link'),1],['#64748b',L('علاقة قريبة','Near'),1]]);
+ if(scene.kind==='circ')key(Object.values(CIRC).map(v=>[v.c,L(v.ar,v.en),1]));
+ if(scene.kind==='sun'){const h=MC3D_ANIM.sunHour(P.tl,t)||6,hh=Math.floor(h),mm=Math.floor((h-hh)*60);key([['#f59e0b',L('الساعة ','Time ')+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+' · '+(state.sun.date||''),0]])}
  if(scene.kind==='climate')key([['#f59e0b',L('مسار الشمس صيفاً','Summer sun path'),1],['#38bdf8',L('مسار الشمس شتاءً','Winter sun path'),1],['#0ea5e9',L('الرياح السائدة','Prevailing wind'),1]]);
  if(scene.kind==='final'&&P.o.colors==='fn'){const used=[...new Set(state.blocks.filter(b=>!b.hidden&&counts(b)).map(b=>b.fn||''))];key(used.map(f=>[(FNS[f]||FNS['']).c,fnName(f)]))}
 }
@@ -3114,7 +3177,7 @@ async function maStop(finished){
  const P=MA.play;if(!P)return;MA.play=null;
  if(P.rec){try{P.rec.stop()}catch(e){}await P.done}
  maClearOverlays();P.oc.remove();P.bar.remove();document.body.classList.remove('ma-playing');O.enabled=true;hG.visible=true;
- colorMode=P.keep.cm;anColorMap=P.keep.anCm;anGhost=P.keep.anGh;AN.s3=P.keep.s3;C.position.copy(P.keep.cam);O.target.copy(P.keep.tgt);O.update();refresh();
+ colorMode=P.keep.cm;anColorMap=P.keep.anCm;anGhost=P.keep.anGh;AN.s3=P.keep.s3;state.sun=P.keep.sun;setSun();circG.visible=P.keep.circVis;C.position.copy(P.keep.cam);O.target.copy(P.keep.tgt);O.update();refresh();
  if(P.rec){if(!finished)return flash(L('أُلغي التسجيل','Recording cancelled'));
   const blob=new Blob(P.chunks,{type:'video/webm'});try{await DL.save({filename:`${curName} - ${L('تكوّن الكتلة','Massing Evolution')}.webm`,data:blob});flash(L('حُفظ الفيديو ✓','Video saved ✓'))}catch(e){flash(L('أُلغي التنزيل','Download cancelled'))}}
  else if(finished)flash(L('انتهت المعاينة — اضغط تسجيل لحفظه كفيديو','Preview finished — press Record to save it'));
@@ -3124,6 +3187,8 @@ if($('maPreview'))$('maPreview').onclick=()=>maStart(false);
 if($('maRecord'))$('maRecord').onclick=()=>maStart(true);
 if($('bAnimStudio'))$('bAnimStudio').onclick=openAnimStudio;
 if($('anMorphFilm'))$('anMorphFilm').onclick=openAnimStudio;
+// one-click full presentation: every scene, 90 s, functions colouring
+if($('maFull'))$('maFull').onclick=()=>{['maIntroChk','maLinksChk','maClimChk','maCircChk','maOrbitChk','maSunChk'].forEach(id=>{if($(id))$(id).checked=true});$('maDur').value='90';$('maCol').value='fn';flash(L('اخترت كل المشاهد بـ 90 ثانية — اضغط معاينة أو تسجيل','All scenes selected, 90 s — press Preview or Record'))};
 // ---- sky & fog ----
 const skyTex=(()=>{const c=document.createElement('canvas');c.width=4;c.height=256;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#8fb4dc');gr.addColorStop(.6,'#d4e2ee');gr.addColorStop(1,'#efeee8');g.fillStyle=gr;g.fillRect(0,0,4,256);return new THREE.CanvasTexture(c)})();
 const FOG=new THREE.Fog('#eceee9',200,900);

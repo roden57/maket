@@ -1094,7 +1094,73 @@
     };
   }
 
+  // ---------- 6. Circulation diagram: visitors, students & staff, services ----------
+  // Schematic routes for a presentation diagram (not a corridor plan):
+  // visitors: main street -> main entrance -> public blocks
+  // students & staff: parking (or street) -> main entrance -> hub (courtyard / cores) -> teaching & training blocks
+  // services: back edge of the site -> admin / service blocks
+  function nearestEdgePoint(o, x, z, out) {
+    const dx = x - o.cx, dz = z - o.cz;
+    let lx = dx * o.ux[0] + dz * o.ux[1], lz = dx * o.uz[0] + dz * o.uz[1];
+    const inside = Math.abs(lx) <= o.hw && Math.abs(lz) <= o.hd;
+    if (inside) { if (o.hw - Math.abs(lx) < o.hd - Math.abs(lz)) lx = Math.sign(lx || 1) * o.hw; else lz = Math.sign(lz || 1) * o.hd; }
+    else { lx = Math.max(-o.hw, Math.min(o.hw, lx)); lz = Math.max(-o.hd, Math.min(o.hd, lz)); }
+    // step slightly outside the face so arrows stop in front of the building
+    const nlx = Math.abs(lx) >= o.hw - 1e-6 ? Math.sign(lx) : 0, nlz = Math.abs(lz) >= o.hd - 1e-6 ? Math.sign(lz) : 0;
+    lx += nlx * (out || 1.5); lz += nlz * (out || 1.5);
+    return [+(o.cx + o.ux[0] * lx + o.uz[0] * lz).toFixed(2), +(o.cz + o.ux[1] * lx + o.uz[1] * lz).toFixed(2)];
+  }
+
+  function computeCirculation({ blocks, site }) {
+    const list = Array.isArray(blocks) ? blocks : [];
+    const st = site || {};
+    const W = Math.max(10, Number(st.w) || 100), D = Math.max(10, Number(st.d) || 100);
+    const streets = st.streets || { s: true };
+    const edgeMid = side => side === 'n' ? [0, -D / 2] : side === 's' ? [0, D / 2] : side === 'e' ? [W / 2, 0] : [-W / 2, 0];
+    const opposite = { n: 's', s: 'n', e: 'w', w: 'e' };
+    const mainSide = ['s', 'n', 'e', 'w'].find(k => streets[k]) || 's';
+    const serviceSide = ['n', 's', 'e', 'w'].find(k => streets[k] && k !== mainSide) || opposite[mainSide];
+
+    const items = [];
+    list.forEach((b, i) => { if (b && !b.hidden && !PROP_SHAPES.includes(b.shape) && b.mat !== 'context') items.push({ i, b, o: getObb(b) }); });
+    const arch = items.filter(x => isAnalyzable(x.b));
+    if (!arch.length) return { entry: null, hub: null, flows: [] };
+    const fnOf = x => x.b.fn || '';
+
+    // main entrance: an entrance-named block, else the public block nearest the main street, else the nearest block
+    const street = edgeMid(mainSide);
+    const dist = (x, p) => Math.hypot(x.o.cx - p[0], x.o.cz - p[1]);
+    const named = arch.filter(x => /مدخل|entrance|entry|lobby|بهو/i.test(x.b.name || ''));
+    const pubs = arch.filter(x => fnOf(x) === 'pub');
+    const entryBlock = (named.length ? named : pubs.length ? pubs : arch).slice().sort((a, b) => dist(a, street) - dist(b, street))[0];
+    const entry = nearestEdgePoint(entryBlock.o, street[0], street[1], 2);
+    const streetPt = mainSide === 'n' || mainSide === 's' ? [entry[0], street[1]] : [street[0], entry[1]];
+
+    // hub: the courtyard (green open space) if any, else the circulation cores, else the entrance
+    const greens = items.filter(x => x.b.mat === 'green' && !isAnalyzable(x.b));
+    const cores = arch.filter(x => fnOf(x) === 'circ' || x.b.mat === 'joint');
+    const centroid = arr => { let sx = 0, sz = 0, sa = 0; arr.forEach(x => { const a = Math.max(1, x.o.w * x.o.d); sx += x.o.cx * a; sz += x.o.cz * a; sa += a; }); return [+(sx / sa).toFixed(2), +(sz / sa).toFixed(2)]; };
+    const hub = greens.length ? centroid([greens.slice().sort((a, b) => b.o.w * b.o.d - a.o.w * a.o.d)[0]]) : cores.length ? centroid(cores) : entry;
+
+    const parks = items.filter(x => x.b.mat === 'asphalt' && x.b.park);
+    const studentStart = parks.length ? [parks[0].o.cx, parks[0].o.cz] : streetPt;
+    const to = (x, from) => nearestEdgePoint(x.o, from[0], from[1], 1.5);
+
+    const flows = [];
+    const visit = pubs.filter(x => x !== entryBlock);
+    flows.push({ id: 'visitors', paths: [[streetPt, entry]].concat(visit.map(x => [entry, to(x, entry)])) });
+    const teach = arch.filter(x => fnOf(x) === 'main' || fnOf(x) === 'spec' || (!fnOf(x) && x !== entryBlock && !cores.includes(x)));
+    const viaHub = hub[0] !== entry[0] || hub[1] !== entry[1];
+    flows.push({ id: 'students', paths: [[studentStart, entry]].concat(teach.map(x => viaHub ? [entry, hub, to(x, hub)] : [entry, to(x, entry)])) });
+    const svc = arch.filter(x => fnOf(x) === 'adm');
+    const back = edgeMid(serviceSide);
+    flows.push({ id: 'service', paths: svc.map(x => { const p = to(x, back); const b0 = serviceSide === 'n' || serviceSide === 's' ? [p[0], back[1]] : [back[0], p[1]]; return [b0, p]; }) });
+
+    return { entry, hub, street: streetPt, mainSide, serviceSide, entryIdx: entryBlock.i, flows: flows.filter(f => f.paths.length) };
+  }
+
   return {
+    computeCirculation,
     isAnalyzable,
     getObb,
     getBlockHeight,

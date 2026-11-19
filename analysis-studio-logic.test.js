@@ -101,3 +101,33 @@ test('morphology evolution classifies Courtyard vs Tower-Podium partis and gener
   assert.equal(m2.partiId, 'tower-podium');
   assert.ok(m2.steps.some(s => s.op === 'stack'), 'tower-podium parti includes vertical stacking step');
 });
+
+test('circulation: visitors, students and services start at the right edges and end at their blocks', () => {
+  const { computeCirculation } = require('./analysis-studio-logic.js');
+  const box = o => Object.assign({ shape: 'box', mat: 'brick', fn: 'main', x: 0, z: 0, w: 20, d: 10, f: 2, y0: 0 }, o);
+  const blocks = [
+    box({ name: 'المدخل', fn: 'pub', x: 0, z: 30, w: 16, d: 8 }),
+    box({ name: 'library', fn: 'pub', x: 25, z: 25 }),
+    box({ name: 'classes', fn: 'main', x: -25, z: 0 }),
+    box({ name: 'labs', fn: 'spec', x: 25, z: -10 }),
+    box({ name: 'admin', fn: 'adm', x: 0, z: -35 }),
+    box({ name: 'courtyard', mat: 'green', fn: '', x: 0, z: 0, w: 20, d: 20, f: 1 })
+  ];
+  const r = computeCirculation({ blocks, site: { w: 100, d: 100, streets: { s: true } } });
+  assert.equal(r.mainSide, 's');
+  assert.equal(r.serviceSide, 'n');
+  assert.equal(r.entryIdx, 0);
+  assert.deepEqual(r.hub, [0, 0]);
+  const flow = id => r.flows.find(f => f.id === id);
+  assert.equal(flow('visitors').paths[0][0][1], 50);            // starts on the south street edge
+  assert.equal(flow('students').paths.length, 1 + 2);          // street->entry, then classes and labs via the hub
+  assert.deepEqual(flow('students').paths[1][1], [0, 0]);
+  assert.equal(flow('service').paths[0][0][1], -50);           // service comes in from the north edge
+  const end = flow('service').paths[0][1];
+  assert.ok(end[1] > -50 && end[1] < -35);                      // stops just outside admin's north face
+});
+
+test('circulation: empty design gives no flows', () => {
+  const { computeCirculation } = require('./analysis-studio-logic.js');
+  assert.deepEqual(computeCirculation({ blocks: [] }).flows, []);
+});

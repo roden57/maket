@@ -57,3 +57,21 @@ test('options can drop the intro, links and climate scenes', () => {
   assert.deepEqual(tl.scenes.map(s => s.kind), ['site', 'step', 'step', 'step', 'final']);
   assert.ok(A.cameraAngle(tl, tl.total) > Math.PI);
 });
+
+test('presentation extras: circulation, 360 orbit and shadow study scenes', () => {
+  const tl = A.buildTimeline({ steps, allIdx: [0, 1, 2, 3], opts: { duration: 90, links: false, circ: true, orbit: true, sun: true } });
+  assert.deepEqual(tl.scenes.map(s => s.kind).slice(-5), ['circ', 'climate', 'final', 'orbit', 'sun']);
+  const orb = tl.scenes.find(s => s.kind === 'orbit');
+  const turn = A.cameraAngle(tl, orb.t1) - A.cameraAngle(tl, orb.t0);
+  assert.ok(Math.abs(turn - Math.PI * 2) < 1e-6, 'one full turn');
+  const sun = tl.scenes.find(s => s.kind === 'sun');
+  assert.equal(A.sunHour(tl, sun.t0 - 0.01), null);
+  assert.equal(A.sunHour(tl, sun.t0), 6);
+  assert.equal(A.sunHour(tl, sun.t1), 18);
+  assert.ok(Math.abs(tl.scenes[tl.scenes.length - 1].t1 - 90) < 1e-9);
+});
+
+test('circulation scene is skipped when the design has no paths', () => {
+  const tl = A.buildTimeline({ steps, allIdx: [0, 1, 2, 3], hasCirc: false, opts: { circ: true } });
+  assert.ok(!tl.scenes.some(s => s.kind === 'circ'));
+});

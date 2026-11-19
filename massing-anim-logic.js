@@ -28,11 +28,14 @@
   function opts(o) {
     const s = o && typeof o === 'object' ? o : {};
     return {
-      duration: Math.max(8, Math.min(120, Number(s.duration) || 30)),
+      duration: Math.max(8, Math.min(180, Number(s.duration) || 30)),
       style: STYLES.includes(s.style) ? s.style : 'drop',
       intro: s.intro !== false,
       links: s.links !== false,
       climate: s.climate !== false,
+      circ: !!s.circ,
+      orbit: !!s.orbit,
+      sun: !!s.sun,
       blockTime: Math.max(0.3, Math.min(3, Number(s.blockTime) || 1.1))
     };
   }
@@ -64,8 +67,12 @@
     const rest = allIdx.filter(i => !seen.has(i));
     if (rest.length) scenes.push({ kind: 'step', w: 1, step: -1, add: rest, ar: 'استكمال الكتل', en: 'Remaining masses' });
     if (o.links && links.length) scenes.push({ kind: 'links', w: 1.6, ar: 'العلاقات الوظيفية بين الكتل', en: 'Functional relationships' });
+    if (o.circ && src.hasCirc !== false) scenes.push({ kind: 'circ', w: 1.6, ar: 'مسارات الحركة: زوار · طلاب وكادر · خدمات', en: 'Circulation: visitors · students & staff · services' });
     if (o.climate) scenes.push({ kind: 'climate', w: 1.6, ar: 'الاستجابة للشمس والرياح', en: 'Response to sun & wind' });
     scenes.push({ kind: 'final', w: 1.5, ar: 'الشكل النهائي', en: 'Final massing' });
+    // presentation extras appended after the film
+    if (o.orbit) scenes.push({ kind: 'orbit', w: 2.2, ar: 'جولة حول المبنى 360°', en: '360° orbit' });
+    if (o.sun) scenes.push({ kind: 'sun', w: 2.2, ar: 'حركة الظلال خلال اليوم', en: 'Shadows through the day' });
 
     const W = scenes.reduce((s, x) => s + x.w, 0);
     let t = 0;
@@ -111,10 +118,20 @@
   /** camera turn (radians) from the start angle: slow quarter-turn, then a fuller turn in the final scene */
   function cameraAngle(tl, t) {
     const fin = tl.scenes.find(s => s.kind === 'final');
-    const pre = fin ? fin.t0 : tl.total;
+    const orb = tl.scenes.find(s => s.kind === 'orbit');
+    const pre = fin ? fin.t0 : tl.total, finEnd = fin ? fin.t1 : tl.total;
     if (t <= pre) return easeInOut(t / Math.max(1e-6, pre)) * Math.PI * 0.5;
-    return Math.PI * 0.5 + easeInOut((t - pre) / Math.max(1e-6, tl.total - pre)) * Math.PI * 0.75;
+    const afterFinal = Math.PI * 0.5 + easeInOut((Math.min(t, finEnd) - pre) / Math.max(1e-6, finEnd - pre)) * Math.PI * 0.75;
+    if (!orb || t <= orb.t0) return afterFinal;
+    return afterFinal + easeInOut((t - orb.t0) / Math.max(1e-6, orb.t1 - orb.t0)) * Math.PI * 2; // one full turn
   }
 
-  return { STYLES, buildTimeline, sceneAt, blockState, linkProgress, cameraAngle, easeOutBounce, easeInOut };
+  /** hour of day during the shadow-study scene (6:00 → 18:00), or null outside it */
+  function sunHour(tl, t) {
+    const sc = tl.scenes.find(s => s.kind === 'sun');
+    if (!sc || t < sc.t0) return null;
+    return 6 + 12 * clamp01((t - sc.t0) / Math.max(1e-6, sc.t1 - sc.t0));
+  }
+
+  return { STYLES, buildTimeline, sceneAt, blockState, linkProgress, cameraAngle, sunHour, easeOutBounce, easeInOut };
 });
