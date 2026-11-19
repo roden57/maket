@@ -498,7 +498,7 @@ $('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.c
   const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;refresh();flushLocalSaveClean(ok);flash(L('حُذف نهائياً: ','Permanently deleted: ')+n+(designs[curName]?L(' — المفتوح حالياً: ',' — current: ')+curName:''))})};
 addEventListener('storage',e=>{if(e.key==='mc3d_designs'){syncDesigns();fillDesigns();$('dsel').value=curName}
  if(e.key==='mc3d_sheets'&&typeof sheets!=='undefined'){const d=LS.get('mc3d_sheets');if(d){Object.keys(sheets).forEach(k=>{if(!(k in d)&&k!==curSheet)delete sheets[k]});Object.keys(d).forEach(k=>{if(k!==curSheet)sheets[k]=d[k]});fillSheets()}}});
-const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة']};
+const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة'],share:['mShare','مشاركة التصميم للمراجعة'],rvwelcome:['mRvWelcome','مراجعة تصميم'],rvproj:['mRvProj','تفاصيل المشروع'],rvnote:['mRvNote','ملاحظة']};
 function modal(kind){$('modal').style.display='flex';Object.entries(MODALS).forEach(([k,[id]])=>{const e=$(id);if(e)e.style.display=k===kind?'block':'none'});$('modal').querySelector('.box').classList.toggle('wide',kind==='prog');$('mTitle').textContent=dn('modals',kind,(MODALS[kind]||[0,''])[1])}
 $('bIO').onclick=()=>{$('ioText').value=JSON.stringify(state);modal('io')};
 $('mClose').onclick=()=>{$('modal').style.display='none';crop=null};
@@ -3271,13 +3271,16 @@ const notesOf=()=>(state.notes=state.notes||[]);
 const blkById=id=>state.blocks.findIndex(b=>b.id===id);
 function notePos(n){const i=blkById(n.bid);if(i>=0){const b=state.blocks[i];return new THREE.Vector3(b.x+(n.dx||0),b.y0+(n.dy===undefined?bh(b):n.dy),b.z+(n.dz||0))}return n.p?new THREE.Vector3(...n.p):null}
 function myName(){return REV?(LS.get('mc3d_rvname')||L('المراجع','Reviewer')):L('أنا','Me')}
-function addNote(i,text,pt){const b=state.blocks[i];if(!b)return;snap(true);const p=pt||new THREE.Vector3(b.x,b.y0+bh(b),b.z);
- notesOf().push({id:uid(),bid:b.id,bn:b.name,dx:+(p.x-b.x).toFixed(2),dy:+(p.y-b.y0).toFixed(2),dz:+(p.z-b.z).toFixed(2),p:[p.x,p.y,p.z].map(v=>+v.toFixed(2)),t:text,by:myName(),u:Date.now(),done:false});
- save();pinsBuild();notesBadge();flash(L('أُضيفت الملاحظة على "'+b.name+'"','Note added on "'+b.name+'"'))}
-function askNote(i,pt){const b=state.blocks[i];if(!b)return flash(L('حدّد كتلة أولاً، ثم انقر ملاحظة','Select a block first, then click Add Note'));const go=()=>showInput(L('ملاحظة على: ','Note on: ')+b.name,'',v=>addNote(i,v,pt));
+// extra: {cat,pri,kind,q} — type / priority of the note, kind 'answer' for replies to the designer's questions; i<0 = general note
+function addNote(i,text,pt,extra){const b=state.blocks[i],ex=extra||{};if(!b&&i>=0)return;snap(true);
+ const base={id:uid(),t:text,by:myName(),u:Date.now(),done:false,cat:ex.cat||'',pri:ex.pri||'normal'};if(ex.kind)base.kind=ex.kind;if(ex.q)base.q=ex.q;
+ if(b){const p=pt||new THREE.Vector3(b.x,b.y0+bh(b),b.z);Object.assign(base,{bid:b.id,bn:b.name,dx:+(p.x-b.x).toFixed(2),dy:+(p.y-b.y0).toFixed(2),dz:+(p.z-b.z).toFixed(2),p:[p.x,p.y,p.z].map(v=>+v.toFixed(2))})}
+ else base.bn=ex.kind==='answer'?L('جواب على سؤال','Answer'):L('ملاحظة عامة','General note');
+ notesOf().push(base);save();pinsBuild();notesBadge();flash(b?L('أُضيفت الملاحظة على "'+b.name+'"','Note added on "'+b.name+'"'):L('أُضيفت الملاحظة ✓','Note added ✓'))}
+function askNote(i,pt){const b=state.blocks[i];if(!b&&!REV)return flash(L('حدّد كتلة أولاً، ثم انقر ملاحظة','Select a block first, then click Add Note'));const go=()=>openNoteForm(b?i:-1,pt);
  if(REV&&!LS.get('mc3d_rvname'))showInput(L('الاسم (ليعرف صاحب التصميم كاتب الملاحظة)','Your name (so the designer knows who commented)'),'',v=>{LS.set('mc3d_rvname',v);setTimeout(go,50)});else go()}
 const pinsBox=document.createElement('div');pinsBox.id='pins';document.body.appendChild(pinsBox);let pinDivs=[],showPins=true;
-function pinsBuild(){pinsBox.innerHTML='';pinDivs=[];if(!showPins)return;notesOf().forEach((n,k)=>{const d=document.createElement('div');d.className='pin'+(n.done?' done':'')+(n.by&&n.by!=='أنا'&&n.by!=='Me'?' sup':'');d.textContent=k+1;d.title=(n.by?n.by+': ':'')+n.t;
+function pinsBuild(){pinsBox.innerHTML='';pinDivs=[];if(!showPins)return;notesOf().forEach((n,k)=>{const d=document.createElement('div');d.className='pin'+(n.done?' done':'')+(n.by&&n.by!=='أنا'&&n.by!=='Me'?' sup':'')+(n.pri==='high'?' pri-high':n.pri==='idea'?' pri-idea':'');d.textContent=k+1;d.title=(n.by?n.by+': ':'')+n.t;
  d.onclick=()=>openNotes(n.id);pinsBox.appendChild(d);pinDivs.push([d,n])})}
 function pinsUpd(){if(!pinDivs.length)return;const vis=!sheetOpen&&$('modal').style.display!=='flex';pinDivs.forEach(([d,n])=>{const p=vis&&notePos(n),q=p&&toScreen(p);if(!q){d.style.display='none';return}d.style.display='flex';d.style.left=q[0]+'px';d.style.top=q[1]+'px'})}
 function notesBadge(){const n=notesOf().filter(x=>!x.done).length;['bNotes','rvNotes'].forEach(id=>{const e=$(id);if(e)e.querySelector('.cnt').textContent=n?'('+n+')':''})}
@@ -3286,11 +3289,13 @@ function saveBlob(name,data,type){if(DL)return DL.save({filename:name,data:typeo
  const u=URL.createObjectURL(typeof data==='string'?new Blob([data],{type:type||'text/plain'}):data),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return Promise.resolve()}
 let notesHL=null;
 function openNotes(hl){notesHL=hl||null;renderNotes();modal('notes')}
-function renderNotes(){const Lst=notesOf(),box=$('notesList');
+let nFilter='all';
+function renderNotes(){const All=notesOf(),box=$('notesList');renderNotesSum(All);const Lst=All;
  box.innerHTML=Lst.length?'':`<div class="hint" style="padding:10px">${L('لا توجد ملاحظات بعد. حدّد كتلة وانقر ملاحظة، أو انقر بالزر الأيمن على الكتلة.','No notes yet. Select a block and click Add Note, or right-click a block.')}</div>`;
- Lst.forEach((n,k)=>{const r=document.createElement('div');r.className='nrow'+(n.done?' done':'')+(n.id===notesHL?' hl':'');const ex=blkById(n.bid)>=0;
+ Lst.forEach((n,k)=>{if(!noteMatch(n))return;const r=document.createElement('div');r.className='nrow'+(n.done?' done':'')+(n.id===notesHL?' hl':'');const ex=!n.bid||blkById(n.bid)>=0;
   r.innerHTML=`<span class="nnum${n.by&&n.by!=='أنا'&&n.by!=='Me'?' sup':''}">${k+1}</span><div class="ntx"><div class="nb"></div><div class="nt"></div></div><button class="sm" title="${L('الانتقال إلى الكتلة','Focus block')}"><svg class="ic"><use href="#i-target"/></svg></button><button class="sm" title="${L('تم','Done')}">${n.done?'↺':'✓'}</button><button class="sm" title="${L('حذف','Delete')}"><svg class="ic"><use href="#i-trash"/></svg></button>`;
-  r.querySelector('.nb').textContent=(n.bn||'—')+(ex?'':L(' (الكتلة انحذفت)',' (block deleted)'))+' · '+(n.by||'')+' · '+new Date(n.u).toLocaleDateString(L('ar-IQ','en-US'));r.querySelector('.nt').textContent=n.t;
+  r.querySelector('.nb').textContent=(n.bn||'—')+(ex?'':L(' (الكتلة انحذفت)',' (block deleted)'))+' · '+(n.by||'')+' · '+new Date(n.u).toLocaleDateString(L('ar-IQ','en-US'));r.querySelector('.nt').textContent=(n.kind==='answer'&&n.q?L('س: ','Q: ')+n.q+'\n'+L('ج: ','A: '):'')+n.t;
+  const chips=noteChips(n);if(chips)r.querySelector('.nb').insertAdjacentHTML('afterbegin',chips);
   const [bGo,bDone,bDel]=r.querySelectorAll('button');
   bGo.onclick=()=>{const i=blkById(n.bid);$('modal').style.display='none';if(i>=0){setSel(i);refresh();const p=notePos(n);if(p&&!isPlan){O.target.copy(p);}}};
   bDone.onclick=()=>{snap(true);n.done=!n.done;save();pinsBuild();notesBadge();renderNotes()};
@@ -3333,7 +3338,7 @@ async function publishOnline(){try{await CL.rdb.collection('review').doc(keyOf('
 async function unpublishAll(){try{const q=await CL.rdb.collection('review').get();for(const d of q.docs)await CL.rdb.collection('review').doc(d.id).delete();flash(L('سُحب كل المنشور ('+q.docs.length+')','Unpublished '+q.docs.length+' item(s)'))}catch(e){flash(L('تعذّر السحب','Unable to unpublish'))}}
 // review mode UI
 if(REV){document.body.classList.add('revmode');const bar=document.createElement('div');bar.id='rvBar';
- bar.innerHTML=`<b>${L('وضع المراجعة','Review Mode')}</b><span class="rvn">${L('تصميم:','Design:')} <b></b></span><span class="rvh">· ${L('انقر على كتلة ثم','Click a block then')}</span><span class="rva"><button id="rvNote">${L('＋ ملاحظة','＋ Add Note')}</button><button id="rvNotes">${L('الملاحظات','Notes')} <span class="cnt"></span></button><button id="rvSend" class="pri">${L('إرسال الملاحظات','Send Notes')}</button></span><span class="rvv"><button data-rv="iso">${L('أيزو','Iso')}</button><button data-rv="top">${L('مسقط','Plan')}</button><button data-rv="front">${L('واجهة','Front')}</button><button data-rv="eye">${L('منظور','Eye')}</button><button id="rvFn">${L('الوظائف','Zones')}</button></span>`;
+ bar.innerHTML=`<b>${L('وضع المراجعة','Review Mode')}</b><span class="rvn">${L('تصميم:','Design:')} <b></b></span><span class="rvh">· ${L('انقر على كتلة ثم','Click a block then')}</span><span class="rva"><button id="rvNote">${L('＋ ملاحظة','＋ Add Note')}</button><button id="rvNotes">${L('الملاحظات','Notes')} <span class="cnt"></span></button><button id="rvSend" class="pri">${L('إرسال الملاحظات','Send Notes')}</button></span><span class="rvv"><button id="rvInfo" class="pri">${L('ℹ المشروع','ℹ Project')}</button><button data-rv="iso">${L('أيزو','Iso')}</button><button data-rv="top">${L('مسقط','Plan')}</button><button data-rv="front">${L('واجهة','Front')}</button><button data-rv="eye">${L('منظور','Eye')}</button><button id="rvFn">${L('الوظائف','Zones')}</button></span>`;
  bar.querySelector('span b').textContent=REV.name;bar.querySelectorAll('[data-rv]').forEach(x=>x.onclick=()=>view(x.dataset.rv));state.blocks.forEach(b=>b.lock=true);$('titlebar').after(bar);$('rvNote').onclick=()=>askNote(sel);$('rvNotes').onclick=()=>openNotes();$('rvSend').onclick=()=>{openNotes()};
  // keep the 3D view just below the review bar, whatever its height (it wraps on narrow screens)
  const fitRv=()=>{document.documentElement.style.setProperty('--rv-h',bar.offsetHeight+'px');fit()};addEventListener('resize',()=>setTimeout(fitRv,50));setTimeout(fitRv,0);
@@ -3558,7 +3563,8 @@ if(!IN_CLAUDE){DL={save:({filename,data})=>{const b=data instanceof Blob?data:ne
 // ---- live review link ----
 function revIds(){return LS.get('mc3d_revids')||{}}
 function revIdFor(name){const m=revIds();if(!m[name]){m[name]='r'+Math.random().toString(36).slice(2,10);LS.set('mc3d_revids',m)}return m[name]}
-async function publishLink(){if(!SBK||!SBU)return sbLogin(publishLink);const id=revIdFor(curName);
+async function publishLink(share){if(!SBK||!SBU)return sbLogin(()=>publishLink(share));const id=revIdFor(curName);
+ if(share)return publishShare(id,share);
  try{await sbRpc('review_put',sbA({i:id,n:curName,s:Object.assign(clone(state),{notes:[]})}));const link=SB.pub+'?r='+id;
   $('rvInfoT').innerHTML=L(
    `✓ نُشر "<b></b>" — شارك هذا الرابط للمراجعة (يُفتح على أي هاتف أو حاسوب، دون حساب):<div class="fld" style="margin:8px 0"><input id="rvLink" readonly style="width:min(420px,78vw);direction:ltr" value="${link}"></div>
@@ -3597,10 +3603,108 @@ async function pullRemoteNotesForReviewer(){if(!REV||!REV.remote)return;try{cons
  (rows||[]).forEach(r=>{if(!have.has(r.id))Lst.push(Object.assign({},r.data,{id:r.id,sent:1}))});pinsBuild();notesBadge()}catch(e){}}
 {const _a=addNote;addNote=function(i,text,pt){_a.apply(this,arguments);const Lst=notesOf(),n=Lst[Lst.length-1];if(n&&REV&&REV.remote)sendNoteRemote(n)}}
 if(REV&&REV.remote){setTimeout(()=>{pullRemoteNotesForReviewer();const b=$('rvSend');if(b){b.textContent=L('✓ تصل ملاحظاتك تلقائياً','✓ Notes sync automatically');b.onclick=()=>openNotes()}
-  const sp=document.querySelector('#rvBar span');if(sp){sp.innerHTML=`${L('تصميم:','Design:')} <b></b> · ${L('انقر على أي كتلة ثم ملاحظة','Click any block then Add Note')}`;sp.querySelector('b').textContent=REV.name}
+  const sp=document.querySelector('#rvBar .rvh');if(sp)sp.textContent='· '+L('انقر على أي كتلة ثم ملاحظة (أو ملاحظة عامة بدون تحديد)','Click any block then Add Note (or a general note with nothing selected)')
   ['ntSend'].forEach(id=>$(id).style.display='none')},600)}
+// ================= SHARING FOR REVIEW (designer) & REVIEW EXPERIENCE (reviewer) =================
+const NOTE_CATS={design:['تصميمي','Design'],func:['وظيفي','Functional'],struct:['إنشائي','Structural'],env:['بيئي','Environmental'],pres:['عرض وإخراج','Presentation']};
+const NOTE_PRI={high:['مهم','Important','#dc2626'],normal:['عادي','Normal','#2563eb'],idea:['اقتراح','Suggestion','#64748b']};
+const escH=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+function noteChips(n){let h='';if(n.pri&&NOTE_PRI[n.pri]&&n.pri!=='normal')h+=`<span class="nchip" style="background:${NOTE_PRI[n.pri][2]}">${L(NOTE_PRI[n.pri][0],NOTE_PRI[n.pri][1])}</span>`;if(n.cat&&NOTE_CATS[n.cat])h+=`<span class="nchip lite">${L(NOTE_CATS[n.cat][0],NOTE_CATS[n.cat][1])}</span>`;if(n.kind==='answer')h+=`<span class="nchip lite">${L('جواب','Answer')}</span>`;return h}
+function noteMatch(n){return nFilter==='all'||(nFilter==='high'&&n.pri==='high')||(nFilter==='open'&&!n.done)||(nFilter==='gen'&&!n.bid)||(nFilter==='ans'&&n.kind==='answer')}
+function renderNotesSum(All){const box=$('notesSum');if(!box)return;if(!All.length){box.innerHTML='';return}
+ const open=All.filter(n=>!n.done).length,hi=All.filter(n=>n.pri==='high'&&!n.done).length,who=[...new Set(All.map(n=>n.by).filter(b=>b&&b!=='أنا'&&b!=='Me'))];
+ const cats={};All.forEach(n=>{if(n.cat)cats[n.cat]=(cats[n.cat]||0)+1});
+ box.innerHTML=`<div class="ns-line"><b>${All.length}</b> ${L('ملاحظة','notes')} · <b>${open}</b> ${L('مفتوحة','open')} · <b style="color:#dc2626">${hi}</b> ${L('مهمة','important')}${who.length?' · '+L('من: ','from: ')+escH(who.join('، ')):''}</div>`+
+  (Object.keys(cats).length?`<div class="ns-line hint">${Object.entries(cats).map(([c,k])=>L(NOTE_CATS[c][0],NOTE_CATS[c][1])+' '+k).join(' · ')}</div>`:'')+
+  `<div class="shr-chips" id="nsFilt">${[['all','الكل','All'],['open','المفتوحة','Open'],['high','المهمة','Important'],['gen','العامة','General'],['ans','الأجوبة','Answers']].map(([k,a,e])=>`<button type="button" class="shr-chip${nFilter===k?' on':''}" data-nf="${k}">${L(a,e)}</button>`).join('')}</div>`;
+ box.querySelectorAll('[data-nf]').forEach(b=>{b.onclick=()=>{nFilter=b.dataset.nf;renderNotes()}})}
+// note form (type + priority + text), used by the designer and the reviewer
+let rvnCtx=null;
+function openNoteForm(i,pt,extra){const b=state.blocks[i];rvnCtx={i,pt,extra:extra||{},cat:'design',pri:'normal'};
+ $('rvnOn').textContent=b?L('على الكتلة: ','On block: ')+b.name:L('ملاحظة عامة على التصميم كله','General note on the whole design');
+ const chips=(box,map,key)=>{box.innerHTML=Object.entries(map).map(([k,v])=>`<button type="button" class="shr-chip${rvnCtx[key]===k?' on':''}" data-k="${k}"${v[2]?` style="--chip:${v[2]}"`:''}>${L(v[0],v[1])}</button>`).join('');box.querySelectorAll('[data-k]').forEach(c=>{c.onclick=()=>{rvnCtx[key]=c.dataset.k;box.querySelectorAll('[data-k]').forEach(x=>x.classList.toggle('on',x===c))}})};
+ chips($('rvnCat'),NOTE_CATS,'cat');chips($('rvnPri'),NOTE_PRI,'pri');$('rvnText').value='';modal('rvnote');setTimeout(()=>$('rvnText').focus(),60)}
+$('rvnSave').onclick=()=>{const t=$('rvnText').value.trim();if(!t)return flash(L('اكتب الملاحظة أولاً','Write the note first'));const c=rvnCtx;$('modal').style.display='none';addNote(c.i,t,c.pt,Object.assign({},c.extra,{cat:c.cat,pri:c.pri}))};
+// ---- designer: share window ----
+const shrPrefs=()=>LS.get('mc3d_shr')||{};
+function openShare(){const P=shrPrefs(),rv=((P.revs||{})[curName]||0)+1;$('shrDesign').textContent=curName;$('shrRev').textContent=L('النسخة ','Version ')+rv;
+ $('shrWho').value=P.who||'';$('shrMsg').value=P.msg||'';$('shrChg').value='';document.querySelectorAll('#shrForm .shr-q').forEach((q,k)=>{q.value=(P.q||[])[k]||''});
+ const inc=P.inc||{};[['shrIncCard','card'],['shrIncNums','nums'],['shrIncCode','code'],['shrIncSheet','sheet']].forEach(([id,k])=>{$(id).checked=inc[k]!==false});
+ $('shrForm').style.display='';$('shrDone').style.display='none';modal('share')}
+$('shrGo').onclick=()=>{const P=shrPrefs(),rv=((P.revs||{})[curName]||0)+1;
+ const share={rev:rv,at:Date.now(),who:$('shrWho').value.trim(),msg:$('shrMsg').value.trim(),chg:$('shrChg').value.trim(),q:[...document.querySelectorAll('#shrForm .shr-q')].map(x=>x.value.trim()).filter(Boolean).slice(0,3),
+  inc:{card:$('shrIncCard').checked,nums:$('shrIncNums').checked,code:$('shrIncCode').checked,sheet:$('shrIncSheet').checked}};
+ LS.set('mc3d_shr',Object.assign({},P,{who:share.who,msg:share.msg,q:share.q,inc:share.inc}));publishLink(share)};
+// the current sheet as one JPEG for the reviewer (kept under ~1.4 MB)
+async function shareSheetImage(){try{if(!sheet||!sheet.items||!sheet.items.length)return null;let dpi=Math.max(30,Math.round(1800/(PW()/25.4)));
+ for(let k=0;k<3;k++){const cv=await composeSheet(dpi,false);const d=cv.toDataURL('image/jpeg',.78);if(d.length<1.4e6)return d;dpi=Math.round(dpi*.7)}}catch(e){}return null}
+async function publishShare(id,share){
+ $('shrGo').disabled=true;$('shrGo').textContent=L('جارٍ النشر…','Publishing…');
+ try{const pkg=Object.assign({},share);if(share.inc.sheet){pkg.img=await shareSheetImage();if(pkg.img)pkg.imgName=curSheet}
+  pkg.from=(state.meta&&state.meta.designer)||'';
+  await sbRpc('review_put',sbA({i:id,n:curName,s:Object.assign(clone(state),{notes:[],share:pkg})}));
+  const P=shrPrefs();P.revs=Object.assign({},P.revs,{[curName]:share.rev});P.last=Object.assign({},P.last,{[curName]:share.at});LS.set('mc3d_shr',P);
+  shareDone(SB.pub+'?r='+id,share)}
+ catch(e){if(e&&e.code==='denied'){sbForget();return sbLogin(()=>publishLink(share))}flash(L('تعذّر النشر — تحقق من الاتصال بالإنترنت','Publish failed — check your connection'))}
+ finally{$('shrGo').disabled=false;$('shrGo').textContent=L('🔗 نشر رابط المراجعة','🔗 Publish review link')}}
+function shareMessage(link,sh){const hi=sh.who?L('مرحباً '+sh.who+'،','Hi '+sh.who+','):L('مرحباً،','Hi,');
+ let t=hi+'\n'+L(`هذا رابط مراجعة تصميم «${curName}» — النسخة ${sh.rev}.`,`Here is the review link for “${curName}” — version ${sh.rev}.`);
+ if(sh.chg)t+='\n'+L('شنو تغيّر: ','What changed: ')+sh.chg;if(sh.msg)t+='\n'+sh.msg;
+ if(sh.q.length)t+='\n'+L('أسئلة أتمنى رأيك بيها:','Questions I would value your opinion on:')+'\n'+sh.q.map((q,k)=>(k+1)+'. '+q).join('\n');
+ return t+'\n'+L('تكدر تكتب ملاحظاتك على الكتل مباشرة بدون حساب:','You can comment on the blocks directly, no sign-in needed:')+'\n'+link}
+function shareDone(link,sh){const msg=shareMessage(link,sh),open=notesOf().filter(n=>!n.done).length;
+ $('shrDone').innerHTML=`<div class="shr-ok">✓ ${L('نُشرت','Published')} <b>${escH(curName)}</b> — ${L('النسخة','version')} ${sh.rev}</div>
+ <div class="fld" style="margin:8px 0"><input id="shrLink" readonly style="flex:1;direction:ltr" value="${escH(link)}"><button class="sm pri2" id="shrCopy">${L('نسخ','Copy')}</button></div>
+ <div class="shr-grid"><div id="shrQR" class="shr-qr"></div><div class="shr-acts">
+  <a class="shr-btn" style="background:#25d366" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">${L('واتساب','WhatsApp')}</a>
+  <a class="shr-btn" style="background:#229ed9" target="_blank" rel="noopener" href="https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(msg.replace(link,'').trim())}">${L('تليكرام','Telegram')}</a>
+  <a class="shr-btn" style="background:#475569" href="mailto:?subject=${encodeURIComponent(L('مراجعة تصميم: ','Design review: ')+curName)}&body=${encodeURIComponent(msg)}">${L('إيميل','Email')}</a>
+  <button class="sm" id="shrMsgCopy">${L('نسخ الرسالة كاملة','Copy full message')}</button>
+  <a class="sm" target="_blank" rel="noopener" href="${escH(link)}">${L('فتح كما يراه المراجع ↗','Open as the reviewer ↗')}</a>
+  <button class="sm" id="shrQRsave">${L('حفظ QR كصورة','Save QR image')}</button></div></div>
+ <div class="hint" style="margin-top:8px">${L('يشمل','Includes')}: ${[sh.inc.card&&L('بطاقة المشروع','project card'),sh.inc.nums&&L('الأرقام والبرنامج','figures & program'),sh.inc.code&&L('فحص الأنظمة','regulations'),sh.inc.sheet&&L('اللوحة','the sheet'),sh.q.length&&(sh.q.length+' '+L('أسئلة','questions'))].filter(Boolean).join(' · ')}. ${L('ملاحظاتك المفتوحة حالياً','Open notes now')}: ${open}.</div>
+ <button class="sm" id="shrBack" style="margin-top:6px">${L('↩ تعديل وإعادة النشر','↩ Edit & publish again')}</button>`;
+ $('shrForm').style.display='none';$('shrDone').style.display='';if($('modal').style.display!=='flex')modal('share');
+ $('shrCopy').onclick=()=>navigator.clipboard.writeText(link).then(()=>flash(L('نُسخ الرابط ✓','Link copied ✓'))).catch(()=>$('shrLink').select());
+ $('shrMsgCopy').onclick=()=>navigator.clipboard.writeText(msg).then(()=>flash(L('نُسخت الرسالة ✓','Message copied ✓'))).catch(()=>{});
+ $('shrBack').onclick=openShare;
+ loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js').then(()=>{const q=$('shrQR');q.innerHTML='';new QRCode(q,{text:link,width:150,height:150,correctLevel:QRCode.CorrectLevel.M})}).catch(()=>{$('shrQR').textContent='QR'});
+ $('shrQRsave').onclick=()=>{const c=$('shrQR').querySelector('canvas');if(!c)return;c.toBlob(b=>saveBlob(`QR - ${curName}.png`,b,'image/png'))}}
+// ---- reviewer: welcome card, project details, answers ----
+const RSH=()=>(REV&&((REV.st&&REV.st.share)||state.share))||null;
+function rvCardHTML(sh){const m=state.meta||{},inc=(sh&&sh.inc)||{card:true};let h='';
+ if(inc.card!==false){h+=`<div class="rv-card"><div class="rv-t">${escH(m.title||(REV&&REV.name)||curName)}</div>${m.designer||(sh&&sh.from)?`<div>${L('المصمم','Designer')}: <b>${escH(m.designer||sh.from)}</b></div>`:''}${m.org?`<div>${escH(m.org)}</div>`:''}${m.location?`<div class="hint">${escH(m.location)}</div>`:''}</div>`}
+ if(sh){h+=`<div class="rv-meta">${L('النسخة','Version')} <b>${sh.rev||1}</b> · ${new Date(sh.at||Date.now()).toLocaleDateString(L('ar-IQ','en-US'),{year:'numeric',month:'long',day:'numeric'})}</div>`;
+  if(sh.msg)h+=`<div class="rv-box"><b>${L('رسالة المصمم','From the designer')}</b><div>${escH(sh.msg)}</div></div>`;
+  if(sh.chg)h+=`<div class="rv-box"><b>${L('شنو تغيّر بهالنسخة','What changed in this version')}</b><div>${escH(sh.chg)}</div></div>`;
+  if(sh.q&&sh.q.length)h+=`<div class="rv-box"><b>${L('أسئلة يتمنى رأيك بيها','Questions for you')}</b><ol>${sh.q.map(q=>`<li>${escH(q)}</li>`).join('')}</ol><div class="hint">${L('تكدر تجاوب عليها من «ℹ المشروع» ← الأسئلة','Answer them from “ℹ Project” → Questions')}</div></div>`}
+ h+=`<div class="hint" style="margin-top:6px">${L('طريقة المراجعة: انقر على أي كتلة ثم «＋ ملاحظة»، واختر نوع الملاحظة وأهميتها. بدون تحديد كتلة تصير ملاحظة عامة. ملاحظاتك توصل للمصمم مباشرة.','How to review: click a block, then “＋ Add Note”, choose its type and priority. With nothing selected it becomes a general note. Notes reach the designer instantly.')}</div>`;return h}
+function openRvWelcome(){const sh=RSH();$('rvwBody').innerHTML=rvCardHTML(sh);$('rvwName').value=LS.get('mc3d_rvname')||'';modal('rvwelcome');$('mTitle').textContent=L('مراجعة تصميم: ','Design review: ')+REV.name}
+function rvSaveName(){const v=$('rvwName').value.trim();if(v)LS.set('mc3d_rvname',v)}
+let rvpTab='card';
+function openRvProj(tab){const sh=RSH(),inc=(sh&&sh.inc)||{card:true,nums:true,code:true,sheet:false};
+ const tabs=[['card','المشروع','Project',true],['nums','الأرقام','Figures',inc.nums!==false],['prog','البرنامج','Program',inc.nums!==false&&!!(state.prog&&state.prog.sp&&state.prog.sp.length)],['code','الأنظمة','Regulations',inc.code!==false&&!!window.MC3D_CODE],['sheet','اللوحة','Sheet',!!(sh&&sh.img)],['qs','الأسئلة','Questions',!!(sh&&sh.q&&sh.q.length)]].filter(t=>t[3]);
+ if(tab)rvpTab=tab;if(!tabs.some(t=>t[0]===rvpTab))rvpTab='card';
+ $('rvpTabs').innerHTML=tabs.map(([k,a,e])=>`<button type="button" class="${k===rvpTab?'on':''}" data-rp="${k}">${L(a,e)}</button>`).join('');
+ $('rvpTabs').querySelectorAll('[data-rp]').forEach(b=>{b.onclick=()=>openRvProj(b.dataset.rp)});
+ const B=$('rvpBody');
+ if(rvpTab==='card')B.innerHTML=rvCardHTML(sh);
+ if(rvpTab==='nums'){const st=computeStats(state),fl=Math.max(1,...state.blocks.filter(b=>!b.hidden&&counts(b)).map(b=>b.f||1)),site=state.site||{};
+  B.innerHTML=`<div class="hm-kpis">${anKpi(L('المساحة الطابقية','Floor area'),Math.round(st.gfa).toLocaleString('en'),L('م²','m²'))+anKpi(L('البصمة الأرضية','Footprint'),Math.round(st.fp).toLocaleString('en'),L('م²','m²'))+anKpi(L('نسبة التغطية','Coverage'),Math.round(st.cov*100)+'%',L('الحد ','limit ')+(site.maxCovPct||60)+'%')+anKpi('FAR',st.far.toFixed(2),L('الحد ','limit ')+(site.maxFar||2.4))+anKpi(L('أقصى ارتفاع','Max height'),st.hmax.toFixed(1),L('م','m'))+anKpi(L('الطوابق','Floors'),fl,L('أقصى','max'))+anKpi(L('الكتل','Blocks'),st.n,'')+anKpi(L('الموقع','Site'),`${site.w||100}×${site.d||100}`,L('م','m'))}</div>`}
+ if(rvpTab==='prog'){const eff=state.prog.eff||.8;let rows='',tq=0,td=0;['pub','main','spec','adm','circ'].forEach(fn=>{const req=Math.round(state.prog.sp.filter(x=>x.fn===fn).reduce((a,x)=>a+x.a,0));let g=0;state.blocks.forEach(b=>{if(!b.hidden&&counts(b)&&(b.fn||'')===fn)g+=areaOf(b)*Math.max(1,+b.f||1)});const des=Math.round(g*eff);if(!req&&!des)return;tq+=req;td+=des;const p=req?des/req:0;
+   rows+=`<tr><td><span class="sw" style="background:${FNS[fn].c}"></span>${fnName(fn)}</td><td>${req.toLocaleString('en')}</td><td>${des.toLocaleString('en')}</td><td style="color:${!req?'#64748b':p>=.9&&p<=1.15?'#15803d':p<.9?'#b91c1c':'#b45309'}">${req?Math.round(p*100)+'%':'—'}</td></tr>`});
+  B.innerHTML=`<table class="rvp-t"><tr><th>${L('الوظيفة','Function')}</th><th>${L('المطلوب م²','Required m²')}</th><th>${L('المصمم م²','Designed m²')}</th><th>${L('التحقق','Match')}</th></tr>${rows}<tr class="tot"><td>${L('المجموع','Total')}</td><td>${tq.toLocaleString('en')}</td><td>${td.toLocaleString('en')}</td><td>${tq?Math.round(td/tq*100)+'%':'—'}</td></tr></table><div class="hint">${L('صافي، بكفاءة','Net, efficiency')} ${Math.round(eff*100)}%</div>`}
+ if(rvpTab==='code'){const r=anGet('code'),st=computeStats(state),site=state.site||{},row=(ok,t,v)=>`<tr><td class="${ok?'ok':'bad'}">${ok?'✓':'✗'}</td><td>${t}</td><td>${v}</td></tr>`;
+  B.innerHTML=`<table class="rvp-t code">${row(r.parking.ok,L('مواقف السيارات','Parking'),r.parking.provided+' / '+r.parking.required)+row(r.escape.ok,L('أبعد مسافة هروب','Max escape distance'),(r.escape.worst===null?'—':r.escape.worst+' '+L('م','m'))+' / '+r.escape.limit)+row(r.lifts.ok,L('المصاعد','Lifts'),r.lifts.required+' · '+L('سعة النوى ','cores fit ')+r.lifts.capacity)+row(r.stairs.ok,L('سلالم الهروب','Escape stairs'),r.stairs.cores+' / '+r.stairs.required)+row(st.cov*100<=(site.maxCovPct||60),L('التغطية','Coverage'),Math.round(st.cov*100)+'%')+row(st.far<=(site.maxFar||2.4),'FAR',st.far.toFixed(2))}</table><div class="hint">${L('قيم إرشادية تقريبية','Approximate guideline values')}</div>`}
+ if(rvpTab==='sheet')B.innerHTML=`<img src="${sh.img}" alt="" class="rvp-img" id="rvpImg"><div class="hint">${escH(sh.imgName||'')} · ${L('انقر للتكبير','click to enlarge')}</div>`;
+ if(rvpTab==='qs'){const ans=notesOf().filter(n=>n.kind==='answer');B.innerHTML=sh.q.map((q,k)=>{const prev=ans.filter(a=>a.q===q).map(a=>`<div class="rv-ans">✓ ${escH(a.t)}</div>`).join('');return `<div class="rv-box"><b>${k+1}. ${escH(q)}</b>${prev}<textarea rows="2" data-qa="${k}" style="width:100%;margin-top:4px" placeholder="${L('جوابك…','Your answer…')}"></textarea><button class="sm pri2" data-qs="${k}">${L('إرسال الجواب','Send answer')}</button></div>`}).join('');
+  B.querySelectorAll('[data-qs]').forEach(b=>{b.onclick=()=>{const k=+b.dataset.qs,t=B.querySelector(`[data-qa="${k}"]`).value.trim();if(!t)return;addNote(-1,t,null,{kind:'answer',q:sh.q[k],cat:'design',pri:'normal'});openRvProj('qs')}})}
+ const im=$('rvpImg');if(im)im.onclick=()=>im.classList.toggle('big');
+ modal('rvproj')}
+if(REV){$('rvwGo').onclick=()=>{rvSaveName();$('modal').style.display='none'};$('rvwInfo').onclick=()=>{rvSaveName();openRvProj('card')};
+ setTimeout(()=>{if($('rvInfo'))$('rvInfo').onclick=()=>openRvProj();openRvWelcome()},900)}
 // review menu
-$('bReview').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('رابط مباشر للمراجعة (دون حساب) — الأسهل','Live review link (no sign-in needed)'),publishLink],[L('ملف مراجعة تفاعلي (يفتح بأي متصفح)','Interactive review file (any browser)'),reviewFile],[L('نسخ الملاحظات كنص','Copy notes as text'),()=>$('ntCopy').click()],[L('سحب رابط هذا التصميم','Unpublish review link'),unpublishLink]])};
+$('bReview').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('رابط مباشر للمراجعة (دون حساب) — مع التفاصيل','Live review link (no sign-in) — with details'),openShare],[L('ملف مراجعة تفاعلي (يفتح بأي متصفح)','Interactive review file (any browser)'),reviewFile],[L('نسخ الملاحظات كنص','Copy notes as text'),()=>$('ntCopy').click()],[L('سحب رابط هذا التصميم','Unpublish review link'),unpublishLink]])};
 
 // ================= TOUR =================
 function getTour(){return [

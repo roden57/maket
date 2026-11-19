@@ -1187,10 +1187,41 @@
       <div style="display:flex;align-items:center;gap:10px;margin-top:10px"><button class="sm pri2" id="exp3D">تنزيل النموذج</button><span class="hint">الوحدات: متر</span></div>
     </div>
   </div>
-  <div id="mNotes" style="display:none;font-size:13px;min-width:min(520px,88vw)"><div id="notesList" style="max-height:52vh;overflow:auto;margin:8px 0"></div>
+  <div id="mNotes" style="display:none;font-size:13px;min-width:min(520px,88vw)"><div id="notesSum" class="notes-sum"></div><div id="notesList" style="max-height:52vh;overflow:auto;margin:8px 0"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="sm" id="ntPull">تحديث</button><button class="sm" id="ntCopy">نسخ كنص</button><button class="sm pri2" id="ntSend">حفظ ملف الملاحظات</button><button class="sm pri2" id="ntImp">استيراد ملاحظات</button><input type="file" id="ntFile" accept=".json,application/json" style="display:none"></div>
   </div>
   <div id="mRvInfo" style="display:none;font-size:13px;line-height:1.9;max-width:560px"><div id="rvInfoT"></div></div>
+  <!-- share for review: what the reviewer gets -->
+  <div id="mShare" style="display:none;font-size:13px;width:min(540px,84vw)">
+    <div id="shrForm">
+      <div class="shr-head"><b id="shrDesign"></b><span class="shr-rev" id="shrRev"></span></div>
+      <div class="fld-stack"><span id="shrWhoLbl">اسم المراجع (اختياري)</span><input type="text" id="shrWho" placeholder="مثال: د. أحمد / المشرف"></div>
+      <div class="fld-stack"><span id="shrMsgLbl">رسالة للمراجع</span><textarea id="shrMsg" rows="2" placeholder="مثال: أرجو التركيز على العلاقة بين المدخل وقاعات التدريب"></textarea></div>
+      <div class="fld-stack"><span id="shrChgLbl">شنو تغيّر بهالنسخة</span><textarea id="shrChg" rows="2" placeholder="مثال: نقلت المختبرات للجناح الشمالي وأضفت نواتين حركة"></textarea></div>
+      <div class="fld-stack"><span id="shrQLbl">أسئلة تريد رأيه بيها (حتى 3)</span>
+        <input type="text" class="shr-q" placeholder="سؤال 1"><input type="text" class="shr-q" placeholder="سؤال 2"><input type="text" class="shr-q" placeholder="سؤال 3"></div>
+      <div class="fld-stack"><span id="shrIncLbl">يشمل الرابط</span>
+        <label class="qchk"><input type="checkbox" id="shrIncCard" checked> <span>بطاقة المشروع (العنوان، المصمم، الجهة، الموقع)</span></label>
+        <label class="qchk"><input type="checkbox" id="shrIncNums" checked> <span>الأرقام وجدول البرنامج</span></label>
+        <label class="qchk"><input type="checkbox" id="shrIncCode" checked> <span>فحص الأنظمة (مواقف، هروب، مصاعد…)</span></label>
+        <label class="qchk"><input type="checkbox" id="shrIncSheet" checked> <span>اللوحة الحالية كصورة</span></label></div>
+      <button class="sm pri2" id="shrGo" style="width:100%;margin-top:6px">🔗 نشر رابط المراجعة</button>
+      <div class="hint" id="shrHint">نفس الرابط يبقى لهذا التصميم؛ إعادة النشر تحدّثه وترفع رقم النسخة.</div>
+    </div>
+    <div id="shrDone" style="display:none"></div>
+  </div>
+  <!-- reviewer side -->
+  <div id="mRvWelcome" style="display:none;font-size:13px;width:min(540px,84vw)"><div id="rvwBody"></div>
+    <div class="fld-stack" id="rvwNameRow"><span>اسمك (يظهر مع ملاحظاتك)</span><input type="text" id="rvwName" placeholder="مثال: د. أحمد"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="sm pri2" id="rvwGo">ابدأ المراجعة</button><button class="sm" id="rvwInfo">ℹ تفاصيل المشروع</button></div></div>
+  <div id="mRvProj" style="display:none;font-size:13px;width:min(660px,86vw)"><div class="an-subtabs" id="rvpTabs" role="tablist"></div><div id="rvpBody" style="max-height:62vh;overflow:auto;margin-top:8px"></div></div>
+  <div id="mRvNote" style="display:none;font-size:13px;width:min(480px,84vw)">
+    <div class="hint" id="rvnOn"></div>
+    <div class="fld-stack"><span>نوع الملاحظة</span><div class="shr-chips" id="rvnCat"></div></div>
+    <div class="fld-stack"><span>الأهمية</span><div class="shr-chips" id="rvnPri"></div></div>
+    <textarea id="rvnText" rows="4" style="width:100%;margin-top:6px" placeholder="اكتب ملاحظتك…"></textarea>
+    <button class="sm pri2" id="rvnSave" style="margin-top:6px">حفظ الملاحظة</button>
+  </div>
   <div id="mProg" style="display:none;font-size:12.5px">
     <div id="pgSum" style="margin:6px 0"></div>
     <div class="fld" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">
