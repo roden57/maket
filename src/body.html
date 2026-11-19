@@ -220,6 +220,7 @@
             <button class="big" data-v="side"><i><svg class="ic"><use href="#i-side"/></svg></i>جانبي</button>
           </div>
           <button class="big" data-v="eye"><i><svg class="ic"><use href="#i-eye"/></svg></i>منظور عين الإنسان</button>
+          <button class="sm pri2" id="bEyeShots" style="width:100%" title="ثلاث لقطات بارتفاع 1.7 م مع أشخاص وأشجار، تُضاف للوحة">👁 لقطات بمستوى العين للوحة (شارع · فناء · زاوية)</button>
         </div>
       </div>
 
@@ -861,6 +862,15 @@
             </div>
             <button type="button" class="big on" id="anZones3dBtn">عرض الزونات والروابط 3D</button>
             <button type="button" class="sm" id="anCircBtn" style="width:100%">↝ مسارات الحركة (زوار · طلاب وكادر · خدمات)</button>
+            <div id="anCircEdit" style="display:none;flex-direction:column;gap:5px">
+              <div class="fac-sides-grid" role="group" aria-label="تعديل نقاط الحركة">
+                <button type="button" class="fac-side-btn" data-cp="entry" title="المدخل الرئيسي">📍 المدخل</button>
+                <button type="button" class="fac-side-btn" data-cp="hub" title="الفناء / نقطة التجمع">📍 التجمع</button>
+                <button type="button" class="fac-side-btn" data-cp="service" title="مدخل الخدمة">📍 الخدمة</button>
+              </div>
+              <button type="button" class="sm" id="anCircReset">↺ رجوع للنقاط التلقائية</button>
+              <div class="hint" id="anCircEditHint">اضغط زر النقطة، بعدين انقر على الأرض بالمشهد لتحديد مكانها.</div>
+            </div>
             <div class="hint" id="anCircKey" style="display:none"><span style="color:#16a34a">━ زوار</span> · <span style="color:#2563eb">━ طلاب وكادر</span> · <span style="color:#ea580c">╍ خدمات</span> · ★ المدخل الرئيسي</div>
             <div class="an-svg-frame">
               <svg id="anBubbleSvg" viewBox="0 0 264 194" data-testid="an-bubble-svg" aria-label="المخطط الفقاعي للزونات والعلاقات"></svg>

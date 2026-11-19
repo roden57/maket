@@ -1049,6 +1049,7 @@ function updMeas(){const a=mp.a,b=mp.b||mp.hover;mDots[0].visible=!!a;if(a)mDots
 function pickPt(s){if(!mp.a||mp.b){mp={a:s,b:null,hover:null}}else{mp.b=s;if(tool==='cal'){$('calBox').style.display='flex';$('calD').focus();flash(L('أدخل المسافة الحقيقية بين النقطتين وانقر تطبيق','Enter the real distance between the two points and click Apply'))}}updMeas()}
 let resizing=null,pending=null,ctxDown=null;
 el.addEventListener('pointerdown',e=>{hideCtx();if(e.button===2){ctxDown={x:e.clientX,y:e.clientY};return}if(e.button!==0)return;down={x:e.clientX,y:e.clientY};const p=gpt(e);
+ if(circPick){const k=circPick;circPick=null;R.domElement.style.cursor='';if(p)setCircPoint(k,p.x,p.z);else circSync();return}
  if(tool==='draw'&&$('dShape').value==='poly'){if(!p)return;polyClick(snapPt(p));return}
  if(tool==='draw'){if(!p)return;O.enabled=false;const s=snapPt(p);drawing={x0:s.x,z0:s.z,x1:s.x,z1:s.z};updPrev();return}
  if(tool==='meas'||tool==='cal'){if(!p)return;O.enabled=false;pickPt(tool==='cal'?p.clone():snapPt(p));return}
@@ -1552,6 +1553,45 @@ function layoutBoxes(n,mode,W,H,top,bot,mx,gap,cap,leg){const AW=W-2*mx,AH=H-top
  const cols=n<=2?2:n<=4?2:3,rows=Math.ceil(n/cols),cw=(AW-(cols-1)*gap)/cols,ch=(AH-(leg?48:0)-(rows-1)*gap)/rows-cap;
  for(let i=0;i<n;i++){const c=i%cols,r=Math.floor(i/cols);out.push({x:W-mx-(c+1)*cw-c*gap,y:top+r*(ch+cap+gap),w:cw,h:ch})}return out}
 $('shQuick').onclick=openQuick;$('qGo').onclick=runQuick;
+// eye-level shots (1.7 m) from the street, the courtyard and a site corner, with temporary people and trees
+let eyeBusy=false;
+async function eyeShots(){
+ if(eyeBusy||!window.MC3D_ANALYSIS)return;const arch=state.blocks.filter(b=>!b.hidden&&counts(b));if(!arch.length)return flash(L('ارسم كتلاً أولاً','Draw some blocks first'));
+ if(el.clientWidth<80||el.clientHeight<80)return flash(L('اعرض المشهد ثلاثي الأبعاد أولاً','Show the 3D view first'));
+ eyeBusy=true;flash(L('جارٍ تجهيز لقطات مستوى العين…','Preparing eye-level shots…'));
+ const wasSheet=sheetOpen;if(wasSheet)openSheet(false);
+ const circ=MC3D_ANALYSIS.computeCirculation({blocks:state.blocks,site:state.site,opts:state.circCfg}),W=+state.site.w||100,D=+state.site.d||100;
+ const solid=state.blocks.filter(b=>!b.hidden&&!isFlat(b)&&!isProp(b)).map(b=>MC3D_ANALYSIS.getObb(b));
+ const freeAt=(x,z,r)=>Math.abs(x)<W/2-1&&Math.abs(z)<D/2-1&&solid.every(o=>x+r<o.minX||x-r>o.maxX||z+r<o.minZ||z-r>o.maxZ);
+ // temporary scale figures
+ const tmp=[],add=(shape,x,z,w)=>{if(!freeAt(x,z,w/2+.3))return;tmp.push(norm({name:'tmp',shape,mat:shape==='tree'?'green':'white',x:+x.toFixed(2),z:+z.toFixed(2),w,d:w,f:1,_tmp:1}))};
+ const people=(c,n,r)=>{for(let k=0;k<n;k++){const a=k/n*Math.PI*2+.4,rr=r*(.6+.4*((k*37)%10)/10);add('person',c[0]+Math.cos(a)*rr,c[1]+Math.sin(a)*rr,.6)}};
+ if(circ.entry){people(circ.entry,6,5);}
+ const hasHub=circ.hub&&(circ.hub[0]!==circ.entry[0]||circ.hub[1]!==circ.entry[1]);if(hasHub){people(circ.hub,5,4);[[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([i,j])=>add('tree',circ.hub[0]+i*6,circ.hub[1]+j*5,4))}
+ const ms=circ.mainSide,horiz=ms==='n'||ms==='s',edge=(ms==='s'||ms==='e'?1:-1)*((horiz?D:W)/2-4);
+ for(let t=-(horiz?W:D)/2+6;t<(horiz?W:D)/2-4;t+=9)add('tree',horiz?t:edge,horiz?edge:t,4.5);
+ const keep={plan:isPlan,pos:C.position.clone(),tgt:O.target.clone(),fov:camP.fov,sel,selSet};
+ state.blocks.push(...tmp);clearSel();build();
+ const raf=()=>new Promise(r=>requestAnimationFrame(()=>r())),shots=[];
+ const shoot=async(from,to,label)=>{usePlan(false);camP.fov=58;camP.updateProjectionMatrix();C.position.set(from[0],1.7,from[1]);O.target.set(to[0],to[2]||6,to[1]);O.update();C.lookAt(O.target);await raf();const g=await grab(true,false);if(g){g.state=clone(state);shots.push({g,label})}}; // keep the figures for the HQ re-render
+ try{
+  const out=(horiz?D:W)/2+14,sgn=ms==='s'||ms==='e'?1:-1,st=circ.street||[0,D/2];
+  await shoot(horiz?[st[0]*.6,sgn*out]:[sgn*out,st[1]*.6],[circ.entry[0],circ.entry[1],5],L('من الشارع نحو المدخل الرئيسي','From the street towards the main entrance'));
+  if(hasHub){const dx=circ.entry[0]-circ.hub[0],dz=circ.entry[1]-circ.hub[1],dl=Math.hypot(dx,dz)||1,f=[circ.hub[0]+dx/dl*7,circ.hub[1]+dz/dl*7];
+   await shoot(f,[circ.hub[0]-dx/dl*25,circ.hub[1]-dz/dl*25,5],L('داخل الفناء','Inside the courtyard'))}
+  const corners=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([i,j])=>[i*(W/2-3),j*(D/2-3)]).sort((a,b)=>Math.hypot(b[0]-circ.entry[0],b[1]-circ.entry[1])-Math.hypot(a[0]-circ.entry[0],a[1]-circ.entry[1]));
+  let cx=0,cz=0;arch.forEach(b=>{cx+=b.x;cz+=b.z});await shoot(corners[0],[cx/arch.length,cz/arch.length,6],L('من زاوية الموقع','From the site corner'));
+ }finally{
+  state.blocks=state.blocks.filter(b=>!b._tmp);camP.fov=keep.fov;camP.updateProjectionMatrix();sel=keep.sel;selSet=keep.selSet;
+  if(keep.plan)view('top');else{usePlan(false);C.position.copy(keep.pos);O.target.copy(keep.tgt);O.update()}refresh();eyeBusy=false;
+ }
+ if(!shots.length)return flash(L('تعذّر التقاط اللقطات','Could not capture the shots'));
+ sPush();const Wp=PW(),gap=8,w=(Wp-40-gap*(shots.length-1))/shots.length,ids=[];
+ shots.forEach((s,k)=>{const box={x:20+k*(w+gap),y:PH()*.55,w,h:w*.62};const it=addImgItem(s.g,box,s.label);addText(s.label,box.x,it.y+it.h+1.5,box.w,4.2,{bold:true,color:'#9C3F24'});ids.push(it.id)});
+ saveSheet();setSSel(ids);openSheet(true);renderSheet();
+ flash(L(`أُضيفت ${shots.length} لقطات بمستوى العين للوحة — رتّبها كما تحب`,`Added ${shots.length} eye-level shots to the sheet`));
+}
+if($('bEyeShots'))$('bEyeShots').onclick=eyeShots;
 // one colour style for every 3D view on the sheet: re-render each shot from its saved camera and model
 let themeBusy=false;
 async function applySheetTheme(mode){
@@ -1798,7 +1838,8 @@ $('shAddM').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('صور�
  [L('☀ مسار الشمس والحمل الحراري','☀ Sun Path & Heat Load'),()=>addAnToSheet('solar')],[L('≋ حركة الرياح','≋ Wind Flow'),()=>addAnToSheet('wind')],[L('◍ خريطة الضوضاء','◍ Noise Map'),()=>addAnToSheet('noise')],
  [L('▤ تسلسل تكوّن الكتلة (من زاوية الكاميرا الحالية)','▤ Massing Evolution (current camera)'),()=>addAnToSheet('morph')],
  [L('▭ المقاطع التلقائية (أ-أ و ب-ب مع مفتاح)','▭ Automatic Sections (A-A, B-B + key)'),()=>addAnToSheet('sections')],
- [L('↝ مسارات الحركة (زوار · طلاب · خدمات)','↝ Circulation Paths'),()=>addAnToSheet('circ')]])};
+ [L('↝ مسارات الحركة (زوار · طلاب · خدمات)','↝ Circulation Paths'),()=>addAnToSheet('circ')],
+ [L('👁 لقطات بمستوى العين (شارع · فناء · زاوية)','👁 Eye-level shots (street · courtyard · corner)'),()=>eyeShots()]])};
 $('shSnapOpt').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[(shGround?'☑':'☐')+' '+L('أرضية الموقع باللقطة','Include Site Ground'),()=>$('shGround').click()],[(shNames?'☑':'☐')+' '+L('أسماء الكتل باللقطة','Include Mass Labels'),()=>$('shNamesB').click()]])};
 function openExport(){$('expSheetName').textContent='('+curSheet+' · '+sheet.size+')';['shDown','shAll'].forEach(id=>$(id).style.display=DL?'':'none');$('exp3D').disabled=!DL;$('exp3D').title=DL?'':L('التنزيل غير متاح في هذا العرض','Download unavailable in this view');modal('export')}
 $('shExpDlg').onclick=openExport;$('b3D').onclick=openExport;$('qExp').onclick=openExport;
@@ -2537,10 +2578,10 @@ const anRec=(txt,cls)=>`<div class="an-rec-line${cls?' '+cls:''}">${txt}</div>`;
 const anFace=k=>({N:L('الشمالية','North'),S:L('الجنوبية','South'),E:L('الشرقية','East'),W:L('الغربية','West'),Roof:L('السطح','Roof')})[k]||k;
 function anGet(kind){
  const A=window.MC3D_ANALYSIS;if(!A)return null;
- const sig=JSON.stringify([state.blocks,state.site,state.fh,state.codeCfg]);
+ const sig=JSON.stringify([state.blocks,state.site,state.fh,state.codeCfg,state.circCfg]);
  if(sig!==AN.sig){AN.sig=sig;AN.cache={}}
  if(!AN.cache[kind]){const inp={blocks:state.blocks,site:state.site,fh:state.fh};
-  if(kind==='circ'){AN.cache.circ=A.computeCirculation({blocks:state.blocks,site:state.site});return AN.cache.circ}
+  if(kind==='circ'){AN.cache.circ=A.computeCirculation({blocks:state.blocks,site:state.site,opts:state.circCfg});return AN.cache.circ}
   if(kind==='code'){if(!window.MC3D_CODE)return null;AN.cache.code=MC3D_CODE.computeCodeChecks({blocks:state.blocks,fh:state.fh,opts:state.codeCfg,area:areaOf,counts:b=>!b.hidden&&counts(b)});return AN.cache.code}
   AN.cache[kind]=kind==='solar'?A.computeSolarAnalysis(inp):kind==='wind'?A.computeWindAnalysis(inp):kind==='noise'?A.computeNoiseAnalysis(inp):kind==='zones'?A.computeZoningAndBubbles(inp):A.computeMorphologyEvolution(inp)}
  return AN.cache[kind];
@@ -2846,13 +2887,22 @@ function circBuild(){
   const a=pts[pts.length-2],b=pts[pts.length-1],tip=new THREE.Mesh(new THREE.ConeGeometry(1.4,3.2,14),new THREE.MeshBasicMaterial({color:st.c}));
   const dir=b.clone().sub(a).normalize();tip.position.copy(b).addScaledVector(dir,-1.2);tip.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);circG.add(tip)})});
  if(res.entry){const star=new THREE.Mesh(new THREE.OctahedronGeometry(1.8),new THREE.MeshBasicMaterial({color:'#facc15'}));star.position.set(res.entry[0],2.6,res.entry[1]);circG.add(star)}
+ if(res.hub&&(res.hub[0]!==res.entry[0]||res.hub[1]!==res.entry[1])){const ring=new THREE.Mesh(new THREE.TorusGeometry(2.4,.35,8,32),new THREE.MeshBasicMaterial({color:'#2563eb'}));ring.rotation.x=Math.PI/2;ring.position.set(res.hub[0],.8,res.hub[1]);circG.add(ring)}
+ if(res.service){const sv=new THREE.Mesh(new THREE.OctahedronGeometry(1.5),new THREE.MeshBasicMaterial({color:'#ea580c'}));sv.position.set(res.service[0],2.4,res.service[1]);circG.add(sv)}
 }
 function circSync(){
  const want=AN.circ&&curTab==='mass'&&AN.sub==='zones';
- if(want){const sig=AN.sig+'|'+JSON.stringify(state.blocks.map(b=>[b.x,b.z,b.w,b.d,b.fn,b.name,b.mat,b.hidden]))+JSON.stringify(state.site);if(sig!==AN.circSig){AN.circSig=sig;circBuild()}}
+ if(want){const sig=JSON.stringify(state.circCfg||{})+'|'+JSON.stringify(state.blocks.map(b=>[b.x,b.z,b.w,b.d,b.fn,b.name,b.mat,b.hidden]))+JSON.stringify(state.site);if(sig!==AN.circSig){AN.circSig=sig;circBuild()}}
  circG.visible=!!want;
- if($('anCircBtn'))$('anCircBtn').classList.toggle('on',AN.circ);if($('anCircKey'))$('anCircKey').style.display=AN.circ?'':'none';
+ if($('anCircBtn'))$('anCircBtn').classList.toggle('on',AN.circ);if($('anCircKey'))$('anCircKey').style.display=AN.circ?'':'none';if($('anCircEdit'))$('anCircEdit').style.display=AN.circ?'flex':'none';
+ document.querySelectorAll('#anCircEdit [data-cp]').forEach(b=>b.classList.toggle('on',b.dataset.cp===circPick||!!(state.circCfg&&state.circCfg[b.dataset.cp])));
 }
+// manual circulation points: press a 📍 button, then click on the ground
+var circPick=null;
+function setCircPoint(kind,x,z){snap(true);state.circCfg=Object.assign({},state.circCfg||{},{[kind]:[+x.toFixed(2),+z.toFixed(2)]});save();AN.circSig='';circSync();
+ flash(L({entry:'حُدّد المدخل الرئيسي ✓',hub:'حُدّدت نقطة التجمع ✓',service:'حُدّد مدخل الخدمة ✓'}[kind],'Point placed ✓'))}
+document.querySelectorAll('#anCircEdit [data-cp]').forEach(b=>{b.onclick=()=>{circPick=circPick===b.dataset.cp?null:b.dataset.cp;R.domElement.style.cursor=circPick?'crosshair':'';circSync();if(circPick)flash(L('انقر على الأرض بالمشهد لتحديد المكان','Click on the ground to place it'))}});
+if($('anCircReset'))$('anCircReset').onclick=()=>{snap(true);delete state.circCfg;save();circPick=null;AN.circSig='';circSync();flash(L('رجعت النقاط التلقائية','Automatic points restored'))};
 if($('anCircBtn'))$('anCircBtn').onclick=()=>{AN.circ=!AN.circ;AN.circSig='';circSync();if(AN.circ)flash(L('مسارات الحركة: أخضر زوار، أزرق طلاب وكادر، برتقالي متقطع خدمات، والنجمة الصفراء المدخل الرئيسي','Circulation: green visitors, blue students & staff, dashed orange services, yellow star = main entrance'))};
 // plan diagram for sheets
 function circSvg(){

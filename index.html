@@ -2430,6 +2430,7 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
             <button class="big" data-v="side"><i><svg class="ic"><use href="#i-side"/></svg></i>جانبي</button>
           </div>
           <button class="big" data-v="eye"><i><svg class="ic"><use href="#i-eye"/></svg></i>منظور عين الإنسان</button>
+          <button class="sm pri2" id="bEyeShots" style="width:100%" title="ثلاث لقطات بارتفاع 1.7 م مع أشخاص وأشجار، تُضاف للوحة">👁 لقطات بمستوى العين للوحة (شارع · فناء · زاوية)</button>
         </div>
       </div>
 
@@ -3071,6 +3072,15 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
             </div>
             <button type="button" class="big on" id="anZones3dBtn">عرض الزونات والروابط 3D</button>
             <button type="button" class="sm" id="anCircBtn" style="width:100%">↝ مسارات الحركة (زوار · طلاب وكادر · خدمات)</button>
+            <div id="anCircEdit" style="display:none;flex-direction:column;gap:5px">
+              <div class="fac-sides-grid" role="group" aria-label="تعديل نقاط الحركة">
+                <button type="button" class="fac-side-btn" data-cp="entry" title="المدخل الرئيسي">📍 المدخل</button>
+                <button type="button" class="fac-side-btn" data-cp="hub" title="الفناء / نقطة التجمع">📍 التجمع</button>
+                <button type="button" class="fac-side-btn" data-cp="service" title="مدخل الخدمة">📍 الخدمة</button>
+              </div>
+              <button type="button" class="sm" id="anCircReset">↺ رجوع للنقاط التلقائية</button>
+              <div class="hint" id="anCircEditHint">اضغط زر النقطة، بعدين انقر على الأرض بالمشهد لتحديد مكانها.</div>
+            </div>
             <div class="hint" id="anCircKey" style="display:none"><span style="color:#16a34a">━ زوار</span> · <span style="color:#2563eb">━ طلاب وكادر</span> · <span style="color:#ea580c">╍ خدمات</span> · ★ المدخل الرئيسي</div>
             <div class="an-svg-frame">
               <svg id="anBubbleSvg" viewBox="0 0 264 194" data-testid="an-bubble-svg" aria-label="المخطط الفقاعي للزونات والعلاقات"></svg>
@@ -3474,21 +3484,21 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="areas-logic.js?v=1795110068"></script>
-<script src="shadow-heatmap-logic.js?v=1795110068"></script>
-<script src="section-logic.js?v=1795110068"></script>
-<script src="site-logic.js?v=1795110068"></script>
-<script src="facade-logic.js?v=1795110068"></script>
-<script src="mass-logic.js?v=1795110068"></script>
-<script src="analysis-studio-logic.js?v=1795110068"></script>
-<script src="code-check-logic.js?v=1795110068"></script>
-<script src="massing-anim-logic.js?v=1795110068"></script>
-<script src="snap-guides-logic.js?v=1795110068"></script>
-<script src="i18n.js?v=1795110068"></script>
-<script src="occupancy-chart.js?v=1795110068"></script>
-<script src="unsaved-logic.js?v=1795110068"></script>
+<script src="areas-logic.js?v=1795111397"></script>
+<script src="shadow-heatmap-logic.js?v=1795111397"></script>
+<script src="section-logic.js?v=1795111397"></script>
+<script src="site-logic.js?v=1795111397"></script>
+<script src="facade-logic.js?v=1795111397"></script>
+<script src="mass-logic.js?v=1795111397"></script>
+<script src="analysis-studio-logic.js?v=1795111397"></script>
+<script src="code-check-logic.js?v=1795111397"></script>
+<script src="massing-anim-logic.js?v=1795111397"></script>
+<script src="snap-guides-logic.js?v=1795111397"></script>
+<script src="i18n.js?v=1795111397"></script>
+<script src="occupancy-chart.js?v=1795111397"></script>
+<script src="unsaved-logic.js?v=1795111397"></script>
 <script>
-(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1795110068';document.body.appendChild(s)}
+(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1795111397';document.body.appendChild(s)}
 if(!q)return go();var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f1f3f5;color:#0f172a;z-index:99;font:600 16px "IBM Plex Sans Arabic",Tajawal,sans-serif';ov.textContent=(window.L?L('جارٍ فتح التصميم…','Opening design…'):'جارٍ فتح التصميم…');document.body.appendChild(ov);
 fetch('https://kwoftzpxtytcgahsgjro.supabase.co/rest/v1/reviews?select=*&id=eq.'+encodeURIComponent(q),{headers:{apikey:'sb_publishable_YHx-GmgyEdNhCqhf98Ds2w_oCZAMMDp'}}).then(function(r){return r.json()}).then(function(j){if(j&&j[0])window.MC3D_REVIEW={name:j[0].name,st:j[0].st,key:q,remote:true};else alert((window.L?L('هذا الرابط غير صالح — يُرجى التحقق من الرابط','Invalid review link — please check the URL'):'هذا الرابط غير صالح — يُرجى التحقق من الرابط'))}).catch(function(){alert((window.L?L('تعذّر فتح التصميم — يُرجى التحقق من الاتصال بالإنترنت','Unable to open design — check your internet connection'):'تعذّر فتح التصميم — يُرجى التحقق من الاتصال بالإنترنت'))}).then(function(){ov.remove();go()})})();
 </script>

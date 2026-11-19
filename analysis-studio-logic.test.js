@@ -131,3 +131,23 @@ test('circulation: empty design gives no flows', () => {
   const { computeCirculation } = require('./analysis-studio-logic.js');
   assert.deepEqual(computeCirculation({ blocks: [] }).flows, []);
 });
+
+test('circulation: user-chosen entrance, gathering point and service entrance override the automatic ones', () => {
+  const { computeCirculation } = require('./analysis-studio-logic.js');
+  const box = o => Object.assign({ shape: 'box', mat: 'brick', fn: 'main', x: 0, z: 0, w: 20, d: 10, f: 2, y0: 0 }, o);
+  const blocks = [
+    box({ name: 'pub', fn: 'pub', x: 0, z: 30 }),
+    box({ name: 'classes', fn: 'main', x: -30, z: 0 }),
+    box({ name: 'admin', fn: 'adm', x: 30, z: -30 })
+  ];
+  const r = computeCirculation({ blocks, site: { w: 100, d: 100, streets: { s: true } }, opts: { entry: [-30, 8], hub: [-10, -10], service: [45, -45] } });
+  assert.deepEqual(r.entry, [-30, 8]);
+  assert.equal(blocks[r.entryIdx].name, 'classes');           // nearest block to the chosen entrance
+  assert.deepEqual(r.hub, [-10, -10]);
+  const svc = r.flows.find(f => f.id === 'service').paths[0];
+  assert.deepEqual(svc[0], [45, -45]);
+  assert.deepEqual(r.custom, { entry: true, hub: true, service: true });
+  // bad values fall back to automatic
+  const auto = computeCirculation({ blocks, site: { w: 100, d: 100 }, opts: { entry: ['x', 1], hub: null } });
+  assert.deepEqual(auto.custom, { entry: false, hub: false, service: false });
+});
