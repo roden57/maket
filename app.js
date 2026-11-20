@@ -545,7 +545,7 @@ function dup(){if(!selSet.size)return;snap(true);const ids=[...selSet],start=sta
  ids.forEach(i=>{const b=clone(state.blocks[i]);b.x+=snapStep*4;b.z+=snapStep*4;if(ids.length===1)b.name+=L(' (نسخة)',' (Copy)');state.blocks.push(b)});
  selSet=new Set(ids.map((_,k)=>start+k));sel=start;refresh()}
 function del(){if(!selSet.size)return;const ids=[...selSet].filter(i=>!state.blocks[i].lock);if(!ids.length)return flash(L('الكتلة مقفلة','Mass is locked'));snap(true);ids.sort((a,b)=>b-a).forEach(i=>state.blocks.splice(i,1));clearSel();refresh()}
-function refresh(){build();panel();stats();save();if(typeof ctxRender==='function')ctxRender();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis();if(typeof renderFacadeStudio==='function')renderFacadeStudio();if(typeof renderMassStudio==='function')renderMassStudio()}
+function refresh(){build();panel();stats();save();if(typeof ctxRender==='function')ctxRender();if(typeof buildWind==='function'&&(showWind||showWindZ))buildWind();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis();if(typeof renderFacadeStudio==='function')renderFacadeStudio();if(typeof renderMassStudio==='function')renderMassStudio()}
 let saveT=null,appBooted=false;
 const unsavedTracker=window.MC3D_UNSAVED?window.MC3D_UNSAVED.createUnsavedTracker():null;
 function hasActiveCanvasGesture(){return Boolean((typeof drawing!=='undefined'&&drawing)||(typeof dragging!=='undefined'&&dragging&&dragging.moved)||(typeof resizing!=='undefined'&&resizing)||(typeof cutting!=='undefined'&&cutting)||(typeof polyD!=='undefined'&&polyD))}
@@ -1804,12 +1804,54 @@ $('bVideo').onclick=recordVideo;
 // ---- wind ----
 const windG=new THREE.Group();S.add(windG);let showWind=false;
 function windDirName(deg){const d=((deg%360)+360)%360;const names=L('0','1')==='1'?['North','North-East','East','South-East','South','South-West','West','North-West']:['شمالية','شمالية شرقية','شرقية','جنوبية شرقية','جنوبية','جنوبية غربية','غربية','شمالية غربية'];return names[Math.round(d/45)%8]}
-function buildWind(){windG.clear();if(!showWind)return;const m=Math.max(state.site.w,state.site.d),wd=(state.site.wind!==undefined?state.site.wind:315),from=wd*Math.PI/180+state.site.north*Math.PI/180;
- const mat=new THREE.MeshBasicMaterial({color:'#1e40af',transparent:true,opacity:.85});for(let i=-1;i<=1;i++){const g=new THREE.Group();const L_=m*.28;
-  const sh=new THREE.Mesh(new THREE.CylinderGeometry(m*.006,m*.006,L_,8),mat);sh.rotation.x=Math.PI/2;sh.position.z=-L_/2;g.add(sh);const hd=new THREE.Mesh(new THREE.ConeGeometry(m*.02,m*.05,12),mat);hd.rotation.x=Math.PI/2;g.add(hd);
-  const dir=new THREE.Vector3(-Math.sin(from),0,Math.cos(from));const start=new THREE.Vector3(Math.sin(from),0,-Math.cos(from)).multiplyScalar(m*.8);const side=new THREE.Vector3(dir.z,0,-dir.x).multiplyScalar(i*m*.12);
-  g.position.copy(start.add(side));g.position.y=m*.08;g.lookAt(g.position.clone().add(dir));windG.add(g)}}
+let showWindZ=false;
+// text label that always faces the camera (used by the wind layer)
+function windLabel(text,size,opt){const o=opt||{},c=document.createElement('canvas'),g=c.getContext('2d'),fs=44,font=`600 ${fs}px "IBM Plex Sans Arabic",Tajawal,sans-serif`;g.font=font;const tw=Math.ceil(g.measureText(text).width)+40;c.width=tw;c.height=fs+28;
+ g.font=font;g.fillStyle=o.bg||'rgba(255,255,255,.88)';const r=14;g.beginPath();g.moveTo(r,0);g.arcTo(c.width,0,c.width,c.height,r);g.arcTo(c.width,c.height,0,c.height,r);g.arcTo(0,c.height,0,0,r);g.arcTo(0,0,c.width,0,r);g.fill();
+ if(o.border){g.strokeStyle=o.border;g.lineWidth=4;g.stroke()}g.fillStyle=o.color||'#0f172a';g.textAlign='center';g.textBaseline='middle';g.direction='rtl';g.fillText(text,c.width/2,c.height/2+2);
+ const tex=new THREE.CanvasTexture(c);tex.anisotropy=4;const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));sp.renderOrder=999;sp.scale.set(size*c.width/c.height,size,1);return sp}
+function windObstacles(){return state.blocks.map((b,i)=>({b,i})).filter(({b})=>!b.hidden&&!isProp(b)&&!isFlat(b)&&b.shape!=='riwaq').map(({b,i})=>({id:i,name:b.name,rings:footprint(b),h:b.y0+bh(b),y0:b.y0,ctx:b.mat==='context'}))}
+function disposeDeep(g){g.traverse(o=>{if(o===g)return;if(o.geometry)o.geometry.dispose();if(o.material){if(o.material.map)o.material.map.dispose();o.material.dispose()}});while(g.children.length)g.remove(g.children[0])}
+function buildWind(){disposeDeep(windG);if(!showWind&&!showWindZ){if($('windInfo'))$('windInfo').style.display='none';return}
+ const st=state.site,m=Math.max(st.w,st.d),wd=(st.wind!==undefined?+st.wind:315),from=(wd+(st.north||0))*Math.PI/180,W=window.MC3D_WIND;
+ const dir=new THREE.Vector3(-Math.sin(from),0,Math.cos(from)),up=new THREE.Vector3(Math.sin(from),0,-Math.cos(from));
+ // prevailing wind: three arrows blowing across the site + a bold one with its label
+ const mat=new THREE.MeshBasicMaterial({color:'#1e40af',transparent:true,opacity:.85});
+ for(let i=-1;i<=1;i++){const g=new THREE.Group(),big=i===0,L_=m*(big?.34:.26),r=m*(big?.009:.006);
+  const sh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,L_,8),mat);sh.rotation.x=Math.PI/2;sh.position.z=-L_/2;g.add(sh);const hd=new THREE.Mesh(new THREE.ConeGeometry(m*(big?.03:.02),m*(big?.07:.05),12),mat);hd.rotation.x=Math.PI/2;g.add(hd);
+  const start=up.clone().multiplyScalar(m*.8),side=new THREE.Vector3(dir.z,0,-dir.x).multiplyScalar(i*m*.14);g.position.copy(start.add(side));g.position.y=m*(big?.1:.08);g.lookAt(g.position.clone().add(dir));windG.add(g)}
+ const lb=windLabel(L(`الرياح السائدة: ${W?W.dirName(wd):windDirName(wd)} ${wd}°`,`Prevailing wind: ${W?W.dirName(wd,true):windDirName(wd)} ${wd}°`),m*.035,{color:'#1e3a8a',border:'#1e40af'});
+ lb.position.copy(up.clone().multiplyScalar(m*.8+m*.36)).setY(m*.1+m*.03);windG.add(lb);
+ // schematic wind rose outside the north-east corner, turned with the site north
+ if(W){const R=Math.max(4,m*.11),rg=new THREE.Group(),bins=W.rose(wd),half=Math.PI/bins.length*.86;
+  const ringM=new THREE.MeshBasicMaterial({color:'#94a3b8',side:THREE.DoubleSide,transparent:true,opacity:.9});
+  [.5,1].forEach(k=>{const ri=new THREE.Mesh(new THREE.RingGeometry(R*k-R*.012,R*k+R*.012,48),ringM);ri.rotation.x=-Math.PI/2;ri.position.y=.02;rg.add(ri)});
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(R*1.08,48),new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.75,depthWrite:false}));disc.rotation.x=-Math.PI/2;rg.add(disc);
+  bins.forEach(p=>{const phi=Math.PI/2-p.deg*Math.PI/180,col=new THREE.Color('#bfdbfe').lerp(new THREE.Color('#1d4ed8'),p.f);
+   const pe=new THREE.Mesh(new THREE.CircleGeometry(Math.max(.05,R*p.f),2,phi-half,half*2),new THREE.MeshBasicMaterial({color:col,side:THREE.DoubleSide,transparent:true,opacity:.92}));pe.rotation.x=-Math.PI/2;pe.position.y=.04;rg.add(pe)});
+  [['N',L('ش','N'),0],['E',L('ق','E'),90],['S',L('ج','S'),180],['W',L('غ','W'),270]].forEach(([k,t,deg])=>{const s=windLabel(t,R*.22,{bg:'rgba(255,255,255,0)',color:k==='N'?'#dc2626':'#334155'});const a=deg*Math.PI/180;s.position.set(Math.sin(a)*R*1.25,R*.12,-Math.cos(a)*R*1.25);rg.add(s)});
+  rg.rotation.y=-(st.north||0)*Math.PI/180;
+  const rt=windLabel(L('وردة رياح تخطيطية','Schematic wind rose'),R*.2,{color:'#475569'});rt.position.set(0,R*.12,R*1.55);
+  const holder=new THREE.Group();holder.add(rg);holder.add(rt);const gapE=st.streets&&st.streets.e?(st.roadW||12):0;holder.position.set(st.w/2+gapE+R*1.5,.3,-st.d/2+R*1.2);windG.add(holder)}
+ // approximate zones on the ground
+ const info=$('windInfo');
+ if(showWindZ&&W){const Z=W.zones(windObstacles(),{windDeg:wd,north:st.north||0});
+  const flat=(P,col,op,y)=>{const sh=new THREE.Shape();P.forEach((p,k)=>k?sh.lineTo(p[0],-p[1]):sh.moveTo(p[0],-p[1]));const g=new THREE.ShapeGeometry(sh);g.rotateX(-Math.PI/2);
+   const me=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide}));me.position.y=y;me.renderOrder=5;windG.add(me);
+   const lp=[];P.forEach((p,k)=>{const q=P[(k+1)%P.length];lp.push(p[0],y+.01,p[1],q[0],y+.01,q[1])});const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));
+   const ln=new THREE.LineSegments(lg,new THREE.LineDashedMaterial({color:col,dashSize:1.2,gapSize:.8,transparent:true,opacity:.9}));ln.computeLineDistances();windG.add(ln)};
+  const cen=P=>P.reduce((a,p)=>[a[0]+p[0]/P.length,a[1]+p[1]/P.length],[0,0]),ls=m*.03;
+  // label only the main zones (the legend covers the rest): longest project wakes, strongest gaps
+  const wl=new Set(Z.wakes.filter(z=>!z.ctx).sort((a,b)=>b.len-a.len).slice(0,3)),cl=new Set(Z.channels.slice().sort((a,b)=>b.factor-a.factor).slice(0,3));
+  Z.wakes.forEach(z=>{flat(z.poly,'#475569',z.ctx?.14:.24,.09);if(wl.has(z)){const c=cen(z.poly),s=windLabel(L('ظل رياح (تقريبي)','Wind shadow (approx.)'),ls,{color:'#334155'});s.position.set(c[0],2,c[1]);windG.add(s)}});
+  Z.corners.forEach(z=>flat(z.poly,'#f59e0b',.3,.1));
+  Z.channels.forEach(z=>{flat(z.poly,'#dc2626',.32,.11);if(!cl.has(z))return;const s=windLabel(L(`تسارع ≈×${z.factor} (تقريبي)`,`Speed-up ≈×${z.factor} (approx.)`),ls,{color:'#b91c1c',border:'#dc2626'});s.position.set(z.cx,2.6,z.cz);windG.add(s)});
+  const own=Z.wakes.filter(z=>!z.ctx).length;
+  info.style.display='';info.innerHTML=`<div class="wz-leg"><span><i style="background:rgba(71,85,105,.45)"></i>${L('ظل الرياح خلف الكتل (هواء أهدأ)','Wind shadow behind masses (calmer air)')} — ${own}</span><span><i style="background:rgba(220,38,38,.5)"></i>${L('تسارع بين الكتل (تيار نفقي)','Speed-up between masses (channelling)')} — ${Z.channels.length}</span><span><i style="background:rgba(245,158,11,.55)"></i>${L('تيارات الزوايا حول الكتل العالية','Corner streams around tall masses')} — ${Z.corners.length}</span></div>
+   <b>${L('تقريبية:','Approximate:')}</b> ${L('قواعد مبسطة (ظل الرياح ≈ 2–3.5 × ارتفاع الكتلة، والتسارع بالفجوة الضيقة نسبةً للارتفاع)، مو محاكاة CFD. للمقارنة بين البدائل بس.','rule-of-thumb (wake ≈ 2–3.5 × height, speed-up in gaps narrow for the height), not CFD. For comparing options only.')}`}
+ else if(info)info.style.display='none'}
 $('bWind').onclick=()=>{showWind=!showWind;tg('bWind',showWind);buildWind();if(showWind){const wd=(state.site.wind!==undefined?state.site.wind:315);flash(L(`الرياح السائدة: ${windDirName(wd)} (${wd}°) — تبيّن الأسهم مسارها على الموقع`,`Prevailing Wind: ${windDirName(wd)} (${wd}°) — arrows indicate airflow direction`))}};
+$('bWindZ').onclick=()=>{showWindZ=!showWindZ;tg('bWindZ',showWindZ);buildWind();if(showWindZ)flash(L('مناطق الرياح التقريبية: رمادي = ظل رياح، أحمر = تسارع، برتقالي = تيار زاوية','Approximate wind zones: grey = shadow, red = speed-up, orange = corner streams'))};
 
 // ---- annual shadow heatmap ----
 const shadowHmG=new THREE.Group();S.add(shadowHmG);
