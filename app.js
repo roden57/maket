@@ -503,12 +503,12 @@ function showTab(t){
  }
  setTimeout(fit,0);
 }
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{if(b.dataset.t!=='mod')userTab=b.dataset.t;document.body.classList.remove('insp-closed');showTab(b.dataset.t)});
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{if(b.dataset.t!=='mod'&&b.dataset.t!=='draw')userTab=b.dataset.t;document.body.classList.remove('insp-closed');showTab(b.dataset.t)});
 if($('inspToggle'))$('inspToggle').onclick=()=>{document.body.classList.toggle('insp-closed');setTimeout(()=>{fit();layoutSheet()},220)};
 if(innerWidth<=760)document.body.classList.add('insp-closed');
 function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filter(i=>state.blocks[i]);
  if(!ids.length){tm.style.display='none';if(curTab==='mod')showTab(userTab);box.innerHTML='';lastSelPanel=-1;if(curTab==='mass'&&typeof renderMassStudio==='function')renderMassStudio();return}
- tm.style.display='inline-block';const key=ids.join(',');if(curTab!=='mod'&&curTab!=='facade'&&curTab!=='mass'&&lastSelPanel!==key)showTab('mod');lastSelPanel=key;if(curTab==='mass'&&typeof renderMassStudio==='function')renderMassStudio();
+ tm.style.display='inline-block';const key=ids.join(',');if(curTab!=='mod'&&curTab!=='facade'&&curTab!=='mass'&&!(curTab==='draw'&&tool==='draw')&&lastSelPanel!==key)showTab('mod');lastSelPanel=key;if(curTab==='mass'&&typeof renderMassStudio==='function')renderMassStudio();
  if(ids.length>1){tm.textContent=L('تعديل ('+ids.length+' كتل)','Edit ('+ids.length+' blocks)');
   box.innerHTML=`<div class="grp"><div class="gc">${L('تغيير للكل','Batch Edit')}</div><div class="gb"><div class="fld"><span class="fld-lbl">${L('الوظيفة','Function')}</span><select id="mFn"><option value="__">—</option>${opts(FNS,'__','fns')}</select></div><div class="fld"><span class="fld-lbl">${L('المادة','Material')}</span><select id="mMat"><option value="__">—</option>${opts(MATS,'__','mats')}</select></div></div></div>
   <div class="grp"><div class="gc">${L('الارتفاع','Elevation')}</div><div class="gb"><div class="fld"><span class="fld-lbl">${L('الطوابق للكل','Floors (All)')}</span><div class="stepper"><button class="sm" id="mFm">−1</button><button class="sm" id="mFp">+1</button></div></div><div class="hint">${L('حرّكها معاً بالسحب أو بالأسهم','Drag together or nudge with arrow keys')}</div></div></div>
@@ -1016,9 +1016,9 @@ $('bNames').onclick=()=>{showNames=!showNames;tg('bNames',showNames);renderNames
 $('bDims').onclick=()=>{showDims=!showDims;tg('bDims',showDims)};
 function setColor(m){colorMode=m;massOverlay='none';[['cMat','mat'],['cFn','fn'],['cWhite','white'],['cXray','xray']].forEach(([id,v])=>tg(id,m===v));if(typeof syncMassOverlayUI==='function')syncMassOverlayUI();build();renderNames(true)}
 $('cMat').onclick=()=>setColor('mat');$('cFn').onclick=()=>setColor('fn');$('cWhite').onclick=()=>setColor('white');$('cXray').onclick=()=>setColor('xray');
-function setTool(t){if(typeof cancelPoly==='function'&&polyD&&t!=='draw')cancelPoly();if(typeof clearSnapGuides==='function')clearSnapGuides();tool=t;buildHandles();tg('tCut',t==='cut');if(t==='cut'){mLine.visible=false;flash(L('اسحب خطاً عبر الكتلة لقصها إلى جزأين — الأسهل من وضع المسقط','Drag a line across a mass to split it in two (best in 2D Plan)'))}if(typeof galSync==='function')setTimeout(galSync,0);tg('tSel',t==='select');tg('tDraw',t==='draw');tg('tMeas',t==='meas');R.domElement.style.cursor=t==='select'?'default':'crosshair';
+function setTool(t){setTimeout(()=>{if(typeof syncDrawTab==='function')syncDrawTab()},0);if(typeof cancelPoly==='function'&&polyD&&t!=='draw')cancelPoly();if(typeof clearSnapGuides==='function')clearSnapGuides();tool=t;buildHandles();tg('tCut',t==='cut');if(t==='cut'){mLine.visible=false;flash(L('اسحب خطاً عبر الكتلة لقصها إلى جزأين — الأسهل من وضع المسقط','Drag a line across a mass to split it in two (best in 2D Plan)'))}if(typeof galSync==='function')setTimeout(galSync,0);tg('tSel',t==='select');tg('tDraw',t==='draw');tg('tMeas',t==='meas');R.domElement.style.cursor=t==='select'?'default':'crosshair';
  if(t!=='meas'&&t!=='cal')clearMeas();if(t==='draw')flash($('dShape').value==='poly'?L('مضلع حر: انقر نقاط الشكل واحدة تلو الأخرى، وأغلقه بالنقر على أول نقطة','Polygon: click points on the ground, then click the start point to close'):PROPS[$('dShape').value]?L('انقر على الأرض لوضع العنصر','Click on the ground to place item'):L('اسحب على الأرض لرسم كتلة','Drag on the ground to draw a mass'));if(t==='meas')flash(L('انقر نقطتين لقياس المسافة','Click 2 points to measure distance'))}
-$('tSel').onclick=()=>setTool('select');$('tCut').onclick=()=>setTool(tool==='cut'?'select':'cut');$('tDraw').onclick=()=>toggleDrawMenu();$('tMeas').onclick=()=>setTool('meas');
+$('tSel').onclick=()=>setTool('select');$('tCut').onclick=()=>setTool(tool==='cut'?'select':'cut');$('tDraw').onclick=()=>{if(tool==='draw'&&curTab==='draw'){setTool('select');return}setTool('draw')};$('tMeas').onclick=()=>setTool('meas');
 
 // ---------- draw menu: pick what to draw (sets shape / material / function / floors in one click) ----------
 const DRAW_GROUPS=[['bld','كتل المبنى','Building masses'],['form','أشكال خاصة','Special forms'],['site','الموقع والفراغات الخارجية','Site & outdoor'],['prop','عناصر المقياس','Scale figures']];
@@ -1058,7 +1058,7 @@ const DRAW_GLYPH={
  person:'<circle cx="12" cy="6" r="2.2"/><path d="M12 9v6M8.5 12h7M12 15l-3 5M12 15l3 5"/>',
  car:'<path d="M4 15l2-5h12l2 5v3H4z"/><circle cx="8" cy="18" r="1.4"/><circle cx="16" cy="18" r="1.4"/>'
 };
-function drawItemCol(it){return it.fn&&FNS[it.fn]?FNS[it.fn].c:(MATS[it.mat]?MATS[it.mat].c:'#94a3b8')}
+function drawItemCol(it){const c=it.fn&&FNS[it.fn]?FNS[it.fn].c:(MATS[it.mat]?MATS[it.mat].c:'#94a3b8');return /^#(f[0-9a-f]){3}$/i.test(c)||c.toLowerCase()==='#f4f4f0'?'#64748b':c} // white items: grey outline so the icon stays visible
 function drawItemOn(it){return $('dShape').value===it.shape&&$('dMat').value===it.mat&&($('dFn').value||'')===it.fn}
 let drawPick=null;
 // name for a newly drawn block: the picked menu item, while the draw settings still match it
@@ -1066,10 +1066,20 @@ function drawNm(fallback){return drawPick&&drawItemOn(drawPick)?L(drawPick.ar,dr
 function pickDrawItem(it){
  drawPick=it;
  $('dShape').value=it.shape;$('dMat').value=it.mat;$('dFn').value=it.fn;$('dF').value=it.f;
- closeDrawMenu();setTool('draw');
+ closeDrawMenu();setTool('draw');renderDrawBox();
  const how=it.shape==='poly'?L('انقر نقاط الشكل وأغلقه بالنقر على أول نقطة','click points, then click the first point to close'):PROPS[it.shape]?L('انقر على الأرض لوضعه','click on the ground to place it'):L('اسحب على الأرض للرسم','drag on the ground to draw');
  flash(L(it.ar,it.en)+(FLAT.includes(it.mat)||PROPS[it.shape]?'':' · '+it.f+' '+L('طوابق','floors'))+' — '+how);
 }
+// the draw tool's contextual tab (like «تعديل الكتلة»): ready-made elements + settings, shown while drawing
+function renderDrawBox(){const box=$('drawBox');if(!box)return;
+ box.innerHTML=DRAW_GROUPS.map(([g,ar,en])=>`<div class="dm-gc">${L(ar,en)}</div><div class="dm-grid${g==='bld'?' dm-wide':''}">`+DRAW_ITEMS.map((it,i)=>it.g!==g?'':
+  `<button type="button" class="dm-item${drawItemOn(it)?' on':''}" data-di="${i}"><svg viewBox="0 0 24 24" fill="${FLAT.includes(it.mat)?drawItemCol(it):'none'}" fill-opacity=".35" stroke="${drawItemCol(it)}" stroke-width="1.8" stroke-linejoin="round">${DRAW_GLYPH[FLAT.includes(it.mat)&&it.shape==='box'?'flat':it.shape]||DRAW_GLYPH.box}</svg><span class="dm-t">${L(it.ar,it.en)}${it.sub?`<small>${L(it.sub[0],it.sub[1])}</small>`:''}</span>${g==='bld'?`<span class="dm-f">${it.f}${L('ط','F')}</span>`:''}</button>`).join('')+'</div>').join('');
+ box.querySelectorAll('[data-di]').forEach(b=>{b.onclick=()=>pickDrawItem(DRAW_ITEMS[+b.dataset.di])})}
+function syncDrawTab(){const t=$('tabDraw');if(!t)return;const on=tool==='draw';t.textContent=L('رسم','Draw');
+ if(on){const was=t.style.display!=='none';t.style.display='inline-block';renderDrawBox();if(!was){document.body.classList.remove('insp-closed');showTab('draw');setTimeout(fit,220)}}
+ else{t.style.display='none';if(curTab==='draw')showTab(userTab&&userTab!=='draw'?userTab:'home')}}
+['dShape','dMat','dFn'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',()=>{if(tool==='draw')renderDrawBox()})});
+$('bDrawEnd').onclick=()=>setTool('select');
 function closeDrawMenu(){const m=$('drawMenu');if(m)m.style.display='none';document.removeEventListener('pointerdown',drawMenuOutside,true)}
 function drawMenuOutside(e){const m=$('drawMenu');if(m&&!m.contains(e.target)&&!$('tDraw').contains(e.target))closeDrawMenu()}
 function toggleDrawMenu(){

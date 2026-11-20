@@ -76,6 +76,7 @@
     <button class="tab" data-t="sheet">اللوحات</button>
     <button class="tab" data-t="areas">المساحات</button>
     <button class="tab ctx" data-t="mod" id="tabMod">تعديل الكتلة</button>
+    <button class="tab ctx" data-t="draw" id="tabDraw" style="display:none">رسم</button>
     <button class="tab ctx" data-t="shmod" id="tabShMod">تنسيق اللوحة</button>
   </nav>
   <div class="top-actions">
@@ -173,19 +174,6 @@
 
     <!-- HOME / MODELING -->
     <div class="pane on" id="p_home">
-      <div class="grp">
-        <div class="gc">إعدادات الرسم الجديد</div>
-        <div class="gb">
-          <div class="fld-grid">
-            <div class="fld-stack">الشكل <select id="dShape"></select></div>
-            <div class="fld-stack">المادة <select id="dMat"></select></div>
-          </div>
-          <div class="fld-grid">
-            <div class="fld-stack">التصنيف / الوظيفة <select id="dFn"></select></div>
-            <div class="fld-stack">الطوابق <input type="number" id="dF" min="1" max="50" value="2"></div>
-          </div>
-        </div>
-      </div>
 
       <div class="grp">
         <div class="gc">الدقة والالتقاط</div>
@@ -1150,6 +1138,32 @@
     </div>
 
     <!-- BLOCK INSPECTOR (contextual) -->
+    <div class="pane" id="p_draw">
+      <div class="grp">
+        <div class="gc"><span>ماذا تريد أن ترسم؟</span><span class="hint">اختر ثم ارسم على الأرض</span></div>
+        <div class="gb"><div id="drawBox"></div></div>
+      </div>
+      <div class="grp">
+        <div class="gc">إعدادات الكتلة اللي ترسمها</div>
+        <div class="gb">
+          <div class="fld-grid">
+            <div class="fld-stack">الشكل <select id="dShape"></select></div>
+            <div class="fld-stack">المادة <select id="dMat"></select></div>
+          </div>
+          <div class="fld-grid">
+            <div class="fld-stack">التصنيف / الوظيفة <select id="dFn"></select></div>
+            <div class="fld-stack">الطوابق <input type="number" id="dF" min="1" max="50" value="2"></div>
+          </div>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="gc">طريقة الرسم</div>
+        <div class="gb">
+          <div class="hint" id="drawHow">اسحب على الأرض لرسم كتلة. المضلع الحر: انقر النقاط ثم انقر أول نقطة حتى يتسكّر. Esc يلغي.</div>
+          <button class="big" id="bDrawEnd"><i><svg class="ic"><use href="#i-pointer"/></svg></i>إنهاء الرسم (V)</button>
+        </div>
+      </div>
+    </div>
     <div class="pane" id="p_mod">
       <div id="selBox"></div>
     </div>

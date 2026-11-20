@@ -2241,26 +2241,26 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
   background:#fff;border:1px solid var(--line);border-radius:8px;
   box-shadow:0 10px 30px rgba(15,23,42,.16);
 }
-#drawMenu .dm-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 4px;font-size:13px;color:var(--ink)}
-#drawMenu .dm-x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px}
-#drawMenu .dm-x:hover{background:var(--surface-2);color:var(--ink)}
-#drawMenu .dm-gc{font-size:10.5px;font-weight:600;color:var(--muted);padding:6px 4px 2px}
-#drawMenu .dm-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-#drawMenu .dm-grid.dm-wide{grid-template-columns:1fr}
-#drawMenu .dm-wide .dm-item{min-height:30px;padding:4px 7px}
-#drawMenu .dm-wide .dm-t{flex-direction:row;align-items:baseline;gap:6px;flex-wrap:wrap}
-#drawMenu .dm-item{
+:is(#drawMenu,#drawBox) .dm-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 4px;font-size:13px;color:var(--ink)}
+:is(#drawMenu,#drawBox) .dm-x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px}
+:is(#drawMenu,#drawBox) .dm-x:hover{background:var(--surface-2);color:var(--ink)}
+:is(#drawMenu,#drawBox) .dm-gc{font-size:10.5px;font-weight:600;color:var(--muted);padding:6px 4px 2px}
+:is(#drawMenu,#drawBox) .dm-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+:is(#drawMenu,#drawBox) .dm-grid.dm-wide{grid-template-columns:1fr}
+:is(#drawMenu,#drawBox) .dm-wide .dm-item{min-height:30px;padding:4px 7px}
+:is(#drawMenu,#drawBox) .dm-wide .dm-t{flex-direction:row;align-items:baseline;gap:6px;flex-wrap:wrap}
+:is(#drawMenu,#drawBox) .dm-item{
   display:flex;align-items:center;gap:7px;min-height:34px;padding:5px 7px;
   border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink-2);
   font:inherit;font-size:11.5px;text-align:start;cursor:pointer;transition:background .12s,border-color .12s;
 }
-#drawMenu .dm-item svg{width:20px;height:20px;flex:none}
-#drawMenu .dm-item:hover{background:var(--surface-2);border-color:var(--acc-line)}
-#drawMenu .dm-item.on{background:var(--acc-soft);border-color:var(--acc);color:var(--acc);font-weight:600}
-#drawMenu .dm-t{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
-#drawMenu .dm-t small{font-size:10px;font-weight:400;color:var(--muted)}
-#drawMenu .dm-f{font-family:var(--font-mono);font-size:10px;color:var(--muted);flex:none}
-#drawMenu .dm-foot{font-size:10px;color:var(--muted);padding:6px 4px 0;border-top:1px solid var(--line);margin-top:4px;line-height:1.5}
+:is(#drawMenu,#drawBox) .dm-item svg{width:20px;height:20px;flex:none}
+:is(#drawMenu,#drawBox) .dm-item:hover{background:var(--surface-2);border-color:var(--acc-line)}
+:is(#drawMenu,#drawBox) .dm-item.on{background:var(--acc-soft);border-color:var(--acc);color:var(--acc);font-weight:600}
+:is(#drawMenu,#drawBox) .dm-t{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+:is(#drawMenu,#drawBox) .dm-t small{font-size:10px;font-weight:400;color:var(--muted)}
+:is(#drawMenu,#drawBox) .dm-f{font-family:var(--font-mono);font-size:10px;color:var(--muted);flex:none}
+:is(#drawMenu,#drawBox) .dm-foot{font-size:10px;color:var(--muted);padding:6px 4px 0;border-top:1px solid var(--line);margin-top:4px;line-height:1.5}
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important}
 }
@@ -2296,6 +2296,9 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
 .keys-grid h4{margin:0 0 4px;font-size:12.5px;color:var(--ink-2)}
 .keys-grid .kr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
 kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:#fff;font-family:var(--font-mono);font-size:11.5px;color:var(--ink);text-align:center;direction:ltr;white-space:nowrap}
+/* draw tab in the side panel */
+#drawBox{display:flex;flex-direction:column;gap:2px}
+#drawBox .dm-gc:first-child{padding-top:0}
 </style>
 </head>
 <body>
@@ -2377,6 +2380,7 @@ kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--l
     <button class="tab" data-t="sheet">اللوحات</button>
     <button class="tab" data-t="areas">المساحات</button>
     <button class="tab ctx" data-t="mod" id="tabMod">تعديل الكتلة</button>
+    <button class="tab ctx" data-t="draw" id="tabDraw" style="display:none">رسم</button>
     <button class="tab ctx" data-t="shmod" id="tabShMod">تنسيق اللوحة</button>
   </nav>
   <div class="top-actions">
@@ -2474,19 +2478,6 @@ kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--l
 
     <!-- HOME / MODELING -->
     <div class="pane on" id="p_home">
-      <div class="grp">
-        <div class="gc">إعدادات الرسم الجديد</div>
-        <div class="gb">
-          <div class="fld-grid">
-            <div class="fld-stack">الشكل <select id="dShape"></select></div>
-            <div class="fld-stack">المادة <select id="dMat"></select></div>
-          </div>
-          <div class="fld-grid">
-            <div class="fld-stack">التصنيف / الوظيفة <select id="dFn"></select></div>
-            <div class="fld-stack">الطوابق <input type="number" id="dF" min="1" max="50" value="2"></div>
-          </div>
-        </div>
-      </div>
 
       <div class="grp">
         <div class="gc">الدقة والالتقاط</div>
@@ -3451,6 +3442,32 @@ kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--l
     </div>
 
     <!-- BLOCK INSPECTOR (contextual) -->
+    <div class="pane" id="p_draw">
+      <div class="grp">
+        <div class="gc"><span>ماذا تريد أن ترسم؟</span><span class="hint">اختر ثم ارسم على الأرض</span></div>
+        <div class="gb"><div id="drawBox"></div></div>
+      </div>
+      <div class="grp">
+        <div class="gc">إعدادات الكتلة اللي ترسمها</div>
+        <div class="gb">
+          <div class="fld-grid">
+            <div class="fld-stack">الشكل <select id="dShape"></select></div>
+            <div class="fld-stack">المادة <select id="dMat"></select></div>
+          </div>
+          <div class="fld-grid">
+            <div class="fld-stack">التصنيف / الوظيفة <select id="dFn"></select></div>
+            <div class="fld-stack">الطوابق <input type="number" id="dF" min="1" max="50" value="2"></div>
+          </div>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="gc">طريقة الرسم</div>
+        <div class="gb">
+          <div class="hint" id="drawHow">اسحب على الأرض لرسم كتلة. المضلع الحر: انقر النقاط ثم انقر أول نقطة حتى يتسكّر. Esc يلغي.</div>
+          <button class="big" id="bDrawEnd"><i><svg class="ic"><use href="#i-pointer"/></svg></i>إنهاء الرسم (V)</button>
+        </div>
+      </div>
+    </div>
     <div class="pane" id="p_mod">
       <div id="selBox"></div>
     </div>
@@ -3673,26 +3690,26 @@ kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--l
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="form-ops-logic.js?v=1795182205"></script>
-<script src="context-logic.js?v=1795182205"></script>
-<script src="wind-logic.js?v=1795182205"></script>
-<script src="plan2d-logic.js?v=1795182205"></script>
-<script src="areas-logic.js?v=1795182205"></script>
-<script src="shadow-heatmap-logic.js?v=1795182205"></script>
-<script src="section-logic.js?v=1795182205"></script>
-<script src="site-logic.js?v=1795182205"></script>
-<script src="facade-logic.js?v=1795182205"></script>
-<script src="mass-logic.js?v=1795182205"></script>
-<script src="analysis-studio-logic.js?v=1795182205"></script>
-<script src="code-check-logic.js?v=1795182205"></script>
-<script src="massing-anim-logic.js?v=1795182205"></script>
-<script src="spatial-program-logic.js?v=1795182205"></script>
-<script src="snap-guides-logic.js?v=1795182205"></script>
-<script src="i18n.js?v=1795182205"></script>
-<script src="occupancy-chart.js?v=1795182205"></script>
-<script src="unsaved-logic.js?v=1795182205"></script>
+<script src="form-ops-logic.js?v=1795183087"></script>
+<script src="context-logic.js?v=1795183087"></script>
+<script src="wind-logic.js?v=1795183087"></script>
+<script src="plan2d-logic.js?v=1795183087"></script>
+<script src="areas-logic.js?v=1795183087"></script>
+<script src="shadow-heatmap-logic.js?v=1795183087"></script>
+<script src="section-logic.js?v=1795183087"></script>
+<script src="site-logic.js?v=1795183087"></script>
+<script src="facade-logic.js?v=1795183087"></script>
+<script src="mass-logic.js?v=1795183087"></script>
+<script src="analysis-studio-logic.js?v=1795183087"></script>
+<script src="code-check-logic.js?v=1795183087"></script>
+<script src="massing-anim-logic.js?v=1795183087"></script>
+<script src="spatial-program-logic.js?v=1795183087"></script>
+<script src="snap-guides-logic.js?v=1795183087"></script>
+<script src="i18n.js?v=1795183087"></script>
+<script src="occupancy-chart.js?v=1795183087"></script>
+<script src="unsaved-logic.js?v=1795183087"></script>
 <script>
-(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1795182205';document.body.appendChild(s)}
+(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1795183087';document.body.appendChild(s)}
 if(!q)return go();var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f1f3f5;color:#0f172a;z-index:99;font:600 16px "IBM Plex Sans Arabic",Tajawal,sans-serif';ov.textContent=(window.L?L('جارٍ فتح التصميم…','Opening design…'):'جارٍ فتح التصميم…');document.body.appendChild(ov);
 fetch('https://kwoftzpxtytcgahsgjro.supabase.co/rest/v1/reviews?select=*&id=eq.'+encodeURIComponent(q),{headers:{apikey:'sb_publishable_YHx-GmgyEdNhCqhf98Ds2w_oCZAMMDp'}}).then(function(r){return r.json()}).then(function(j){if(j&&j[0])window.MC3D_REVIEW={name:j[0].name,st:j[0].st,key:q,remote:true};else alert((window.L?L('هذا الرابط غير صالح — يُرجى التحقق من الرابط','Invalid review link — please check the URL'):'هذا الرابط غير صالح — يُرجى التحقق من الرابط'))}).catch(function(){alert((window.L?L('تعذّر فتح التصميم — يُرجى التحقق من الاتصال بالإنترنت','Unable to open design — check your internet connection'):'تعذّر فتح التصميم — يُرجى التحقق من الاتصال بالإنترنت'))}).then(function(){ov.remove();go()})})();
 </script>
