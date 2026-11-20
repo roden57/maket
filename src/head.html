@@ -2301,6 +2301,16 @@ kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--l
 /* draw tab in the side panel */
 #drawBox{display:flex;flex-direction:column;gap:2px}
 #drawBox .dm-gc:first-child{padding-top:0}
+/* Split-screen design comparison */
+#cmpOv{position:absolute;inset:0;pointer-events:none;display:none;z-index:4}
+#cmpOv.on{display:grid}
+#cmpOv .cp{position:relative;border:1px solid #cbd5e1;outline:1px solid #fff;outline-offset:-2px}
+#cmpOv .cp-h{position:absolute;top:54px;inset-inline:8px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;pointer-events:none}
+#cmpOv .cp-h select{pointer-events:auto;font:600 12.5px var(--font-ui);padding:4px 8px;border:1px solid var(--line-strong);border-radius:6px;background:#fff;color:var(--ink);max-width:100%}
+#cmpOv .cp-s{font-size:11.5px;line-height:1.55;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--ink-2)}
+#cmpOv .cp-s b{font-family:var(--font-mono);color:var(--ink)}
+#cmpBar{position:absolute;bottom:14px;right:14px;display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 8px;box-shadow:0 2px 10px rgba(15,23,42,.12);pointer-events:auto;font-size:12px;white-space:nowrap}
+#cmpBar .sm.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 </style>
 </head>
 <body>

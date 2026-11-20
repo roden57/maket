@@ -1171,7 +1171,7 @@ function updMeas(){const a=mp.a,b=mp.b||mp.hover;mDots[0].visible=!!a;if(a)mDots
  if(a&&b){mLine.geometry.setFromPoints([new THREE.Vector3(a.x,.3,a.z),new THREE.Vector3(b.x,.3,b.z)]);mLine.visible=true}else mLine.visible=false}
 function pickPt(s){if(!mp.a||mp.b){mp={a:s,b:null,hover:null}}else{mp.b=s;if(tool==='cal'){$('calBox').style.display='flex';$('calD').focus();flash(L('أدخل المسافة الحقيقية بين النقطتين وانقر تطبيق','Enter the real distance between the two points and click Apply'))}}updMeas()}
 let resizing=null,pending=null,ctxDown=null;
-el.addEventListener('pointerdown',e=>{hideCtx();if(e.button===2){ctxDown={x:e.clientX,y:e.clientY};return}if(e.button!==0)return;down={x:e.clientX,y:e.clientY};const p=gpt(e);
+el.addEventListener('pointerdown',e=>{hideCtx();if(cmp.on)return;if(e.button===2){ctxDown={x:e.clientX,y:e.clientY};return}if(e.button!==0)return;down={x:e.clientX,y:e.clientY};const p=gpt(e);
  if(circPick){const k=circPick;circPick=null;R.domElement.style.cursor='';if(p)setCircPoint(k,p.x,p.z);else circSync();return}
  if(tool==='draw'&&$('dShape').value==='poly'){if(!p)return;polyClick(snapPt(p));return}
  if(tool==='draw'){if(!p)return;O.enabled=false;const s=snapPt(p);drawing={x0:s.x,z0:s.z,x1:s.x,z1:s.z};updPrev();return}
@@ -1286,7 +1286,7 @@ function up(e){
 // context menu
 const ctx=document.createElement('div');ctx.id='ctx';document.body.appendChild(ctx);
 function hideCtx(){ctx.style.display='none'}
-el.addEventListener('contextmenu',e=>{e.preventDefault();if(ctxDown&&Math.hypot(e.clientX-ctxDown.x,e.clientY-ctxDown.y)>5)return;ndc(e);const h=ray.intersectObjects(pickables())[0];if(!h)return;const i=h.object.userData.i;if(!selSet.has(i))setSel(i);refresh();
+el.addEventListener('contextmenu',e=>{e.preventDefault();if(cmp.on)return;if(ctxDown&&Math.hypot(e.clientX-ctxDown.x,e.clientY-ctxDown.y)>5)return;ndc(e);const h=ray.intersectObjects(pickables())[0];if(!h)return;const i=h.object.userData.i;if(!selSet.has(i))setSel(i);refresh();
  const b=state.blocks[i],items=[[L('نسخ (Ctrl+D)','Duplicate (Ctrl+D)'),dup],[L('نسخ للحافظة (Ctrl+C)','Copy (Ctrl+C)'),copySel],[L('⟳ تدوير 90°','⟳ Rotate 90°'),rot90],[L('↻ تدوير 15°','↻ Rotate 15°'),()=>rotFree(15)],[L('إضافة طابق','Add Floor'),()=>floors(1)],[L('حذف طابق','Remove Floor'),()=>floors(-1)],[L('⇋ عكس أفقي','⇋ Mirror X'),()=>mirror('x')],[L('⇵ عكس عمودي','⇵ Mirror Z'),()=>mirror('z')],...(selSet.size===1&&b.f>1?[[L('تقسيم لطوابق','Split to Floors'),split]]:[]),[b.lock?L('فتح القفل','Unlock'):L('قفل','Lock'),toggleLock],[L('إخفاء','Hide'),toggleHide],[L('حذف','Delete'),del]];
  ctx.innerHTML='';items.forEach(([t,f])=>{const d=document.createElement('div');d.textContent=t;d.onclick=()=>{hideCtx();f()};ctx.appendChild(d)});
  ctx.style.display='block';ctx.style.left=Math.min(e.clientX,innerWidth-190)+'px';ctx.style.top=Math.min(e.clientY,innerHeight-340)+'px'});
@@ -1304,6 +1304,7 @@ addEventListener('pointerup',up);addEventListener('pointercancel',up);
 addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.target.isContentEditable)return;
  const ctrl=e.ctrlKey||e.metaKey,K=kbKey(e),k=K.length===1&&/[a-z]/i.test(K)?(e.shiftKey?K.toUpperCase():K.toLowerCase()):e.key;
  if(moveG){if(k==='Escape'){e.preventDefault();endGrab(true)}else if(k==='Enter'){e.preventDefault();endGrab(false)}return}
+ if(cmp.on){if(k==='Escape'){e.preventDefault();closeSplit()}else if(!ctrl){const vk={'1':'iso','2':'top','3':'front','4':'side','5':'eye'}[e.key]||{Digit1:'iso',Digit2:'top',Digit3:'front',Digit4:'side',Digit5:'eye'}[e.code];if(vk){e.preventDefault();view(vk)}}return}
  if(k==='?'||e.key==='؟'||(e.code==='Slash'&&e.shiftKey)||k==='F1'){e.preventDefault();openKeys();return}
  if($('modal').style.display==='flex'){if(k==='Escape')$('modal').style.display='none';return}
  if(polyD){if(k==='Enter'){e.preventDefault();finishPoly();return}if(k==='Escape'){cancelPoly();return}if(k==='Backspace'){e.preventDefault();polyD.pts.pop();if(!polyD.pts.length)cancelPoly();else updPoly();return}}
@@ -2064,6 +2065,54 @@ $('qKeys').onclick=openKeys;$('bKeysHelp').onclick=openKeys;
 function planItems(){return state.blocks.map((b,i)=>({b,i})).filter(({b})=>!b.hidden).map(({b,i})=>{const [w,d]=b.shape==='riwaq'?[b.w,b.d]:loc(b);
  return {code:'B'+String(i+1).padStart(2,'0'),label:b.name,kind:isProp(b)?'prop':isFlat(b)?'flat':b.mat==='context'?'ctx':'own',rings:footprint(b),frame:{x:b.x,z:b.z,w,d,rot:(b.shape==='riwaq'?0:rotOf(b))+(b.rot||0)},floors:b.f,top:b.y0+bh(b)}})}
 function planSVG(){const P=MC3D_PLAN2D.build({site:state.site,items:planItems()});return MC3D_PLAN2D.toSVG(P,{scale:MC3D_PLAN2D.fitScale(P),title:(state.meta&&state.meta.title)||curName})}
+
+// ================= SPLIT-SCREEN DESIGN COMPARISON (rail button «مقارنة») =================
+// 2–4 views side by side, one saved design each, all seen through the same camera (orbit / zoom / views stay in sync).
+// Each view has its own scene built with makeBlock() while `state` is swapped to that design. Editing is paused meanwhile.
+const cmp={on:false,n:2,panes:[]};
+function cmpRects(n,W,H){const cols=n===4?2:n,rows=n===4?2:1,pw=W/cols,ph=H/rows;return Array.from({length:n},(_,i)=>{const c=i%cols,r=Math.floor(i/cols);return {x:Math.round(W-(c+1)*pw),y:Math.round(r*ph),w:Math.round(pw),h:Math.round(ph)}})}
+function cmpDispose(sc){if(!sc)return;sc.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material&&o!==cmp._plinthKeep)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());if(o.isLight&&o.shadow&&o.shadow.map)o.shadow.map.dispose()})}
+function cmpState(name){return name===curName?state:(designs[name]?normState(clone(designs[name])):null)}
+function cmpBuild(name){const st=cmpState(name);if(!st)return null;const keep={state,sel,selSet};state=st;sel=-1;selSet=new Set();let sc,stats;
+ try{sc=new THREE.Scene();sc.background=S.background&&S.background.isColor?S.background.clone():new THREE.Color('#eef1f4');
+  const h2=new THREE.HemisphereLight();h2.copy(hemi);sc.add(h2);const s2=sun.clone();sc.add(s2);sc.add(s2.target);
+  const w=st.site.w,d=st.site.d,m=Math.max(w,d);
+  const pl=new THREE.Mesh(new THREE.BoxGeometry(w+m*.12,1.2,d+m*.12),new THREE.MeshLambertMaterial({color:'#cfd5dd'}));pl.position.y=-.62;pl.receiveShadow=true;sc.add(pl);
+  const sp=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshLambertMaterial({color:'#f8fafc'}));sp.rotation.x=-Math.PI/2;sp.position.y=.02;sp.receiveShadow=true;sc.add(sp);
+  const ol=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([[-w/2,-d/2],[w/2,-d/2],[w/2,d/2],[-w/2,d/2]].map(([x,z])=>new THREE.Vector3(x,.06,z))),new THREE.LineBasicMaterial({color:'#94a3b8'}));sc.add(ol);
+  st.blocks.forEach((b,i)=>{if(b.hidden)return;try{const [g]=makeBlock(b,i);sc.add(g)}catch(e){}});
+  stats=computeStats(st)}
+ finally{state=keep.state;sel=keep.sel;selSet=keep.selSet}
+ return {name,sc,stats,main:!!st.main}}
+function cmpLabel(i){const pn=cmp.panes[i],box=$('cmpOv').children[i];if(!box)return;const u2=L('م²','m²'),um=L('م','m'),s=pn&&pn.stats;
+ const names=Object.keys(designs);if(!names.includes(curName))names.unshift(curName);
+ box.innerHTML=`<div class="cp-h"><select data-cp="${i}">${names.map(k=>`<option value="${k.replace(/"/g,'&quot;')}"${pn&&pn.name===k?' selected':''}>${(designs[k]&&designs[k].main)||(k===curName&&state.main)?'⭐ ':''}${k.replace(/</g,'&lt;')}</option>`).join('')}</select>`+
+  (s?`<div class="cp-s">${L('المساحة الطابقية','GFA')} <b>${Math.round(s.gfa).toLocaleString('en')}</b> ${u2} · ${L('التغطية','Coverage')} <b>${(s.cov*100).toFixed(0)}%</b> · FAR <b>${s.far.toFixed(2)}</b><br>${L('أعلى ارتفاع','Max height')} <b>${s.hmax.toFixed(1)}</b> ${um} · ${L('الكتل','Masses')} <b>${s.n}</b></div>`:'')+'</div>';
+ box.querySelector('select').onchange=e=>{const old=cmp.panes[i];cmp.panes[i]=cmpBuild(e.target.value);if(old)cmpDispose(old.sc);cmpLabel(i)}}
+function cmpLayout(){const ov=$('cmpOv'),n=cmp.n;ov.style.gridTemplateColumns=`repeat(${n===4?2:n},1fr)`;ov.style.gridTemplateRows=n===4?'1fr 1fr':'1fr';
+ ov.innerHTML=Array.from({length:n},()=>'<div class="cp"></div>').join('')+`<div id="cmpBar"><span>${L('عدد الشاشات','Views')}</span>${[2,3,4].map(k=>`<button class="sm${k===n?' on':''}" data-cn="${k}">${k}</button>`).join('')}<button class="sm" id="cmpX" title="${L('الكاميرا موحّدة بين الشاشات · 1–5 للزوايا · Esc للخروج','Linked camera · 1–5 views · Esc to exit')}">✕ ${L('إنهاء','Exit')}</button></div>`;
+ ov.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>cmpSetN(+b.dataset.cn));$('cmpX').onclick=closeSplit;
+ for(let i=0;i<n;i++)cmpLabel(i)}
+function cmpFrame(){view('iso',0)}
+function cmpSetN(n){const names=Object.keys(designs);if(!names.includes(curName))names.unshift(curName);n=Math.max(2,Math.min(4,n));
+ while(cmp.panes.length<n){const used=new Set(cmp.panes.map(p=>p&&p.name));const nm=names.find(k=>!used.has(k))||names[cmp.panes.length%names.length];cmp.panes.push(cmpBuild(nm))}
+ while(cmp.panes.length>n){const p=cmp.panes.pop();if(p)cmpDispose(p.sc)}cmp.n=n;cmpLayout();cmpFrame()}
+function openSplit(){const names=Object.keys(designs).filter(k=>k!==curName);if(!names.length)return flash(L('تحتاج تصميمين محفوظين على الأقل للمقارنة','Save at least two designs to compare'));
+ if(typeof setTool==='function')setTool('select');clearSel();refresh();designs[curName]=clone(state);
+ cmp.on=true;cmp.panes=[];tg('tCmp',true);['names','pins','lab'].forEach(id=>{const e=$(id);if(e)e.style.visibility='hidden'});
+ if(!$('cmpOv')){const ov=document.createElement('div');ov.id='cmpOv';el.appendChild(ov)}$('cmpOv').classList.add('on');
+ cmpSetN(Math.min(Object.keys(designs).length,cmp.n||2));flash(L('وضع المقارنة: اختر التصميم أعلى كل شاشة — التعديل متوقف لحد ما تطلع (Esc)','Compare mode: pick a design at the top of each view — editing paused until you exit (Esc)'))}
+function closeSplit(){if(!cmp.on)return;cmp.on=false;cmp.panes.forEach(p=>p&&cmpDispose(p.sc));cmp.panes=[];tg('tCmp',false);
+ const ov=$('cmpOv');if(ov){ov.classList.remove('on');ov.innerHTML=''}['names','pins','lab'].forEach(id=>{const e=$(id);if(e)e.style.visibility=''});fit();build()}
+function drawCompare(){const W=el.clientWidth,H=el.clientHeight;if(!W||!H)return;const P=cmpRects(cmp.n,W,H),isO=C===camO;
+ const k={a:camP.aspect,f:camP.fov,l:camO.left,r:camO.right,t:camO.top,b:camO.bottom},A0=1.2;R.setScissorTest(true);
+ // a view narrower than A0 widens its field of view so it shows at least what an A0-wide view would (the whole design stays in frame)
+ P.forEach((r,i)=>{const pn=cmp.panes[i],a=r.w/r.h;R.setViewport(r.x,H-r.y-r.h,r.w,r.h);R.setScissor(r.x,H-r.y-r.h,r.w,r.h);
+  if(isO){const hh=(k.t-k.b)/2,hw=a<A0?hh*A0:hh*a,hv=a<A0?hw/a:hh;camO.left=-hw;camO.right=hw;camO.top=hv;camO.bottom=-hv;camO.updateProjectionMatrix()}
+  else{camP.aspect=a;const t=Math.tan(k.f*Math.PI/360);camP.fov=a<A0?2*Math.atan(t*A0/a)*180/Math.PI:k.f;camP.updateProjectionMatrix()}
+  if(pn)R.render(pn.sc,C);else{R.setClearColor('#e2e8f0');R.clear()}});
+ R.setScissorTest(false);R.setViewport(0,0,W,H);camP.aspect=k.a;camP.fov=k.f;camP.updateProjectionMatrix();camO.left=k.l;camO.right=k.r;camO.top=k.t;camO.bottom=k.b;camO.updateProjectionMatrix()}
+$('tCmp').onclick=()=>cmp.on?closeSplit():openSplit();
 
 // ================= EXPORT 3D (OBJ + DAE in ZIP) =================
 const scriptP={};function loadScript(src){if(!scriptP[src])scriptP[src]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>{delete scriptP[src];rej()};document.head.appendChild(s)});return scriptP[src]}
@@ -4070,5 +4119,5 @@ syncLangUI();
 window.addEventListener('beforeunload',e=>{if(!unsavedTracker)return;unsavedTracker.handleBeforeUnload(e,state,curName,hasActiveCanvasGesture())});
 let lastT=0;(function loop(t){requestAnimationFrame(loop);
  if(playing&&t-lastT>60){lastT=t;state.sun.hour+=0.1;if(state.sun.hour>19.5){state.sun.hour=5.5}setSun()}
- if(MA.play)maFrame(t);else if(spin)spinStep(t);else O.update();draw(C);if(MA.play)maComp();labels();if(typeof pinsUpd==='function')pinsUpd()})(0);
+ if(MA.play)maFrame(t);else if(spin)spinStep(t);else O.update();if(cmp.on)drawCompare();else draw(C);if(MA.play)maComp();if(!cmp.on)labels();if(typeof pinsUpd==='function')pinsUpd()})(0);
 
