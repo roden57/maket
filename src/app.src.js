@@ -47,7 +47,7 @@ if(REV){const mem={},rk=k=>'mc3d_rv_'+REV.key+'_'+k,pk=['mc3d_cur','mc3d_rq','mc
 const RQ=Object.assign({tex:false,ao:false,sky:false},LS.get('mc3d_rq')||{});
 function norm(b){const r=Object.assign({name:'كتلة',shape:'box',mat:'brick',fn:'',x:0,z:0,w:10,d:10,f:2,y0:0,ry:0,rot:0},b);if(r.fn&&LEGACY_FN[r.fn])r.fn=LEGACY_FN[r.fn];if(r.fn&&!FNS[r.fn])r.fn='';return r}
 function ensureIds(s){const seen=new Set();let n=0;(s.blocks||[]).forEach(b=>{if(!b.id||seen.has(b.id)){while(seen.has('k'+n)||(s.blocks||[]).some(o=>o!==b&&o.id==='k'+n))n++;b.id='k'+n}seen.add(b.id)});return s}
-function normState(s){ensureIds(s);const rawSite=s.site||{};
+function normState(s){registerProgramFns(s);ensureIds(s);const rawSite=s.site||{};
  const baseSite={w:100,d:100,sb:0,sbMode:'uniform',sbN:0,sbS:0,sbE:0,sbW:0,north:0,roadW:12,maxCovPct:60,maxFar:2.4,streets:{n:false,s:true,e:false,w:false},city:'baghdad',lat:33.31,lon:44.36,tz:3,wind:315};
  s.site=window.MC3D_SITE?MC3D_SITE.normalizeSiteConfig(Object.assign({},baseSite,rawSite)):Object.assign(baseSite,rawSite);
  s.meta=Object.assign({title:'مشروع معماري',designer:'',org:'',location:''},s.meta||{});
@@ -326,7 +326,7 @@ function areaOf(b){if(!counts(b))return 0;const [w,d]=loc(b);let f=1;const t1=Ma
  switch(b.shape){case 'cyl':f=Math.PI/4;break;case 'ring':f=Math.PI/4*.64;break;case 'tri':f=.5;break;case 'L':f=(w*d-(w-t1)*(d-t1))/(w*d);break;case 'U':f=(w*d-(w-2*t2)*(d-t2))/(w*d);break;case 'court':{const t=courtT(b);f=(w*d-(w-2*t)*(d-2*t))/(w*d);break}}
  return w*d*f}
 let lastFp=0,lastGfa=0;
-function stats(){if(window.MC3D_PROG_READY)syncFnTargets();const st=state.site,bl=state.blocks.filter(counts);let fp=0;const W=st.w,D=st.d;
+function stats(){if(window.MC3D_PROG_READY)syncFnTargets();if(typeof renderSpatialProgram==='function')renderSpatialProgram();const st=state.site,bl=state.blocks.filter(counts);let fp=0;const W=st.w,D=st.d;
  const grounded=bl.filter(b=>b.y0<1);
  for(let x=-W/2+.5;x<W/2;x+=1)for(let z=-D/2+.5;z<D/2;z+=1){for(const b of grounded){if(inside(b,x,z)){fp+=1;break}}}
  const by={};Object.keys(FNS).forEach(k=>by[k]=0);let gfa=0;bl.forEach(b=>{const a=areaOf(b)*b.f;gfa+=a;by[b.fn||'']+=a});
@@ -3345,6 +3345,54 @@ if(REV){document.body.classList.add('revmode');const bar=document.createElement(
  $('cloudSt').style.display='none';$('rvFn').onclick=()=>{setColor(colorMode==='fn'?'mat':'fn');tg('rvFn',colorMode==='fn')};if(colorMode!=='fn')setColor('fn');tg('rvFn',true);setTimeout(()=>{fit();flash(L('هذا تصميم "'+REV.name+'" للمراجعة — انقر على أي كتلة لإضافة ملاحظة','Viewing "'+REV.name+'" for review — click any block to add a note'))},800)}
 setTimeout(()=>{pinsBuild();notesBadge()},500);
 {const _r=refresh;refresh=function(){_r.apply(this,arguments);if(typeof pinsBuild==='function'){pinsBuild();notesBadge()}}}
+
+// ================= SPATIAL PROGRAM & AREA SCHEDULE (sidebar of the Modelling tab) =================
+// state.spatialProgram = [{id,fn,name,color,targetArea,custom?}] — a gross m² target per function, saved with the design
+// (and in every JSON export, since it is part of state). Built area per function = areaOf(b) × floors over the blocks
+// that count toward floor area — the same rule computeStats() uses for GFA / FAR. Logic + tests: spatial-program-logic.js.
+// User-added functions (custom:true) are registered into FNS so they appear in every function list and colour mode.
+function registerProgramFns(s){
+ const had=registerProgramFns.k||(registerProgramFns.k=new Set()),now=new Set();
+ (s&&Array.isArray(s.spatialProgram)?s.spatialProgram:[]).forEach(p=>{if(p&&p.custom&&p.id){FNS[p.id]=Object.assign(FNS[p.id]||{t:0},{n:String(p.name||p.id),c:p.color||'#94A3B8'});now.add(p.id)}});
+ had.forEach(k=>{if(!now.has(k))delete FNS[k]});registerProgramFns.k=now;
+}
+function spEnsure(){
+ if(!window.MC3D_SPROG)return null;
+ if(!Array.isArray(state.spatialProgram)||!state.spatialProgram.length)state.spatialProgram=spDefaults();
+ state.spatialProgram=MC3D_SPROG.normalizeProgram(state.spatialProgram);
+ return state.spatialProgram;
+}
+// targets for the built-in functions from the functional program (net) divided by its efficiency
+function spDefaults(){
+ if(window.MC3D_PROG_READY)syncFnTargets();
+ const custom=registerProgramFns.k||new Set();
+ return MC3D_SPROG.defaultProgram(Object.keys(FNS).filter(k=>k&&!custom.has(k)).map(k=>({key:k,name:FNS[k].n,color:FNS[k].c,net:FNS[k].t||0})),(state.prog&&state.prog.eff)||.8);
+}
+function spRefreshFnLists(){if($('dFn'))$('dFn').innerHTML=opts(FNS,$('dFn').value||'','fns');if(typeof panel==='function')panel()}
+var SP_COL={under:'#2563eb',ok:'#16a34a',over:'#dc2626',none:'#cbd5e1'};
+function renderSpatialProgram(){
+ const box=$('spList');if(!box||!window.MC3D_SPROG||!state||!SP_COL)return;
+ if(box.contains(document.activeElement))return; // never redraw under the cursor while a number is being typed
+ const prog=spEnsure();if(!prog)return;
+ const esc=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+ const r=MC3D_SPROG.computeStatus({blocks:state.blocks,program:prog,area:areaOf,counts}),u2=L('م²','m²'),fmt=v=>Math.round(v).toLocaleString('en');
+ const tip={under:L('أقل من المطلوب','Below target'),ok:L('مطابق (±5%)','On target (±5%)'),over:L('أكثر من المطلوب','Above target'),none:''};
+ box.innerHTML=r.rows.map(x=>{const w=Math.min(100,x.pct||0),nm=x.custom?`<input class="sp-name" data-n="${x.id}" value="${esc(x.name)}" aria-label="${L('اسم الوظيفة','Function name')}">`:`<span class="sp-nm">${esc(dn('fns',x.fn,x.name))}</span>`;
+  return `<div class="sp-row" title="${tip[x.status]}"><div class="sp-top"><span class="sw" style="background:${x.color}"></span>${nm}<input type="number" class="sp-t" data-t="${x.id}" min="0" step="10" value="${x.targetArea}" aria-label="${L('المساحة المطلوبة','Target area')}">${x.custom?`<button type="button" class="sp-del" data-d="${x.id}" title="${L('حذف الوظيفة (انقر مرتين)','Delete function (click twice)')}">✕</button>`:''}</div>
+  <div class="sp-bar"><i style="width:${w}%;background:${SP_COL[x.status]}"></i></div>
+  <div class="sp-nums"><span>${fmt(x.built)} / ${fmt(x.targetArea)} ${u2}${x.blocks?` · ${x.blocks} ${L('كتل','blocks')}`:''}</span><span class="sp-pct" style="color:${SP_COL[x.status]}">${x.targetArea?Math.round(x.pct)+'%':'—'}</span></div></div>`}).join('')+
+  (r.unassigned.built?`<div class="sp-row sp-un">${L('مرسوم بدون وظيفة بالبرنامج','Drawn with no function in the program')}: ${fmt(r.unassigned.built)} ${u2} (${r.unassigned.blocks} ${L('كتل','blocks')})</div>`:'');
+ $('spTotal').innerHTML=`<span>${L('الإجمالي','Total')}</span><b>${fmt(r.totals.built)} / ${fmt(r.totals.target)} ${u2}</b><span style="color:${SP_COL[r.totals.status]};font-weight:700">${r.totals.target?Math.round(r.totals.pct)+'%':'—'}</span>`;
+ const find=id=>prog.find(p=>p.id===id);
+ box.querySelectorAll('[data-t]').forEach(inp=>{inp.onchange=()=>{const p=find(inp.dataset.t),v=parseFloat(inp.value);if(!p||!(v>=0))return;snap(true);p.targetArea=Math.round(v);save();inp.blur();renderSpatialProgram()};inp.onkeydown=e=>{if(e.key==='Enter')inp.blur()}});
+ box.querySelectorAll('[data-n]').forEach(inp=>{inp.onchange=()=>{const p=find(inp.dataset.n),v=inp.value.trim();if(!p||!v)return;snap(true);p.name=v.slice(0,60);registerProgramFns(state);save();inp.blur();spRefreshFnLists();renderSpatialProgram()};inp.onkeydown=e=>{if(e.key==='Enter')inp.blur()}});
+ box.querySelectorAll('[data-d]').forEach(b=>{b.onclick=e=>arm(e.currentTarget,()=>{const id=b.dataset.d;snap(true);state.spatialProgram=prog.filter(p=>p.id!==id);state.blocks.forEach(x=>{if(x.fn===id)x.fn=''});registerProgramFns(state);spRefreshFnLists();refresh();flash(L('حُذفت الوظيفة — كتلها صارت بدون وظيفة','Function deleted — its blocks have no function now'))})});
+}
+if($('spAddBtn'))$('spAddBtn').onclick=()=>{const name=$('spNewName').value.trim();if(!name)return flash(L('اكتب اسم الوظيفة','Type the function name'));const prog=spEnsure();if(!prog)return;
+ const c=MC3D_SPROG.newCustom(prog,name);c.targetArea=Math.max(0,Math.round(parseFloat($('spNewArea').value)||0));snap(true);prog.push(c);registerProgramFns(state);spRefreshFnLists();save();
+ $('spNewName').value='';$('spNewArea').value='';renderSpatialProgram();flash(L(`أُضيفت «${name}» — اختارها من قائمة الوظيفة للكتل`,`Added “${name}” — pick it in a block's function list`))};
+if($('spNewName'))$('spNewName').onkeydown=e=>{if(e.key==='Enter')$('spAddBtn').click()};
+if($('spReset'))$('spReset').onclick=e=>arm(e.currentTarget,()=>{const prog=spEnsure();if(!prog)return;const def=spDefaults();snap(true);prog.forEach(p=>{if(p.custom)return;const d=def.find(x=>x.id===p.id);if(d)p.targetArea=d.targetArea});save();renderSpatialProgram();flash(L('رجعت المساحات المطلوبة من البرنامج الوظيفي','Targets reset from the functional program'))});
 
 // ================= FUNCTIONAL PROGRAM ALLOCATION =================
 const PROG_PRESETS={
