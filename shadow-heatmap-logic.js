@@ -127,6 +127,15 @@
     return !!(b && FLAT_MATS[b.mat]);
   }
 
+  // massing form operations (courtyard / step-backs / chamfer / sloped roof): form-ops-logic.js
+  let formReq = null;
+  function FORM() {
+    const g = typeof globalThis !== 'undefined' ? globalThis.MC3D_FORM : null;
+    if (g) return g;
+    if (formReq === null) { try { formReq = typeof require === 'function' ? require('./form-ops-logic.js') : false; } catch (e) { formReq = false; } }
+    return formReq || null;
+  }
+
   function isBlockProp(b) {
     return !!(b && PROP_SHAPES[b.shape]);
   }
@@ -140,7 +149,9 @@
     if (isBlockFlat(b)) return b.mat === 'asphalt' ? 0.1 : 0.3;
     if (b.shape === 'riwaq') return Math.max(3, (b.f || 1) * floorH - 0.5);
     const rh = (b.shape === 'gable' || b.shape === 'shed') ? Math.max(0.5, b.rh === undefined ? 3 : b.rh) : 0;
-    return (b.f || 1) * floorH + rh;
+    const F = b.form ? FORM() : null;
+    const fr = F && F.has(b) ? F.roofRise(b, floorH) : 0;
+    return (b.f || 1) * floorH + rh + fr;
   }
 
   function blockRotDeg(b) {
@@ -211,8 +222,10 @@
       (b.shape === 'box' || !b.shape || b.shape === 'car' || b.shape === 'person') &&
       Math.abs(sinA) < 1e-6
     );
-    const isOBB = (b.shape === 'box' || !b.shape || b.shape === 'car' || b.shape === 'person');
-    const isVerticalPrism = (
+    const F = b.form ? FORM() : null;
+    const formSolid = F && F.has(b) ? F.solid(b, fh) : null;
+    const isOBB = !formSolid && (b.shape === 'box' || !b.shape || b.shape === 'car' || b.shape === 'person');
+    const isVerticalPrism = !formSolid && (
       b.shape === 'box' || !b.shape || b.shape === 'cyl' || b.shape === 'tri' ||
       b.shape === 'L' || b.shape === 'U' || b.shape === 'ring' || b.shape === 'court' ||
       b.shape === 'poly'
@@ -242,11 +255,13 @@
       isAxisBox,
       isOBB,
       isVerticalPrism,
+      formSolid,
       groundedSolid
     };
   }
 
   function insidePlanLocal(pb, lx, lz) {
+    if (pb.formSolid) return pb.formSolid.insidePlan0(lx, lz);
     const W = pb.W, D = pb.D;
     if (Math.abs(lx) > W || Math.abs(lz) > D) return false;
     switch (pb.shape) {
@@ -279,6 +294,7 @@
 
   function insideBlock3D(pb, wx, wy, wz) {
     if (wy < pb.y0 || wy > pb.y1) return false;
+    if (pb.formSolid) return pb.formSolid.inside3D(wx, wy, wz);
     const u = wx - pb.x;
     const v = wz - pb.z;
     const lx = u * pb.cosA + v * pb.sinA;

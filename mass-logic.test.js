@@ -84,3 +84,13 @@ test('computes overlay colors for height, svr, daylight, and issues modes', () =
   assert.notEqual(cH1, cH2);
   assert.equal(MASS.getMassOverlayColor(analysis.items[0], 'issues', analysis), '#10b981');
 });
+
+test('formed box: GFA, volume and height follow the courtyard, step-backs and sloped roof', () => {
+  const plain = MASS.analyzeBlockMass({ id: 'p', shape: 'box', w: 40, d: 30, f: 4 }, 0, 4);
+  const formed = MASS.analyzeBlockMass({ id: 'f', shape: 'box', w: 40, d: 30, f: 4,
+    form: { court: { w: 10, d: 10 }, steps: [{ at: 2, f: 5 }], slope: { a: 20, dir: 'f' } } }, 0, 4);
+  assert.equal(formed.gfa, 2 * 1100 + 2 * (40 * 25 - 100));
+  assert.ok(formed.volume < plain.volume + 40 * 25 * 5);
+  assert.ok(formed.height > plain.height);
+  assert.ok(formed.daylightPct > plain.daylightPct);
+});

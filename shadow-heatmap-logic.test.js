@@ -105,3 +105,20 @@ test('sampleColorRamp and rampCssGradient produce valid outputs', () => {
   assert.ok(cool.every(n => n >= 0 && n <= 255));
   assert.ok(rampCssGradient('thermal').startsWith('linear-gradient'));
 });
+
+test('formed blocks: the courtyard floor is open ground and a step-back casts less shadow', () => {
+  const site = { w: 100, d: 100, lat: 33.31, lon: 44.36, tz: 3, north: 0 };
+  const court = computeAnnualShadowHeatmap({ site, fh: 4, blocks: [
+    { shape: 'box', mat: 'stone', x: 0, z: 0, w: 40, d: 40, f: 3, y0: 0, form: { court: { w: 20, d: 20 } } }
+  ] });
+  const mid = probeHeatmapAt(court, 0, 0);
+  assert.equal(mid.inBuilding, false); // open courtyard, not a roof
+  assert.ok(mid.ratio > 0 && mid.ratio < 1);
+  assert.equal(probeHeatmapAt(court, 15, 15).inBuilding, true);
+
+  const tall = { shape: 'box', mat: 'stone', x: 0, z: 0, w: 20, d: 20, f: 8, y0: 0 };
+  const plain = computeAnnualShadowHeatmap({ site, fh: 4, blocks: [tall] });
+  const stepped = computeAnnualShadowHeatmap({ site, fh: 4, blocks: [Object.assign({}, tall, { form: { steps: [{ at: 2, b: 8 }] } })] });
+  const p = probeHeatmapAt(plain, 0, -14), s = probeHeatmapAt(stepped, 0, -14);
+  assert.ok(s.ratio < p.ratio, `stepped ${s.ratio} < plain ${p.ratio}`);
+});

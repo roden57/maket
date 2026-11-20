@@ -61,3 +61,8 @@ test('a function with no target but drawn area counts as over; empty one as none
   assert.equal(r.rows[0].status, 'over');
   assert.equal(r.rows[1].status, 'none');
 });
+
+test('computeStatus uses gfa(b) when given (formed blocks)', () => {
+  const r = SP.computeStatus({ blocks: [box({ f: 3 })], program: prog, area: b => b.w * b.d, gfa: () => 250, counts: () => true });
+  assert.equal(r.rows.find(x => x.fn === 'main').built, 250);
+});

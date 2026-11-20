@@ -247,7 +247,21 @@ function loc(b){return (rotOf(b)%180===0)?[b.w,b.d]:[b.d,b.w]}
 function polyPts(b){if(!b.pts||b.pts.length<3)return null;let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;b.pts.forEach(([x,z])=>{x0=Math.min(x0,x);x1=Math.max(x1,x);z0=Math.min(z0,z);z1=Math.max(z1,z)});const pw=(x1-x0)||1,pd=(z1-z0)||1,[w,d]=loc(b);return b.pts.map(([x,z])=>[(x-(x0+x1)/2)*w/pw,(z-(z0+z1)/2)*d/pd])}
 function pip(pts,x,z){let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const [xi,zi]=pts[i],[xj,zj]=pts[j];if(((zi>z)!==(zj>z))&&(x<(xj-xi)*(z-zi)/(zj-zi)+xi))c=!c}return c}
 function polyArea(pts){let a=0;for(let i=0,j=pts.length-1;i<pts.length;j=i++)a+=(pts[j][0]+pts[i][0])*(pts[j][1]-pts[i][1]);return Math.abs(a/2)}
-function geom(b,h){const [w,d]=loc(b),W=w/2,D=d/2;let g;
+// massing form operations (courtyard void, step-backs, chamfer, sloped roof) on box blocks — logic in form-ops-logic.js
+const hasForm=b=>!!(b&&b.shape==='box'&&b.form&&window.MC3D_FORM&&MC3D_FORM.has(b));
+function mergeGeos(list){if(list.length===1)return list[0];const out=new THREE.BufferGeometry();
+ [['position',3],['normal',3],['uv',2]].forEach(([n,it])=>{let len=0;list.forEach(g=>len+=g.attributes.position.count*it);const arr=new Float32Array(len);let o=0;
+  list.forEach(g=>{const a=g.attributes[n],c=g.attributes.position.count*it;if(a)arr.set(a.array.subarray(0,c),o);o+=c});out.setAttribute(n,new THREE.BufferAttribute(arr,it))});
+ list.forEach(g=>g.dispose());return out}
+function formGeom(b,h){const T=MC3D_FORM.tiers(b,state.fh),rf=MC3D_FORM.roof(b,state.fh),parts=[];
+ // shape coords are (x,-z); r128 ExtrudeGeometry only fixes hole winding when it flips the outline, so set it here: outline CCW, holes CW
+ const path=(P,o,cw)=>{let Q=P.map(p=>[p[0],-p[1]]),a=0;for(let i=0,j=Q.length-1;i<Q.length;j=i++)a+=(Q[j][0]-Q[i][0])*(Q[j][1]+Q[i][1]);if((a>0)!==cw)Q=Q.reverse();Q.forEach((p,k)=>k?o.lineTo(p[0],p[1]):o.moveTo(p[0],p[1]));return o};
+ T.forEach((t,i)=>{const th=t.y1-t.y0,sh=path(t.outer,new THREE.Shape(),false);if(t.hole)sh.holes.push(path(t.hole,new THREE.Path(),true));
+  const g=new THREE.ExtrudeGeometry(sh,{depth:th,bevelEnabled:false});g.rotateX(-Math.PI/2);
+  if(rf&&i===T.length-1){const pos=g.attributes.position;for(let k=0;k<pos.count;k++)if(pos.getY(k)>th-1e-4)pos.setY(k,th+rf.rise*MC3D_FORM.roofT(rf,pos.getX(k),pos.getZ(k)));pos.needsUpdate=true;g.computeVertexNormals()}
+  g.translate(0,t.y0-h/2,0);parts.push(g)});
+ return mergeGeos(parts)}
+function geom(b,h){if(hasForm(b))return formGeom(b,h);const [w,d]=loc(b),W=w/2,D=d/2;let g;
  switch(b.shape){
  case 'cyl':g=new THREE.CylinderGeometry(W,W,h,40);g.scale(1,1,d/w);break;
  case 'tri':g=extr([[-W,-D],[W,-D],[-W,D]],h);break;
@@ -266,7 +280,7 @@ function geom(b,h){const [w,d]=loc(b),W=w/2,D=d/2;let g;
 const RECTISH=['box','court','gate','gable','shed'];
 const courtT=b=>{const [w,d]=loc(b);return Math.max(1,Math.min(b.t||8,Math.min(w,d)/2-1))};
 const gateG=b=>{const [w]=loc(b);return [Math.max(1,Math.min(b.gw||6,w-2)),Math.max(1,Math.min((b.gf||1)*state.fh,b.f*state.fh-1))]};
-const roofH=b=>(b.shape==='gable'||b.shape==='shed')?Math.max(.5,b.rh===undefined?3:b.rh):0;
+const roofH=b=>(b.shape==='gable'||b.shape==='shed')?Math.max(.5,b.rh===undefined?3:b.rh):hasForm(b)?MC3D_FORM.roofRise(b,state.fh):0;
 function bh(b){if(b.shape==='tree')return b.w*1.3;if(b.shape==='person')return 1.75;if(b.shape==='car')return 1.55;
  if(isFlat(b))return b.mat==='asphalt'?0.1:0.3;if(b.shape==='riwaq')return Math.max(3,b.f*state.fh-0.5);return b.f*state.fh+roofH(b)}
 const WHITE={green:'#dfe8d6',water:'#d3e4ee',asphalt:'#c4c4c4',paving:'#ecebe6',glass:'#d6e8f3',context:'#d9d9d9'};
@@ -295,13 +309,17 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
   grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry,25),LM(ec)));
   if(b.park&&b.mat==='asphalt'&&b.shape==='box'&&window.MC3D_CODE){const pts=[],y=h/2+.03;MC3D_CODE.parkLayout(b.w,b.d).lines.forEach(([x1,z1,x2,z2])=>pts.push(x1,y,z1,x2,y,z2));
    if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM('#f8fafc',.95)))}}
-  if(b.shape==='box'&&!isFlat(b)){const pts=[],x=b.w/2+.02,z=b.d/2+.02;
+  if(b.shape==='box'&&!isFlat(b)&&hasForm(b)){const pts=[];
+   const ring=(P,q,y,off)=>{const cx=(q.x0+q.x1)/2,cz=(q.z0+q.z1)/2,V=P.map(([x,z])=>[x+(Math.abs(x-cx)>1e-6?Math.sign(x-cx)*off:0),z+(Math.abs(z-cz)>1e-6?Math.sign(z-cz)*off:0)]);V.forEach((p,k)=>{const n=V[(k+1)%V.length];pts.push(p[0],y,p[1],n[0],y,n[1])})};
+   MC3D_FORM.tiers(b,state.fh).forEach(t=>{for(let k=t.f0+1;k<t.f1;k++){const y=-h/2+k*state.fh;ring(t.outer,t.rect,y,.02);if(t.hole)ring(t.hole,t.holeRect,y,-.02)}});
+   if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM('#e7a07c',.6)))}}
+  else if(b.shape==='box'&&!isFlat(b)){const pts=[],x=b.w/2+.02,z=b.d/2+.02;
    for(let k=1;k<b.f;k++){const y=-h/2+k*state.fh;pts.push(-x,y,z,x,y,z, x,y,z,x,y,-z, x,y,-z,-x,y,-z, -x,y,-z,-x,y,z)}
    if(b.mat==='glass'){const sx=Math.max(1,Math.round(b.w/2.5)),sz=Math.max(1,Math.round(b.d/2.5));
     for(let k=1;k<sx;k++){const xx=-b.w/2+k*b.w/sx;pts.push(xx,-h/2,z,xx,h/2,z,xx,-h/2,-z,xx,h/2,-z)}
     for(let k=1;k<sz;k++){const zz=-b.d/2+k*b.d/sz;pts.push(x,-h/2,zz,x,h/2,zz,-x,-h/2,zz,-x,h/2,zz)}}
    if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM(b.mat==='glass'?'#1f4e79':'#e7a07c',b.mat==='glass'?.8:.6)))}}
-  if((b.fac||(b.facCfg&&((b.facCfg.ground&&b.facCfg.ground.type)||(b.facCfg.sideFac&&Object.values(b.facCfg.sideFac).some(Boolean)))))&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray')facade(b,h,grp)}
+  if((b.fac||(b.facCfg&&((b.facCfg.ground&&b.facCfg.ground.type)||(b.facCfg.sideFac&&Object.values(b.facCfg.sideFac).some(Boolean)))))&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray'&&!(hasForm(b)&&MC3D_FORM.changesOutline(b)))facade(b,h,grp)}
  grp.rotation.y=-((b.shape==='riwaq'?0:rotOf(b))+(b.rot||0))*Math.PI/180;
  pick.userData.i=i;grp.position.set(b.x,b.y0+h/2,b.z);return [grp,pick]}
 let groups=[],handles=[];const hG=new THREE.Group();S.add(hG);
@@ -316,20 +334,24 @@ function buildHandles(){hG.clear();handles=[];if(selSet.size!==1||tool!=='select
 // ---------- areas ----------
 function inside(b,px,pz){const u=px-b.x,v=pz-b.z,a=(rotOf(b)+(b.rot||0))*Math.PI/180;const lx=u*Math.cos(a)+v*Math.sin(a),lz=-u*Math.sin(a)+v*Math.cos(a);const [w,d]=loc(b),W=w/2,D=d/2;
  if(Math.abs(lx)>W||Math.abs(lz)>D)return false;
+ if(hasForm(b))return MC3D_FORM.insideLocal(b,state.fh,lx,lz,0);
  switch(b.shape){case 'cyl':return (lx/W)**2+(lz/D)**2<=1;case 'ring':{const r=(lx/W)**2+(lz/D)**2;return r<=1&&r>=.36}
  case 'poly':{const P=polyPts(b);return P?pip(P,lx,lz):true}
  case 'tri':return (lx+W)/(2*W)+(lz+D)/(2*D)<=1;case 'L':{const t=Math.min(w,d)*.45;return !(lx>-W+t&&lz>-D+t)}
  case 'U':{const t=Math.min(w,d)*.3;return !(lx>-W+t&&lx<W-t&&lz>-D+t)}
  case 'court':{const t=courtT(b);return !(Math.abs(lx)<W-t&&Math.abs(lz)<D-t)}default:return true}}
-function areaOf(b){if(!counts(b))return 0;const [w,d]=loc(b);let f=1;const t1=Math.min(w,d)*.45,t2=Math.min(w,d)*.3;
+function areaOf(b){if(!counts(b))return 0;if(hasForm(b))return MC3D_FORM.footArea(b,state.fh);const [w,d]=loc(b);let f=1;const t1=Math.min(w,d)*.45,t2=Math.min(w,d)*.3;
  if(b.shape==='poly'){const P=polyPts(b);if(P)return polyArea(P)}
  switch(b.shape){case 'cyl':f=Math.PI/4;break;case 'ring':f=Math.PI/4*.64;break;case 'tri':f=.5;break;case 'L':f=(w*d-(w-t1)*(d-t1))/(w*d);break;case 'U':f=(w*d-(w-2*t2)*(d-t2))/(w*d);break;case 'court':{const t=courtT(b);f=(w*d-(w-2*t)*(d-2*t))/(w*d);break}}
  return w*d*f}
+// gross floor area of a block (all floors) and of one floor — step-backs and courtyards change it floor by floor
+function gfaOf(b){if(!counts(b))return 0;return hasForm(b)?MC3D_FORM.gfa(b,state.fh):areaOf(b)*Math.max(1,+b.f||1)}
+function floorAreaOf(b,k){if(!counts(b))return 0;return hasForm(b)?MC3D_FORM.floorArea(b,state.fh,k):areaOf(b)}
 let lastFp=0,lastGfa=0;
 function stats(){if(window.MC3D_PROG_READY)syncFnTargets();if(typeof renderSpatialProgram==='function')renderSpatialProgram();const st=state.site,bl=state.blocks.filter(counts);let fp=0;const W=st.w,D=st.d;
  const grounded=bl.filter(b=>b.y0<1);
  for(let x=-W/2+.5;x<W/2;x+=1)for(let z=-D/2+.5;z<D/2;z+=1){for(const b of grounded){if(inside(b,x,z)){fp+=1;break}}}
- const by={};Object.keys(FNS).forEach(k=>by[k]=0);let gfa=0;bl.forEach(b=>{const a=areaOf(b)*b.f;gfa+=a;by[b.fn||'']+=a});
+ const by={};Object.keys(FNS).forEach(k=>by[k]=0);let gfa=0;bl.forEach(b=>{const a=gfaOf(b);gfa+=a;by[b.fn||'']+=a});
  lastFp=fp;lastGfa=gfa;
  let out=0;
  if(window.MC3D_SITE){out=MC3D_SITE.checkSetbackCompliance({site:st,blocks:state.blocks}).violationCount}
@@ -341,7 +363,7 @@ function stats(){if(window.MC3D_PROG_READY)syncFnTargets();if(typeof renderSpati
  $('fnBox').innerHTML=h;
  if(window.MC3D_OCC_CHART){
   const eff=(state.prog&&state.prog.eff)||0.8;
-  const netCapacity=bl.filter(b=>!b.hidden).reduce((s,b)=>s+areaOf(b)*b.f*eff,0);
+  const netCapacity=bl.filter(b=>!b.hidden).reduce((s,b)=>s+gfaOf(b)*eff,0);
   const validSlots=new Set();
   bl.forEach(b=>{if(!b.hidden)for(let f=0;f<b.f;f++)validSlots.add(b.id+'|'+f)});
   const allocatedArea=(state.prog&&Array.isArray(state.prog.sp))?state.prog.sp.filter(x=>x.bid&&validSlots.has(x.bid+'|'+x.fl)).reduce((s,x)=>s+x.a,0):0;
@@ -355,11 +377,78 @@ $('dShape').innerHTML=opts(SHAPES,'box','shapes');$('dMat').innerHTML=opts(MATS,
 if($('citySel'))$('citySel').innerHTML=opts(CITIES,'baghdad','cities');
 function galSync(){}
 
+
+// ---------- form tools (courtyard void · step-backs · chamfer · sloped roof) — Edit Mass panel ----------
+const formOpen={court:false,steps:false,ch:false,slope:false};
+const CMP={N:['شمال','N'],NE:['شمال شرق','NE'],E:['شرق','E'],SE:['جنوب شرق','SE'],S:['جنوب','S'],SW:['جنوب غرب','SW'],W:['غرب','W'],NW:['شمال غرب','NW']};
+const cmpName=k=>CMP[k]?L(CMP[k][0],CMP[k][1]):k;
+function formUI(b){
+ const u2=L('م²','m²'),um=L('م','m');
+ if(b.shape!=='box')return `<div class="grp"><div class="gc">${L('أدوات التشكيل','Form Tools')}</div><div class="gb"><div class="hint">${L('الفناء والتدرج والشطف والسقف المائل تشتغل على الكتلة المستطيلة.','Courtyard, step-backs, chamfer and sloped roof work on rectangular masses.')}</div><button class="big" id="fmToBox"><i><svg class="ic"><use href="#i-cube"/></svg></i>${b.shape==='court'?L('حوّلها لمستطيل بفناء قابل للتعديل','Convert to box with editable courtyard'):L('حوّلها لمستطيل','Convert to box')}</button></div></div>`;
+ const F=b.form||{},fh=state.fh,cs=MC3D_FORM.sideCompass(b.rot||0,state.site.north||0),sn=k=>cmpName(cs[k]),inf=MC3D_FORM.info(b,fh),f=Math.max(1,b.f|0);
+ const sec=(k,title,on,body)=>`<details class="fm-sec" data-fs="${k}"${formOpen[k]?' open':''}><summary><span>${title}</span>${on?`<b class="fm-on">${L('مفعّل','On')}</b>`:''}</summary><div class="col">${body}</div></details>`;
+ const chk=(id,on,t)=>`<label class="fm-chk"><input type="checkbox" id="${id}"${on?' checked':''}> ${t}</label>`;
+ // courtyard
+ const c=F.court||{},cOn=!!(F.court&&F.court.on!==false);let cb=chk('fmCOn',cOn,L('تفريغ فناء داخلي مفتوح للسماء','Carve a courtyard open to the sky'));
+ if(cOn){cb+=numRow('fmCW',L('عرض الفناء','Court width'),c.w||0,1)+numRow('fmCD',L('عمق الفناء','Court depth'),c.d||0,1)+numRow('fmCX',L('إزاحة نحو ','Shift toward ')+sn('r'),c.ox||0,.5)+numRow('fmCZ',L('إزاحة نحو ','Shift toward ')+sn('f'),c.oz||0,.5)+numRow('fmCF',L('يبدأ من الطابق','Starts at floor'),c.f0||0,1);
+  const h=[];inf.holes.forEach(x=>{const l=h[h.length-1];if(l&&l.f1===x.f0&&l.w===x.w&&l.d===x.d)l.f1=x.f1;else h.push(Object.assign({},x))}); // merge floors with the same courtyard
+  const fr=x=>x.f1-1>x.f0?`${x.f0}–${x.f1-1}`:`${x.f0}`;
+  cb+=`<div class="hint">${L('0 = مفتوح من الأرض · 1 أو أكثر = فناء فوق منصة (الطوابق تحته مسقوفة)','0 = open from the ground · 1+ = courtyard over a podium')}</div>`;
+  cb+=h.length?`<div class="fm-info">${h.map(x=>`${L('الطوابق','Floors')} ${fr(x)}: ${x.w}×${x.d} ${um} = <b>${Math.round(x.area)}</b> ${u2}`).join('<br>')}${h.some(x=>Math.abs(x.w-c.w)>.01||Math.abs(x.d-c.d)>.01)?`<br><span class="warnTxt">${L('صُغّر الفناء حتى يبقى جناح 1 م على الأقل','Court trimmed to keep at least 1 m of wing')}</span>`:''}</div>`:`<div class="fm-info warnTxt">${L('الفناء ما يطلع بهالأبعاد — كبّر الكتلة أو صغّر الفناء','The courtyard does not fit — enlarge the mass or shrink the court')}</div>`;
+  cb+=`<button class="sm" id="fmCC">${L('توسيط الفناء','Centre courtyard')}</button>`}
+ // step-backs
+ const st=Array.isArray(F.steps)?F.steps:[];
+ let sb=`<div class="hint">${L('كل سطر: من هذا الطابق وفوق، تراجع الحافة (م) من حدود الكتلة الأصلية. الطابق 0 = الأرضي.','Each row: from this floor up, pull each edge back (m) from the original outline. Floor 0 = ground.')}</div>`;
+ if(f<2)sb+=`<div class="fm-info warnTxt">${L('التدرج يحتاج طابقين أو أكثر','Step-backs need 2+ floors')}</div>`;
+ else{sb+=`<table class="fm-tbl"><thead><tr><th>${L('من ط','From F')}</th>${['f','b','r','l'].map(k=>`<th>${sn(k)}</th>`).join('')}<th></th></tr></thead><tbody>${st.map((r,i)=>`<tr><td><input type="number" class="fm-st" data-i="${i}" data-k="at" value="${r.at|0}" min="1" max="${f-1}" step="1"></td>${['f','b','r','l'].map(k=>`<td><input type="number" class="fm-st" data-i="${i}" data-k="${k}" value="${+(+(r[k]||0)).toFixed(2)}" min="0" step="0.5"></td>`).join('')}<td><button class="sm fm-del" data-i="${i}" title="${L('حذف','Delete')}">✕</button></td></tr>`).join('')}</tbody></table>
+  <button class="sm" id="fmSAdd">+ ${L('إضافة تدرج','Add step-back')}</button>
+  <div class="fm-auto"><span>${L('تلقائي: كل','Auto: every')}</span><input type="number" id="fmAE" value="${formUI.ae||2}" min="1" step="1"><span>${L('طابق، تراجع','floors, back')}</span><input type="number" id="fmAD" value="${formUI.ad||3}" min="0" step="0.5"><span>${um}</span></div>
+  <div class="fm-sides">${['f','b','r','l'].map(k=>`<label class="fm-chk"><input type="checkbox" class="fm-as" data-k="${k}"${(formUI.as||{f:1})[k]?' checked':''}> ${sn(k)}</label>`).join('')}</div>
+  <button class="sm" id="fmAGo">${L('توليد التدرج','Generate terraces')}</button>`;
+  if(inf.tiers.length>1)sb+=`<div class="fm-info">${inf.tiers.map(t=>`${L('ط','F')}${t.f0}${t.f1-1>t.f0?'–'+(t.f1-1):''}: ${t.w}×${t.d} ${um} · ${Math.round(t.area)} ${u2}`).join('<br>')}</div>`}
+ // chamfer
+ const ch=F.ch||{},chOn=!!(F.ch&&ch.r>0),cc=ch.c||{};let chb=chk('fmChOn',chOn,L('شطف زوايا الكتلة (بالمسقط)','Chamfer the corners (in plan)'));
+ if(chOn){chb+=numRow('fmChR',L('مقدار الشطف','Chamfer size'),ch.r,.5)+`<div class="fm-sides">${[['fr','f','r'],['fl','f','l'],['br','b','r'],['bl','b','l']].map(([k,a,c2])=>`<label class="fm-chk"><input type="checkbox" class="fm-cc" data-k="${k}"${cc[k]!==false?' checked':''}> ${sn(a)}/${sn(c2)}</label>`).join('')}</div>`}
+ // sloped roof
+ const sl=F.slope||{},slOn=!!(F.slope&&sl.a>0);let slb=chk('fmSlOn',slOn,L('سقف مائل فوق آخر طابق','Sloped roof over the top floor'));
+ if(slOn){slb+=numRow('fmSlA',L('زاوية الميل (°)','Pitch (°)'),sl.a,1)+`<div class="fld"><span class="fld-lbl">${L('ينحدر نحو','Falls toward')}</span><select id="fmSlD">${['f','b','r','l'].map(k=>`<option value="${k}"${(sl.dir||'f')===k?' selected':''}>${sn(k)}</option>`).join('')}</select></div><div class="fm-info">${L('ارتفاع السقف فوق آخر طابق','Roof rise above the top floor')}: <b>${inf.rise}</b> ${um}</div>`}
+ const any=MC3D_FORM.has(b);
+ return `<div class="grp fm-grp"><div class="gc"><span>${L('أدوات التشكيل','Form Tools')}</span>${any?`<span class="ins-area-badge">${L('بعد التشكيل','Formed')} ≈ ${Math.round(inf.gfa)} ${u2}</span>`:''}</div><div class="gb">
+  ${sec('court',L('فناء داخلي','Courtyard void'),cOn,cb)}${sec('steps',L('تدرج الطوابق (Step-backs)','Step-backs'),!!MC3D_FORM.norm(b)&&MC3D_FORM.norm(b).steps.length>0,sb)}${sec('ch',L('شطف الحواف (Chamfer)','Chamfer'),chOn,chb)}${sec('slope',L('سقف مائل بزاوية','Sloped roof'),slOn,slb)}
+  ${any?`<div class="fm-info">${L('البصمة','Footprint')} ${Math.round(inf.foot)} ${u2} · ${L('المساحة الطابقية','GFA')} ${Math.round(inf.gfa)} ${u2}</div><button class="sm" id="fmClear">${L('إزالة كل التشكيل','Remove all forming')}</button>`:''}</div></div>`}
+function bindForm(b){const box=$('selBox');
+ if($('fmToBox'))$('fmToBox').onclick=()=>{snap(true);if(b.shape==='court'){const t=courtT(b),[w,d]=loc(b);b.w=w;b.d=d;b.form=Object.assign({},b.form,{court:{w:+(w-2*t).toFixed(2),d:+(d-2*t).toFixed(2),ox:0,oz:0,f0:0}});formOpen.court=true}b.shape='box';b.ry=0;refresh()};
+ if(!box.querySelector('.fm-sec'))return;
+ box.querySelectorAll('.fm-sec').forEach(d=>d.addEventListener('toggle',()=>{formOpen[d.dataset.fs]=d.open}));
+ const F=()=>b.form||(b.form={}),done=()=>{if(b.form){if(Array.isArray(b.form.steps)&&!b.form.steps.length)delete b.form.steps;if(!Object.keys(b.form).length)delete b.form}refresh()};
+ const onNum=(id,fn)=>{const e=$(id);if(!e)return;e.onchange=()=>{const v=parseFloat(e.value);if(isNaN(v))return;snap(true);fn(v);done()}};
+ // steppers of the numRow fields in this group: nudge the input, then reuse its onchange
+ box.querySelectorAll('.fm-grp [data-n]').forEach(bt=>bt.onclick=()=>{const e=$(bt.dataset.n);if(!e)return;e.value=+((parseFloat(e.value)||0)+parseFloat(bt.dataset.s)).toFixed(2);e.onchange&&e.onchange()});
+ const tg=(id,on,off)=>{const e=$(id);if(e)e.onchange=()=>{snap(true);e.checked?on():off();done()}};
+ tg('fmCOn',()=>{const w=Math.max(2,Math.round(b.w*.4)),d=Math.max(2,Math.round(b.d*.4));F().court={w,d,ox:0,oz:0,f0:0};formOpen.court=true;if(b.w<5||b.d<5)flash(L('الكتلة صغيرة على فناء — كبّرها','Mass is small for a courtyard'))},()=>{delete F().court});
+ onNum('fmCW',v=>F().court.w=Math.max(1,v));onNum('fmCD',v=>F().court.d=Math.max(1,v));onNum('fmCX',v=>F().court.ox=v);onNum('fmCZ',v=>F().court.oz=v);onNum('fmCF',v=>F().court.f0=Math.max(0,Math.min(Math.max(0,b.f-1),Math.round(v))));
+ if($('fmCC'))$('fmCC').onclick=()=>{snap(true);F().court.ox=0;F().court.oz=0;done()};
+ box.querySelectorAll('.fm-st').forEach(e=>e.onchange=()=>{const v=parseFloat(e.value);if(isNaN(v))return;snap(true);const r=F().steps[+e.dataset.i],k=e.dataset.k;r[k]=k==='at'?Math.max(1,Math.min(Math.max(1,b.f-1),Math.round(v))):Math.max(0,v);F().steps.sort((a,c)=>a.at-c.at);done()});
+ box.querySelectorAll('.fm-del').forEach(e=>e.onclick=()=>{snap(true);F().steps.splice(+e.dataset.i,1);done()});
+ if($('fmSAdd'))$('fmSAdd').onclick=()=>{snap(true);const s=F().steps||(F().steps=[]),last=s[s.length-1];const at=Math.min(Math.max(1,b.f-1),last?last.at+1:Math.max(1,Math.floor(b.f/2)));
+  if(last&&last.at>=b.f-1)return flash(L('ما بقى طابق أعلى للتدرج','No higher floor left'));s.push(last?{at,f:+(last.f+3).toFixed(2),b:last.b,r:last.r,l:last.l}:{at,f:3,b:0,r:0,l:0});formOpen.steps=true;done()};
+ if($('fmAE'))$('fmAE').onchange=e=>formUI.ae=Math.max(1,parseInt(e.target.value)||1);if($('fmAD'))$('fmAD').onchange=e=>formUI.ad=Math.max(0,parseFloat(e.target.value)||0);
+ box.querySelectorAll('.fm-as').forEach(e=>e.onchange=()=>{formUI.as=Object.assign({f:1},formUI.as);formUI.as[e.dataset.k]=e.checked});
+ if($('fmAGo'))$('fmAGo').onclick=()=>{const every=Math.max(1,parseInt($('fmAE').value)||1),dist=Math.max(0,parseFloat($('fmAD').value)||0),sides={};box.querySelectorAll('.fm-as').forEach(e=>sides[e.dataset.k]=e.checked);
+  formUI.ae=every;formUI.ad=dist;formUI.as=sides;if(!Object.values(sides).some(Boolean))return flash(L('اختر جهة وحدة على الأقل','Pick at least one side'));
+  const s=MC3D_FORM.autoSteps({floors:b.f,every,dist,sides});if(!s.length)return flash(L('عدد الطوابق قليل على هالتدرج','Not enough floors for this'));snap(true);F().steps=s;formOpen.steps=true;done()};
+ tg('fmChOn',()=>{F().ch={r:Math.max(1,Math.round(Math.min(b.w,b.d)*.15)),c:{fr:true,fl:true,bl:true,br:true}};formOpen.ch=true},()=>{delete F().ch});
+ onNum('fmChR',v=>F().ch.r=Math.max(.1,v));
+ box.querySelectorAll('.fm-cc').forEach(e=>e.onchange=()=>{snap(true);const c=F().ch.c||(F().ch.c={});c[e.dataset.k]=e.checked;if(!['fr','fl','bl','br'].some(k=>c[k]!==false))delete F().ch;done()});
+ tg('fmSlOn',()=>{F().slope={a:15,dir:'f'};formOpen.slope=true},()=>{delete F().slope});
+ onNum('fmSlA',v=>F().slope.a=Math.max(1,Math.min(75,v)));
+ if($('fmSlD'))$('fmSlD').onchange=e=>{snap(true);F().slope.dir=e.target.value;done()};
+ if($('fmClear'))$('fmClear').onclick=()=>{snap(true);delete b.form;done()}}
 const DEFP={t:8,gw:6,gf:1,rh:3};
 function shapeExtra(b){let h='';if(b.shape==='court')h+=numRow('pT',L('عمق الجناح','Wing Depth'),courtT(b),1);if(b.shape==='gate'){const [gw]=gateG(b);h+=numRow('pGW',L('عرض البوابة','Portal Width'),gw,1)+numRow('pGF',L('طوابق البوابة','Portal Floors'),b.gf||1,1)}
  if(b.shape==='gable'||b.shape==='shed')h+=numRow('pRH',L('ارتفاع السقف','Roof Height'),roofH(b),.5);let out=h?`<div class="grp"><div class="gc">${L('إعدادات الشكل','Shape Settings')}</div><div class="gb"><div class="col">${h}</div></div></div>`:'';
- if(counts(b)&&state.prog){const sp=state.prog.sp.filter(x=>x.bid===b.id),a=sp.reduce((s,x)=>s+x.a,0),cap=areaOf(b)*b.f*state.prog.eff;out+=`<div class="grp"><div class="gc">${L('البرنامج الوظيفي','Program Allocation')}</div><div class="gb"><button class="big" id="pProg"><i><svg class="ic"><use href="#i-clip"/></svg></i>${sp.length} ${L('فضاء','spaces')} (${Math.round(a)}/${Math.round(cap)} ${L('م²','m²')})</button></div></div>`}
- return out}
+ if(counts(b)&&state.prog){const sp=state.prog.sp.filter(x=>x.bid===b.id),a=sp.reduce((s,x)=>s+x.a,0),cap=gfaOf(b)*state.prog.eff;out+=`<div class="grp"><div class="gc">${L('البرنامج الوظيفي','Program Allocation')}</div><div class="gb"><button class="big" id="pProg"><i><svg class="ic"><use href="#i-clip"/></svg></i>${sp.length} ${L('فضاء','spaces')} (${Math.round(a)}/${Math.round(cap)} ${L('م²','m²')})</button></div></div>`}
+ return (counts(b)&&window.MC3D_FORM?formUI(b):'')+out}
 function numRow(id,l,v,st){return `<div class="fld"><span class="fld-lbl">${l}</span><div class="stepper"><button class="sm" data-n="${id}" data-s="-${st}">−</button><input type="number" id="${id}" value="${+(+v).toFixed(2)}" step="${st}"><button class="sm" data-n="${id}" data-s="${st}">+</button></div></div>`}
 let lastSelPanel=-2,curTab='home',userTab='home';
 const paneLeaveTimers=new WeakMap();
@@ -419,7 +508,7 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
   $('mFp').onclick=()=>{snap();ids.forEach(i=>state.blocks[i].f++);refresh()};$('mFm').onclick=()=>{snap();ids.forEach(i=>{if(state.blocks[i].f>1)state.blocks[i].f--});refresh()};
   $('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()};return}
  tm.textContent=L('تعديل الكتلة','Edit Mass');const b=state.blocks[ids[0]];
- box.innerHTML=`<div class="grp"><div class="gc"><span>${L('التعريف','Identity')}</span><span class="ins-area-badge">≈ ${Math.round(areaOf(b)*b.f)} ${L('م²','m²')}</span></div><div class="gb">
+ box.innerHTML=`<div class="grp"><div class="gc"><span>${L('التعريف','Identity')}</span><span class="ins-area-badge">≈ ${Math.round(gfaOf(b))} ${L('م²','m²')}</span></div><div class="gb">
   <div class="fld"><span class="fld-lbl">${L('الاسم','Name')}</span><input type="text" id="pName" value="${b.name.replace(/"/g,'&quot;')}"></div>
   <div class="fld"><span class="fld-lbl">${L('الوظيفة','Zone')}</span><select id="pFn">${opts(FNS,b.fn||'','fns')}</select></div>
   <div class="fld-grid">
@@ -438,6 +527,7 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
  Object.entries(map).forEach(([id,k])=>{if(!$(id))return;$(id).onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b[k]=Math.max(min[k],v);refresh()}});
  box.querySelectorAll('[data-n]').forEach(bt=>bt.onclick=()=>{const k=map[bt.dataset.n];snap();if(b[k]===undefined)b[k]=DEFP[k]||0;b[k]=Math.max(min[k],+(b[k]+parseFloat(bt.dataset.s)).toFixed(2));refresh()});
  if($('pProg'))$('pProg').onclick=openProg;
+ bindForm(b);
  $('pLock').onclick=toggleLock;$('pRm').onclick=()=>rotFree(-15);$('pRp').onclick=()=>rotFree(15);$('pRotA').onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b.rot=((v%360)+360)%360;refresh()};$('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()}}
 function elemList(){const box=$('elBox');if(!box)return;box.innerHTML='';state.blocks.forEach((b,i)=>{const d=document.createElement('div');d.className='chip'+(selSet.has(i)?' on':'')+(b.hidden?' off':'');
  d.innerHTML=`<span class="sw" style="background:${colOf(b)}"></span><span class="nm"></span><button title="${L('إظهار/إخفاء','Show/Hide')}">${b.hidden?IC('eyeoff'):IC('eye')}</button><button title="${L('قفل','Lock')}">${b.lock?IC('lock'):IC('unlock')}</button>`;d.querySelector('.nm').textContent=b.name;
@@ -445,9 +535,10 @@ function elemList(){const box=$('elBox');if(!box)return;box.innerHTML='';state.b
  const [bh_,bl]=d.querySelectorAll('button');bh_.onclick=()=>{snap(true);b.hidden=!b.hidden;if(b.hidden)selSet.delete(i);refresh()};bl.onclick=()=>{b.lock=!b.lock;refresh()};box.appendChild(d)})}
 function growSide(b,k,s){if(k==='R'||k==='L'){if(b.w+s<1)return;b.w+=s;b.x+=k==='R'?s/2:-s/2}else{if(b.d+s<1)return;b.d+=s;b.z+=k==='B'?s/2:-s/2}}
 function rotFree(dv){if(!selSet.size)return;snap();selSet.forEach(i=>{const b=state.blocks[i];if(b.lock)return;b.rot=(((b.rot||0)+dv)%360+360)%360});refresh()}
-function rot90(){if(sel<0)return;snap(true);const b=state.blocks[sel];b.ry=(b.ry+90)%360;[b.w,b.d]=[b.d,b.w];refresh()}
+function rot90(){if(sel<0)return;snap(true);const b=state.blocks[sel];b.ry=(b.ry+90)%360;[b.w,b.d]=[b.d,b.w];if(b.form&&window.MC3D_FORM)b.form=MC3D_FORM.rotForm90(b.form);refresh()}
 function split(){if(sel<0)return;const b=state.blocks[sel];if(b.f<2)return flash(L('الكتلة من طابق واحد','Mass has only 1 floor'));snap(true);const parts=[];
- for(let k=0;k<b.f;k++)parts.push(Object.assign(clone(b),{f:1,y0:b.y0+k*state.fh,name:b.name+L(' — ط',' — F')+(k+1)}));
+ const fp=hasForm(b)?MC3D_FORM.splitFloors(b,state.fh):null;
+ for(let k=0;k<b.f;k++){const p=Object.assign(clone(b),{f:1,y0:b.y0+k*state.fh,name:b.name+L(' — ط',' — F')+(k+1)});if(fp){const q=fp[k];Object.assign(p,{w:q.w,d:q.d,x:q.x,z:q.z});if(q.form)p.form=q.form;else delete p.form}parts.push(p)}
  state.blocks.splice(sel,1,...parts);selSet=new Set(parts.map((_,k)=>sel+k));refresh();flash(L('قُسِّمت إلى '+parts.length+' طوابق — حدّد كل طابق لتغيير وظيفته','Split into '+parts.length+' floors — select each to assign a zone'))}
 function dup(){if(!selSet.size)return;snap(true);const ids=[...selSet],start=state.blocks.length;
  ids.forEach(i=>{const b=clone(state.blocks[i]);b.x+=snapStep*4;b.z+=snapStep*4;if(ids.length===1)b.name+=L(' (نسخة)',' (Copy)');state.blocks.push(b)});
@@ -703,7 +794,9 @@ function renderSectionAnalysis(){
   if(wSpan<0.05||hSpan<0.05)return;
   const uMid=(seg.u0+seg.u1)/2,yMid=(seg.y0+seg.y1)/2;
   const yaw=Math.atan2(tan.x,tan.z)-Math.PI/2;
-  const geo=new THREE.PlaneGeometry(wSpan,hSpan);
+  let geo;
+  if(seg.yt0!==undefined){const sh=new THREE.Shape(),hu=wSpan/2;sh.moveTo(-hu,seg.y0-yMid);sh.lineTo(hu,seg.y0-yMid);sh.lineTo(hu,seg.yt1-yMid);sh.lineTo(-hu,seg.yt0-yMid);sh.lineTo(-hu,seg.y0-yMid);geo=new THREE.ShapeGeometry(sh)} // sloped roof: slanted top edge
+  else geo=new THREE.PlaneGeometry(wSpan,hSpan);
   const fill=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:'#1e293b',side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
   fill.position.set(pt.x+tan.x*uMid+nrm.x*eps,yMid,pt.z+tan.z*uMid+nrm.z*eps);
   fill.rotation.y=yaw;
@@ -773,7 +866,8 @@ function renderSectionAnalysis(){
     const selCls=selSet.has(seg.index)?' is-sel':'';
     const x0=xOf(seg.u0),x1=xOf(seg.u1),yTop=yOf(seg.y1),yBot=yOf(seg.y0);
     const rw=Math.max(1.5,x1-x0),rh=Math.max(1.5,yBot-yTop);
-    out.push(`<rect class="sec-cut-shape${selCls}" data-bi="${seg.index}" x="${x0.toFixed(1)}" y="${yTop.toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" fill="${col}" fill-opacity="0.82" stroke="#0f172a" stroke-width="1.2"><title>${seg.name} (${seg.y1.toFixed(1)}m)</title></rect>`);
+    if(seg.yt0!==undefined)out.push(`<polygon class="sec-cut-shape${selCls}" data-bi="${seg.index}" points="${[[x0,yBot],[x1,yBot],[x1,yOf(seg.yt1)],[x0,yOf(seg.yt0)]].map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' ')}" fill="${col}" fill-opacity="0.82" stroke="#0f172a" stroke-width="1.2"><title>${seg.name} (${seg.y1.toFixed(1)}m)</title></polygon>`);
+    else out.push(`<rect class="sec-cut-shape${selCls}" data-bi="${seg.index}" x="${x0.toFixed(1)}" y="${yTop.toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" fill="${col}" fill-opacity="0.82" stroke="#0f172a" stroke-width="1.2"><title>${seg.name} (${seg.y1.toFixed(1)}m)</title></rect>`);
    });
    if(!analysis.capSegments.length){
     out.push(`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="11" fill="#94a3b8">${L('لا توجد كتل عند هذا الموضع','No masses intersected at this position')}</text>`);
@@ -1656,7 +1750,7 @@ document.querySelector('[data-t=sheet]').addEventListener('click',()=>{if(!sheet
 // ================= MORE: report, compare, backup, video, wind =================
 function computeStats(st){const bl=st.blocks.filter(counts),W=st.site.w,D=st.site.d,fh=st.fh;let fp=0;const gr=bl.filter(b=>b.y0<1);
  for(let x=-W/2+.5;x<W/2;x+=1)for(let z=-D/2+.5;z<D/2;z+=1){for(const b of gr){if(inside(b,x,z)){fp+=1;break}}}
- const by={};Object.keys(FNS).forEach(k=>by[k]=0);let gfa=0,hmax=0;bl.forEach(b=>{const a=areaOf(b)*b.f;gfa+=a;by[b.fn||'']+=a;hmax=Math.max(hmax,b.y0+b.f*fh)});
+ const by={};Object.keys(FNS).forEach(k=>by[k]=0);let gfa=0,hmax=0;bl.forEach(b=>{const a=gfaOf(b);gfa+=a;by[b.fn||'']+=a;hmax=Math.max(hmax,b.y0+b.f*fh)});
  return {fp,gfa,by,hmax,cov:fp/(W*D),far:gfa/(W*D),n:bl.length,W,D}}
 const csvEsc=v=>{const s=String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
 let reportCSV='';
@@ -1667,7 +1761,7 @@ function openReport(){const s=computeStats(state),r=x=>Math.round(x).toLocaleStr
  Object.entries(FNS).forEach(([k,f])=>{if(!f.t&&!s.by[k])return;const fnm=fnName(k),tg=f.t*1.25,d=s.by[k]-tg,p=tg?s.by[k]/tg*100:0;h+=`<tr><td><span class="sw" style="background:${f.c}"></span>${fnm}</td><td>${r(s.by[k])}</td><td>${tg?r(tg):'—'}</td><td class="${d<0?'neg':'pos'}">${tg?(d>0?'+':'')+r(d):'—'}</td><td>${tg?p.toFixed(0)+'%':'—'}</td></tr>`;rows.push([fnm,Math.round(s.by[k]),Math.round(tg),Math.round(d),tg?p.toFixed(0)+'%':''])});
  h+=`</table><h4>${L('الكتل','Blocks')}</h4><table><tr><th>${L('الكتلة','Block')}</th><th>${L('الوظيفة','Zone')}</th><th>${L('الشكل','Shape')}</th><th>${L('المادة','Material')}</th><th>${L('القياس','Size')} ${um}</th><th>${L('الطوابق','Floors')}</th><th>${L('البصمة','Footprint')} ${u2}</th><th>${L('المساحة','Area')} ${u2}</th></tr>`;
  rows.push([]);rows.push([L('الكتلة','Block'),L('الوظيفة','Zone'),L('الشكل','Shape'),L('المادة','Material'),L('العرض','Width'),L('العمق','Depth'),L('الطوابق','Floors'),L('البصمة م2','Footprint m2'),L('المساحة م2','Area m2')]);
- state.blocks.forEach(b=>{const a=areaOf(b),fnm=fnName(b.fn||''),snm=dn('shapes',b.shape,SHAPES[b.shape]),mnm=dn('mats',b.mat,MATS[b.mat].n);h+=`<tr><td>${b.name.replace(/</g,'&lt;')}</td><td>${fnm}</td><td>${snm}</td><td>${mnm}</td><td>${b.w.toFixed(1)}×${b.d.toFixed(1)}</td><td>${counts(b)?b.f:'—'}</td><td>${r(a)}</td><td>${r(a*b.f)}</td></tr>`;rows.push([b.name,fnm,snm,mnm,b.w.toFixed(1),b.d.toFixed(1),counts(b)?b.f:'',Math.round(a),Math.round(a*b.f)])});
+ state.blocks.forEach(b=>{const a=areaOf(b),fnm=fnName(b.fn||''),snm=dn('shapes',b.shape,SHAPES[b.shape]),mnm=dn('mats',b.mat,MATS[b.mat].n);h+=`<tr><td>${b.name.replace(/</g,'&lt;')}</td><td>${fnm}</td><td>${snm}</td><td>${mnm}</td><td>${b.w.toFixed(1)}×${b.d.toFixed(1)}</td><td>${counts(b)?b.f:'—'}</td><td>${r(a)}</td><td>${r(gfaOf(b))}</td></tr>`;rows.push([b.name,fnm,snm,mnm,b.w.toFixed(1),b.d.toFixed(1),counts(b)?b.f:'',Math.round(a),Math.round(gfaOf(b))])});
  h+=`</table><div class="hint">${L('الأرقام تقريبية: تُحسب البصمة بشبكة 1 م، والمطلوب = البرنامج الصافي + 25% حركة.','Figures are approximate: footprint uses a 1 m grid, target = net program + 25% circulation.')}</div></div>`;
  reportCSV='\uFEFF'+rows.map(r=>r.map(csvEsc).join(',')).join('\n');$('repBody').innerHTML=h;modal('report');$('repCSV').style.display=DL?'':'none'}
 function openCompare(){const all=Object.assign({},designs);all[curName]=state;const r=x=>Math.round(x).toLocaleString('en'),u2=L('م²','m²'),um=L('م','m');
@@ -1846,8 +1940,9 @@ $('shExpDlg').onclick=openExport;$('b3D').onclick=openExport;$('qExp').onclick=o
 // ---- geometry helpers ----
 function blockTris(i){const g=groups[i],out=[];if(!g)return out;g.updateMatrixWorld(true);const v=new THREE.Vector3();
  g.traverse(o=>{if(!o.isMesh||!o.material||o.material.visible===false||o.userData.fac)return;const pos=o.geometry&&o.geometry.attributes.position;if(!pos)return;const P=k=>{v.fromBufferAttribute(pos,k).applyMatrix4(o.matrixWorld);return [v.x,v.y,v.z]};const idx=o.geometry.index,col=o.material.color.getHex();
-  if(idx){for(let k=0;k+2<idx.count;k+=3)out.push({t:[P(idx.getX(k)),P(idx.getX(k+1)),P(idx.getX(k+2))],c:col})}else{for(let k=0;k+2<pos.count;k+=3)out.push({t:[P(k),P(k+1),P(k+2)],c:col})}});return out}
-function footprint(b){const [w,d]=b.shape==='riwaq'?[b.w,b.d]:loc(b),W=w/2,D=d/2;let rings=[];const ell=(rx,rz)=>Array.from({length:40},(_,k)=>[Math.cos(k/40*Math.PI*2)*rx,Math.sin(k/40*Math.PI*2)*rz]);
+  const push=t=>{const ux=t[1][0]-t[0][0],uy=t[1][1]-t[0][1],uz=t[1][2]-t[0][2],vx=t[2][0]-t[0][0],vy=t[2][1]-t[0][1],vz=t[2][2]-t[0][2];if(Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx)>1e-7)out.push({t,c:col})};
+  if(idx){for(let k=0;k+2<idx.count;k+=3)push([P(idx.getX(k)),P(idx.getX(k+1)),P(idx.getX(k+2))])}else{for(let k=0;k+2<pos.count;k+=3)push([P(k),P(k+1),P(k+2)])}});return out}
+function footprint(b){if(hasForm(b))return MC3D_FORM.worldRings(b,state.fh,0);const [w,d]=b.shape==='riwaq'?[b.w,b.d]:loc(b),W=w/2,D=d/2;let rings=[];const ell=(rx,rz)=>Array.from({length:40},(_,k)=>[Math.cos(k/40*Math.PI*2)*rx,Math.sin(k/40*Math.PI*2)*rz]);
  switch(b.shape){case 'cyl':rings=[ell(W,D)];break;case 'ring':rings=[ell(W,D),ell(W*.6,D*.6)];break;case 'tri':rings=[[[-W,-D],[W,-D],[-W,D]]];break;
   case 'L':{const t=Math.min(w,d)*.45;rings=[[[-W,-D],[W,-D],[W,-D+t],[-W+t,-D+t],[-W+t,D],[-W,D]]];break}
   case 'U':{const t=Math.min(w,d)*.3;rings=[[[-W,-D],[W,-D],[W,D],[W-t,D],[W-t,-D+t],[-W+t,-D+t],[-W+t,D],[-W,D]]];break}
@@ -1863,11 +1958,12 @@ const f3=v=>(+v).toFixed(4);
 function dxf3D(){const layers=[['GROUND',8]],ents=[];state.blocks.forEach((b,i)=>{if(b.hidden)return;const ln='B'+String(i+1).padStart(2,'0')+'_'+(asc(MATS[b.mat]&&b.mat)||'M').toUpperCase();layers.push([ln,ACI[b.mat]||7]);
   blockTris(i).forEach(({t})=>{const p=t.map(([x,y,z])=>[x,-z,y]);ents.push(`0\n3DFACE\n8\n${ln}\n10\n${f3(p[0][0])}\n20\n${f3(p[0][1])}\n30\n${f3(p[0][2])}\n11\n${f3(p[1][0])}\n21\n${f3(p[1][1])}\n31\n${f3(p[1][2])}\n12\n${f3(p[2][0])}\n22\n${f3(p[2][1])}\n32\n${f3(p[2][2])}\n13\n${f3(p[2][0])}\n23\n${f3(p[2][1])}\n33\n${f3(p[2][2])}\n`)})});
  return dxfHeader(layers)+ents.join('')+'0\nENDSEC\n0\nEOF\n'}
-function dxf2D(){const st=state.site,layers=[['SITE',7],['SETBACK',1],['TEXT',7],['OPEN_SPACE',3],['CONTEXT',8],['PROPS',94]];Object.entries(FNS).forEach(([k,f])=>layers.push(['FN_'+(k||'NONE').toUpperCase(),{main:5,pub:4,spec:30,adm:8,circ:6}[k]||7]));
+function dxf2D(){const st=state.site,layers=[['SITE',7],['SETBACK',1],['TEXT',7],['OPEN_SPACE',3],['CONTEXT',8],['PROPS',94],['UPPER_TIERS',8],['COURTYARD',3]];Object.entries(FNS).forEach(([k,f])=>layers.push(['FN_'+(k||'NONE').toUpperCase(),{main:5,pub:4,spec:30,adm:8,circ:6}[k]||7]));
  let e='';const pl=(pts,layer,closed=true)=>{e+=`0\nPOLYLINE\n8\n${layer}\n66\n1\n70\n${closed?1:0}\n`;pts.forEach(([x,z])=>{e+=`0\nVERTEX\n8\n${layer}\n10\n${f3(x)}\n20\n${f3(-z)}\n30\n0\n`});e+=`0\nSEQEND\n8\n${layer}\n`};
  const tx=(x,z,h,t)=>{e+=`0\nTEXT\n8\nTEXT\n10\n${f3(x)}\n20\n${f3(-z)}\n30\n0\n40\n${h}\n1\n${t}\n72\n1\n11\n${f3(x)}\n21\n${f3(-z)}\n31\n0\n`};
  const W=st.w/2,D=st.d/2;pl([[-W,-D],[W,-D],[W,D],[-W,D]],'SITE');if(st.sb>0)pl([[-W+st.sb,-D+st.sb],[W-st.sb,-D+st.sb],[W-st.sb,D-st.sb],[-W+st.sb,D-st.sb]],'SETBACK');
- state.blocks.forEach((b,i)=>{if(b.hidden)return;const layer=isProp(b)?'PROPS':isFlat(b)?'OPEN_SPACE':b.mat==='context'?'CONTEXT':'FN_'+((b.fn||'none').toUpperCase());footprint(b).forEach(r=>pl(r,layer));
+ state.blocks.forEach((b,i)=>{if(b.hidden)return;const layer=isProp(b)?'PROPS':isFlat(b)?'OPEN_SPACE':b.mat==='context'?'CONTEXT':'FN_'+((b.fn||'none').toUpperCase());const fpr=footprint(b);fpr.forEach((r,k)=>pl(r,k&&hasForm(b)?'COURTYARD':layer));
+  if(hasForm(b)){const g0=JSON.stringify(fpr);MC3D_FORM.tiers(b,state.fh).slice(1).forEach(t=>{const ws=MC3D_FORM.worldRings(b,state.fh,t.f0);if(JSON.stringify(ws)!==g0)ws.forEach(r=>pl(r,'UPPER_TIERS'))})}
   if(!isProp(b))tx(b.x,b.z,1.2,'B'+String(i+1).padStart(2,'0')+(counts(b)?` ${b.f}F +${(b.y0+bh(b)).toFixed(1)}`:''))});
  return dxfHeader(layers)+e+'0\nENDSEC\n0\nEOF\n'}
 function ifcEnc(t){let o='';for(const ch of String(t)){const c=ch.codePointAt(0);if(c<128)o+=ch==="'"?"''":ch==='\\'?'\\\\':ch;else o+='\\X2\\'+c.toString(16).toUpperCase().padStart(4,'0')+'\\X0\\'}return o}
@@ -1903,7 +1999,7 @@ async function exportModel(){if(!DL)return flash(L('التنزيل غير متا
   if(fm.includes('obj')){let obj='mtllib model.mtl\n',mtl='',mats={},vo=1;state.blocks.forEach((b,i)=>{if(b.hidden)return;const tris=blockTris(i);if(!tris.length)return;obj+=`o B${String(i+1).padStart(2,'0')}\n`;let cur=null;
     tris.forEach(({t,c})=>{const mn='m_'+c.toString(16).padStart(6,'0');if(!mats[mn]){mats[mn]=1;mtl+=`newmtl ${mn}\nKd ${(((c>>16)&255)/255).toFixed(4)} ${(((c>>8)&255)/255).toFixed(4)} ${((c&255)/255).toFixed(4)}\n\n`}if(mn!==cur){obj+=`usemtl ${mn}\n`;cur=mn}t.forEach(p=>obj+=`v ${f3(p[0])} ${f3(p[1])} ${f3(p[2])}\n`);obj+=`f ${vo} ${vo+1} ${vo+2}\n`;vo+=3})});
    zip.file('OBJ - model.obj',obj);zip.file('model.mtl',mtl);readme.push(L('OBJ - model.obj + model.mtl ← بلندر، رينو، لومين، 3ds Max','OBJ - model.obj + model.mtl -> Blender, Rhino, Lumion, 3ds Max'))}
-  if(fm.includes('csv')){let csv='\uFEFF'+L('الرقم,الاسم,الوظيفة,المادة,الشكل,العرض م,العمق م,الطوابق,الارتفاع م,المساحة م2\n','ID,Name,Zone,Material,Shape,Width m,Depth m,Floors,Height m,Area m2\n');state.blocks.forEach((b,i)=>{csv+=['B'+String(i+1).padStart(2,'0'),b.name,fnName(b.fn||''),dn('mats',b.mat,MATS[b.mat].n),dn('shapes',b.shape,SHAPES[b.shape]||b.shape),b.w.toFixed(1),b.d.toFixed(1),counts(b)?b.f:'',(b.y0+bh(b)).toFixed(1),Math.round(areaOf(b)*b.f)].map(csvEsc).join(',')+'\n'});zip.file(L('جدول الكتل.csv','Mass Schedule.csv'),csv);readme.push(L('جدول الكتل.csv ← يفتح بالإكسل: B01 = الكتلة رقم 1 بكل الملفات','Mass Schedule.csv -> Opens in Excel: B01 = Block #1 across all exported files'))}
+  if(fm.includes('csv')){let csv='\uFEFF'+L('الرقم,الاسم,الوظيفة,المادة,الشكل,العرض م,العمق م,الطوابق,الارتفاع م,المساحة م2\n','ID,Name,Zone,Material,Shape,Width m,Depth m,Floors,Height m,Area m2\n');state.blocks.forEach((b,i)=>{csv+=['B'+String(i+1).padStart(2,'0'),b.name,fnName(b.fn||''),dn('mats',b.mat,MATS[b.mat].n),dn('shapes',b.shape,SHAPES[b.shape]||b.shape),b.w.toFixed(1),b.d.toFixed(1),counts(b)?b.f:'',(b.y0+bh(b)).toFixed(1),Math.round(gfaOf(b))].map(csvEsc).join(',')+'\n'});zip.file(L('جدول الكتل.csv','Mass Schedule.csv'),csv);readme.push(L('جدول الكتل.csv ← يفتح بالإكسل: B01 = الكتلة رقم 1 بكل الملفات','Mass Schedule.csv -> Opens in Excel: B01 = Block #1 across all exported files'))}
   zip.file(L('اقرأني.txt','README.txt'),readme.join('\n'));clipArr.push(...keepClip);selSet=keepSel;build();
   const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});await DL.save({filename:`${curName} - ${L('تصدير','Export')} ${fm.length===1?fm[0].toUpperCase():'3D'}.zip`,data:blob});flash(L('حُفظ الملف ✓','File saved ✓'));$('modal').style.display='none'}
  catch(er){clipArr.length=0;clipArr.push(...keepClip);selSet=keepSel;build();flash(er&&er.code==='declined'?L('أُلغي التنزيل','Download cancelled'):L('تعذّر التصدير — تحقق من الاتصال بالإنترنت وأعد المحاولة','Export failed — check internet connection and retry'))}finally{$('exp3D').disabled=false}}
@@ -2582,7 +2678,7 @@ function anGet(kind){
  if(sig!==AN.sig){AN.sig=sig;AN.cache={}}
  if(!AN.cache[kind]){const inp={blocks:state.blocks,site:state.site,fh:state.fh};
   if(kind==='circ'){AN.cache.circ=A.computeCirculation({blocks:state.blocks,site:state.site,opts:state.circCfg});return AN.cache.circ}
-  if(kind==='code'){if(!window.MC3D_CODE)return null;AN.cache.code=MC3D_CODE.computeCodeChecks({blocks:state.blocks,fh:state.fh,opts:state.codeCfg,area:areaOf,counts:b=>!b.hidden&&counts(b)});return AN.cache.code}
+  if(kind==='code'){if(!window.MC3D_CODE)return null;AN.cache.code=MC3D_CODE.computeCodeChecks({blocks:state.blocks,fh:state.fh,opts:state.codeCfg,area:areaOf,gfa:gfaOf,counts:b=>!b.hidden&&counts(b)});return AN.cache.code}
   AN.cache[kind]=kind==='solar'?A.computeSolarAnalysis(inp):kind==='wind'?A.computeWindAnalysis(inp):kind==='noise'?A.computeNoiseAnalysis(inp):kind==='zones'?A.computeZoningAndBubbles(inp):A.computeMorphologyEvolution(inp)}
  return AN.cache[kind];
 }
@@ -2986,7 +3082,7 @@ function shFrame(body,title,key){
 }
 function shProgTable(){
  const P=prog(),eff=P.eff||.8,rows=[];let tq=0,td=0;
- ['pub','main','spec','adm','circ'].forEach(fn=>{const req=FNS[fn].t||0;let g=0;state.blocks.forEach(b=>{if(!b.hidden&&counts(b)&&(b.fn||'')===fn)g+=areaOf(b)*Math.max(1,+b.f||1)});const des=Math.round(g*eff);if(!req&&!des)return;tq+=req;td+=des;rows.push([fn,req,des])});
+ ['pub','main','spec','adm','circ'].forEach(fn=>{const req=FNS[fn].t||0;let g=0;state.blocks.forEach(b=>{if(!b.hidden&&counts(b)&&(b.fn||'')===fn)g+=gfaOf(b)});const des=Math.round(g*eff);if(!req&&!des)return;tq+=req;td+=des;rows.push([fn,req,des])});
  const W=1600,rh=64,hh=74,pad=40,c=document.createElement('canvas');c.width=W;c.height=hh+rh*(rows.length+1)+pad;const g=c.getContext('2d');
  g.fillStyle='#fff';g.fillRect(0,0,W,c.height);const rtl=shRtl();g.direction=rtl?'rtl':'ltr';g.textBaseline='middle';
  const cols=rtl?[W-pad,W*.52,W*.34,W*.16]:[pad,W*.48,W*.66,W*.84],al=rtl?'right':'left';
@@ -3025,7 +3121,7 @@ async function shMorphStrip(){
 function autoCuts(){
  const arch=state.blocks.filter(b=>!b.hidden&&counts(b));if(!arch.length||!window.MC3D_ANALYSIS)return null;
  let ax=0,az=0,at=0,minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
- arch.forEach(b=>{const o=MC3D_ANALYSIS.getObb(b),a=areaOf(b)*Math.max(1,b.f||1);ax+=b.x*a;az+=b.z*a;at+=a;minX=Math.min(minX,o.minX);maxX=Math.max(maxX,o.maxX);minZ=Math.min(minZ,o.minZ);maxZ=Math.max(maxZ,o.maxZ)});
+ arch.forEach(b=>{const o=MC3D_ANALYSIS.getObb(b),a=gfaOf(b);ax+=b.x*a;az+=b.z*a;at+=a;minX=Math.min(minX,o.minX);maxX=Math.max(maxX,o.maxX);minZ=Math.min(minZ,o.minZ);maxZ=Math.max(maxZ,o.maxZ)});
  const cx=+(ax/at).toFixed(2),cz=+(az/at).toFixed(2),longX=(maxX-minX)>=(maxZ-minZ);
  return {arch,minX,maxX,minZ,maxZ,cuts:[{id:'A',axis:longX?'z':'x',pos:longX?cz:cx,view:longX?'front':'side'},{id:'B',axis:longX?'x':'z',pos:longX?cx:cz,view:longX?'side':'front'}]};
 }
@@ -3375,7 +3471,7 @@ function renderSpatialProgram(){
  if(box.contains(document.activeElement))return; // never redraw under the cursor while a number is being typed
  const prog=spEnsure();if(!prog)return;
  const esc=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
- const r=MC3D_SPROG.computeStatus({blocks:state.blocks,program:prog,area:areaOf,counts}),u2=L('م²','m²'),fmt=v=>Math.round(v).toLocaleString('en');
+ const r=MC3D_SPROG.computeStatus({blocks:state.blocks,program:prog,area:areaOf,gfa:gfaOf,counts}),u2=L('م²','m²'),fmt=v=>Math.round(v).toLocaleString('en');
  const tip={under:L('أقل من المطلوب','Below target'),ok:L('مطابق (±5%)','On target (±5%)'),over:L('أكثر من المطلوب','Above target'),none:''};
  box.innerHTML=r.rows.map(x=>{const w=Math.min(100,x.pct||0),nm=x.custom?`<input class="sp-name" data-n="${x.id}" value="${esc(x.name)}" aria-label="${L('اسم الوظيفة','Function name')}">`:`<span class="sp-nm">${esc(dn('fns',x.fn,x.name))}</span>`;
   return `<div class="sp-row" title="${tip[x.status]}"><div class="sp-top"><span class="sw" style="background:${x.color}"></span>${nm}<input type="number" class="sp-t" data-t="${x.id}" min="0" step="10" value="${x.targetArea}" aria-label="${L('المساحة المطلوبة','Target area')}">${x.custom?`<button type="button" class="sp-del" data-d="${x.id}" title="${L('حذف الوظيفة (انقر مرتين)','Delete function (click twice)')}">✕</button>`:''}</div>
@@ -3462,7 +3558,7 @@ function progSeed(preset){
 }
 const prog=()=>(state.prog=state.prog||progSeed());
 window.MC3D_PROG_READY=true;
-function slots(){const out=[];state.blocks.forEach((b,i)=>{if(!counts(b)||b.hidden)return;for(let f=0;f<b.f;f++)out.push({key:b.id+'|'+f,bid:b.id,fl:f,i,b,cap:areaOf(b)*prog().eff})});return out}
+function slots(){const out=[];state.blocks.forEach((b,i)=>{if(!counts(b)||b.hidden)return;for(let f=0;f<b.f;f++)out.push({key:b.id+'|'+f,bid:b.id,fl:f,i,b,cap:floorAreaOf(b,f)*prog().eff})});return out}
 const slotName=s=>`B${String(s.i+1).padStart(2,'0')} ${s.b.name} — ${L('ط','F')}${s.fl+1}`;
 function progUse(){const P=prog(),use={};P.sp.forEach(x=>{if(!x.bid)return;const k=x.bid+'|'+x.fl;(use[k]=use[k]||{a:0,L:[]}).a+=x.a;use[k].L.push(x)});return use}
 function progAuto(){const P=prog(),S0=slots(),use=progUse(),rem={};S0.forEach(s=>rem[s.key]=s.cap-(use[s.key]?use[s.key].a:0));let miss={},placed=0;
@@ -3477,7 +3573,7 @@ function suggestFns(){
  const arch=state.blocks.map((b,i)=>({b,i})).filter(({b})=>!b.hidden&&!isFlat(b)&&!isProp(b)&&b.mat!=='context'&&b.shape!=='riwaq');
  const isJoint=b=>b.mat==='joint'||/مفصل|رابط|link|joint|core/i.test(b.name||'');
  const isEntry=b=>/مدخل|استقبال|بهو|entrance|entry|lobby/i.test(b.name||'');
- const area=b=>areaOf(b)*Math.max(1,+b.f||1);
+ const area=b=>gfaOf(b);
  const res={};arch.forEach(({b,i})=>{if(isJoint(b))res[i]='circ'});
  const wings={};arch.forEach(({b,i})=>{if(res[i])return;const k=(b.name||'').trim()||('#'+i);(wings[k]=wings[k]||{k,idx:[],a:0,sx:0,sz:0,entry:false});const w=wings[k];w.idx.push(i);const a=area(b);w.a+=a;w.sx+=b.x*a;w.sz+=b.z*a;if(isEntry(b))w.entry=true});
  const W=Object.values(wings);W.forEach(w=>{w.x=w.a?w.sx/w.a:0;w.z=w.a?w.sz/w.a:0});
@@ -3739,7 +3835,7 @@ function openRvProj(tab){const sh=RSH(),inc=(sh&&sh.inc)||{card:true,nums:true,c
  if(rvpTab==='card')B.innerHTML=rvCardHTML(sh);
  if(rvpTab==='nums'){const st=computeStats(state),fl=Math.max(1,...state.blocks.filter(b=>!b.hidden&&counts(b)).map(b=>b.f||1)),site=state.site||{};
   B.innerHTML=`<div class="hm-kpis">${anKpi(L('المساحة الطابقية','Floor area'),Math.round(st.gfa).toLocaleString('en'),L('م²','m²'))+anKpi(L('البصمة الأرضية','Footprint'),Math.round(st.fp).toLocaleString('en'),L('م²','m²'))+anKpi(L('نسبة التغطية','Coverage'),Math.round(st.cov*100)+'%',L('الحد ','limit ')+(site.maxCovPct||60)+'%')+anKpi('FAR',st.far.toFixed(2),L('الحد ','limit ')+(site.maxFar||2.4))+anKpi(L('أقصى ارتفاع','Max height'),st.hmax.toFixed(1),L('م','m'))+anKpi(L('الطوابق','Floors'),fl,L('أقصى','max'))+anKpi(L('الكتل','Blocks'),st.n,'')+anKpi(L('الموقع','Site'),`${site.w||100}×${site.d||100}`,L('م','m'))}</div>`}
- if(rvpTab==='prog'){const eff=state.prog.eff||.8;let rows='',tq=0,td=0;['pub','main','spec','adm','circ'].forEach(fn=>{const req=Math.round(state.prog.sp.filter(x=>x.fn===fn).reduce((a,x)=>a+x.a,0));let g=0;state.blocks.forEach(b=>{if(!b.hidden&&counts(b)&&(b.fn||'')===fn)g+=areaOf(b)*Math.max(1,+b.f||1)});const des=Math.round(g*eff);if(!req&&!des)return;tq+=req;td+=des;const p=req?des/req:0;
+ if(rvpTab==='prog'){const eff=state.prog.eff||.8;let rows='',tq=0,td=0;['pub','main','spec','adm','circ'].forEach(fn=>{const req=Math.round(state.prog.sp.filter(x=>x.fn===fn).reduce((a,x)=>a+x.a,0));let g=0;state.blocks.forEach(b=>{if(!b.hidden&&counts(b)&&(b.fn||'')===fn)g+=gfaOf(b)});const des=Math.round(g*eff);if(!req&&!des)return;tq+=req;td+=des;const p=req?des/req:0;
    rows+=`<tr><td><span class="sw" style="background:${FNS[fn].c}"></span>${fnName(fn)}</td><td>${req.toLocaleString('en')}</td><td>${des.toLocaleString('en')}</td><td style="color:${!req?'#64748b':p>=.9&&p<=1.15?'#15803d':p<.9?'#b91c1c':'#b45309'}">${req?Math.round(p*100)+'%':'—'}</td></tr>`});
   B.innerHTML=`<table class="rvp-t"><tr><th>${L('الوظيفة','Function')}</th><th>${L('المطلوب م²','Required m²')}</th><th>${L('المصمم م²','Designed m²')}</th><th>${L('التحقق','Match')}</th></tr>${rows}<tr class="tot"><td>${L('المجموع','Total')}</td><td>${tq.toLocaleString('en')}</td><td>${td.toLocaleString('en')}</td><td>${tq?Math.round(td/tq*100)+'%':'—'}</td></tr></table><div class="hint">${L('صافي، بكفاءة','Net, efficiency')} ${Math.round(eff*100)}%</div>`}
  if(rvpTab==='code'){const r=anGet('code'),st=computeStats(state),site=state.site||{},row=(ok,t,v)=>`<tr><td class="${ok?'ok':'bad'}">${ok?'✓':'✗'}</td><td>${t}</td><td>${v}</td></tr>`;

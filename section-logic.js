@@ -14,6 +14,19 @@
     return !!(b && FLAT_MATS[b.mat]);
   }
 
+  // massing form operations (courtyard / step-backs / chamfer / sloped roof): form-ops-logic.js
+  let formReq = null;
+  function FORM() {
+    const g = typeof globalThis !== 'undefined' ? globalThis.MC3D_FORM : null;
+    if (g) return g;
+    if (formReq === null) { try { formReq = typeof require === 'function' ? require('./form-ops-logic.js') : false; } catch (e) { formReq = false; } }
+    return formReq || null;
+  }
+  function formPrisms(b, fh) {
+    const F = b && b.form ? FORM() : null;
+    return F && F.has(b) ? F.prisms(b, fh) : null;
+  }
+
   function isBlockProp(b) {
     return !!(b && PROP_SHAPES[b.shape]);
   }
@@ -33,7 +46,9 @@
     const rh = (b.shape === 'gable' || b.shape === 'shed')
       ? Math.max(0.5, b.rh === undefined ? 3 : b.rh)
       : 0;
-    return (b.f || 1) * floorH + rh;
+    const F = b.form ? FORM() : null;
+    const fr = F && F.has(b) ? F.roofRise(b, floorH) : 0;
+    return (b.f || 1) * floorH + rh + fr;
   }
 
   function blockLocSize(b) {
@@ -64,6 +79,8 @@
   }
 
   function blockFootprintRings(b) {
+    const F = b && b.form && !isBlockFlat(b) ? FORM() : null;
+    if (F && F.has(b)) return F.worldRings(b, 4, 0);
     const [w, d] = b.shape === 'riwaq' ? [b.w, b.d] : blockLocSize(b);
     const W = w / 2;
     const D = d / 2;
@@ -117,6 +134,10 @@
     const bx = b.x || 0;
     const bz = b.z || 0;
     return rings.map(ring => ring.map(([lx, lz]) => [bx + lx * c + lz * s, bz - lx * s + lz * c]));
+  }
+
+  function minYmaxY(prs, y) {
+    return prs.length && y >= prs[0].y0 - 1e-4 && y <= prs[prs.length - 1].y1 + 1e-4;
   }
 
   function ringArea(pts) {
@@ -275,7 +296,69 @@
       const h = blockHeight(b, fh);
       const y0 = Number(b.y0) || 0;
       const y1 = y0 + h;
-      const rings = blockFootprintRings(b);
+      const prs = isBlockFlat(b) ? null : formPrisms(b, fh);
+      const rings = prs ? [].concat(...prs.map(p => p.rings)) : blockFootprintRings(b);
+
+      if (axis === 'y' && prs) {
+        // formed block: the tier at this height (clipped under a sloped roof), with its courtyard as a hole
+        const F = FORM();
+        const at = yy => { const p = prs.find(q => yy >= q.y0 - 1e-4 && yy < q.y1 - 1e-4) || (Math.abs(yy - prs[prs.length - 1].y1) < 1e-4 ? prs[prs.length - 1] : null); return p ? F.cutRingsAt(p, Math.min(yy, p.y1)) : []; };
+        const area = R => R.length ? Math.max(0, ringArea(R[0]) - R.slice(1).reduce((s, r) => s + ringArea(r), 0)) : 0;
+        if (second && minYmaxY(prs, second.point.y)) {
+          const r2 = at(second.point.y);
+          if (r2.length) cutItems2.push({ index: i, y0, y1, rings: r2 });
+        }
+        const R = at(pos);
+        if (R.length) {
+          const a = area(R);
+          cutItems.push({ index: i, id: b.id || ('b' + i), name: b.name || '', fn: b.fn || '', mat: b.mat || 'brick', shape: b.shape || 'box', y0, y1, height: y1, floors: b.f || 1, cutArea: a, rings: R });
+          totalCutArea += a;
+          if (y1 > maxCutHeight) maxCutHeight = y1;
+          visibleCount++;
+        } else {
+          const s0 = normal.y * y0 + constant, s1 = normal.y * y1 + constant;
+          const keepPrimary = Math.max(s0, s1) > -1e-4;
+          const keepSecond = !second || Math.max(second.normal.y * y0 + second.constant, second.normal.y * y1 + second.constant) > -1e-4;
+          if (keepPrimary && keepSecond) visibleCount++; else clippedCount++;
+        }
+        continue;
+      }
+
+      if (axis !== 'y' && prs) {
+        // formed block: every tier is its own prism; a sloped top gives each segment a slanted upper edge
+        const segs = (P0, N, out) => {
+          prs.forEach(p => {
+            intersectVerticalCutWithRings(p.rings, P0, N, tangent).forEach(([u0, u1]) => {
+              const seg = { index: i, id: b.id || ('b' + i), name: b.name || '', fn: b.fn || '', mat: b.mat || 'brick', shape: b.shape || 'box', u0, u1, y0: p.y0, y1: p.yWall };
+              if (p.top) {
+                seg.yt0 = p.top(P0.x + tangent.x * u0, P0.z + tangent.z * u0);
+                seg.yt1 = p.top(P0.x + tangent.x * u1, P0.z + tangent.z * u1);
+                seg.y1 = Math.max(seg.yt0, seg.yt1);
+              }
+              out.push(seg);
+            });
+          });
+        };
+        if (second) segs(second.point, second.normal, capSegments2);
+        const mine = [];
+        segs(point, normal, mine);
+        if (mine.length) {
+          let blockCutArea = 0, cutSpanWidth = 0, top = y0;
+          mine.forEach(sg => {
+            const wSpan = sg.u1 - sg.u0;
+            const hTop = sg.yt0 !== undefined ? (sg.yt0 + sg.yt1) / 2 : sg.y1;
+            blockCutArea += wSpan * (hTop - sg.y0);
+            if (sg.y0 <= y0 + 1e-4) cutSpanWidth += wSpan;
+            top = Math.max(top, sg.y1);
+            capSegments.push(sg);
+          });
+          cutItems.push({ index: i, id: b.id || ('b' + i), name: b.name || '', fn: b.fn || '', mat: b.mat || 'brick', shape: b.shape || 'box', y0, y1: top, height: top, floors: b.f || 1, cutSpanWidth, cutArea: blockCutArea, intervals: mine.filter(sg => sg.y0 <= y0 + 1e-4).map(sg => [sg.u0, sg.u1]) });
+          totalCutArea += blockCutArea;
+          if (top > maxCutHeight) maxCutHeight = top;
+          visibleCount++;
+          continue;
+        }
+      }
 
       if (axis === 'y') {
         const minY = y0;
@@ -318,13 +401,13 @@
       }
 
       // Vertical cut (X or Z, optionally angled)
-      if (second && !isBlockFlat(b)) {
+      if (second && !isBlockFlat(b) && !prs) {
         const intervals2 = intersectVerticalCutWithRings(rings, second.point, second.normal, tangent);
         for (let k = 0; k < intervals2.length; k++) {
           capSegments2.push({ index: i, u0: intervals2[k][0], u1: intervals2[k][1], y0, y1 });
         }
       }
-      const intervals = intersectVerticalCutWithRings(rings, point, normal, tangent);
+      const intervals = prs ? [] : intersectVerticalCutWithRings(rings, point, normal, tangent);
       if (intervals.length && !isBlockFlat(b)) {
         let blockCutArea = 0;
         let cutSpanWidth = 0;

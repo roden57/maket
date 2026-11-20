@@ -41,6 +41,7 @@ three.js r128 (cdnjs) + OrbitControls (jsdelivr) + d3 7.9.0 (cdnjs). qrcodejs 1.
 ### الوحدات المساعدة (ترتيب التحميل = قائمة `MODULES` في `build.py`)
 | الملف | المتغير العام | الوظيفة |
 |---|---|---|
+| form-ops-logic.js | MC3D_FORM | أدوات التشكيل على الكتلة المستطيلة (`b.form`): فناء داخلي، تدرج الطوابق، شطف الزوايا، سقف مائل — طبقات (tiers) منها تنحسب المساحات والرسم والمقطع والظلال والتصدير |
 | areas-logic.js | MC3D_AREAS | إشغال الموقع ومخطط المساحات |
 | shadow-heatmap-logic.js | — | خريطة ساعات الظل |
 | section-logic.js | MC3D_SECTION | مستوى المقطع وتحليله |
@@ -61,7 +62,8 @@ three.js r128 (cdnjs) + OrbitControls (jsdelivr) + d3 7.9.0 (cdnjs). qrcodejs 1.
 ### مفاهيم أساسية في `app.src.js`
 - **الكتلة:** `{id,name,shape,mat,fn,x,z,w,d,f,y0,ry,rot,…,fac?,facCfg?,park?}`. الأشكال `SHAPES`، المواد `MATS`، الوظائف `FNS`.
 - **الحالة `state`:** `{site,fh,blocks,sun,img,meta,notes,prog,spatialProgram,codeCfg,circCfg,share?}` وتُحفظ كاملة مع التصميم (localStorage + السحابة).
-- **المساحة الطابقية:** `areaOf(b) × floors` على الكتل اللي `counts(b)` (نفس قاعدة `computeStats` و FAR).
+- **المساحة الطابقية:** `gfaOf(b)` (= `areaOf(b) × floors` للكتل العادية، وطابق بطابق للكتل المشكّلة) على الكتل اللي `counts(b)`؛ `areaOf(b)` = مساحة الطابق الأرضي (البصمة)، و`floorAreaOf(b,k)` لطابق واحد.
+- **أدوات التشكيل `b.form`:** `{court:{w,d,ox,oz,f0}, steps:[{at,f,b,r,l}], ch:{r,c:{fr,fl,bl,br}}, slope:{a,dir}}` للشكل `box` فقط. الجهات محلية: f=+z، b=-z، r=+x، l=-x (أسماؤها بالبوصلة من `sideCompass`). الواجهة باللوحة الجانبية «أدوات التشكيل» (`formUI`/`bindForm`)، والهندسة `formGeom`.
 - **التحديث:** `refresh()` → `build()` (المشهد) + `panel()` + `stats()` + `save()`.
 - **اللوحات:** `sheets{}`، عناصر `img` بكاميرا محفوظة تُعاد بدقة عالية عند التصدير (`hqPass`). مخططات التحليل على اللوحة تحمل `it.an`.
 - **أقسام كبيرة بالملف (ابحث بالعنوان):** `MASSING ANIMATION STUDIO`، `SHARING FOR REVIEW`، `SPATIAL PROGRAM & AREA SCHEDULE`، `analysis studio`، `analysis diagrams as sheet images`.
@@ -75,7 +77,7 @@ three.js r128 (cdnjs) + OrbitControls (jsdelivr) + d3 7.9.0 (cdnjs). qrcodejs 1.
 ```bash
 python build.py            # يبني index.html + app.js + dist/claude-artifact.html ثم node --check ثم node --test
 python build.py --force    # إذا تغيّر index.html/app.js يدوياً وتريد الكتابة فوقهم
-npm test                   # الاختبارات فقط (79 اختبار حالياً، كلها ناجحة)
+npm test                   # الاختبارات فقط (100 اختبار حالياً، كلها ناجحة)
 ```
 
 - `build.py` **يرفض البناء** إذا انعدل `index.html` أو `app.js` يدوياً منذ آخر بناء (يقارن بـ `.build-hash.json`) — انقل التعديل إلى `src/` أولاً.

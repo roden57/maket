@@ -101,3 +101,35 @@ test('analyzeSectionCut supports angled vertical cuts and horizontal Y floor cut
   assert.equal(sliced.capSegments.length, 1);
   assert.equal(sliced.capSegments2.length, 1);
 });
+
+test('formed blocks: vertical cut follows step-backs, courtyard and sloped roof', () => {
+  const res = analyzeSectionCut({
+    axis: 'x', pos: 0, fh: 4,
+    blocks: [{ id: 'f1', name: 'Formed', shape: 'box', mat: 'brick', x: 0, z: 0, w: 40, d: 30, f: 4, y0: 0,
+      form: { court: { w: 10, d: 10 }, steps: [{ at: 2, f: 5 }], slope: { a: 45, dir: 'b' } } }]
+  });
+  assert.equal(res.cutCount, 1);
+  // 2 tiers × 2 wings either side of the courtyard
+  assert.equal(res.capSegments.length, 4);
+  const upper = res.capSegments.filter(s => s.y0 === 8);
+  assert.equal(upper.length, 2);
+  // the step-back pulls the front (+z) edge in by 5 m: the cut spans z -15 .. 10 on the upper tier
+  const us = upper.map(s => [s.u0, s.u1]).flat();
+  assert.ok(Math.abs(Math.max(...us) - Math.min(...us) - 25) < 1e-6);
+  // sloped top: ends at different heights, falling toward the back (-z)
+  upper.forEach(s => assert.ok(s.yt0 !== undefined && Math.abs(s.yt0 - s.yt1) > 1));
+  assert.ok(res.maxCutHeight > 16 + 20);
+});
+
+test('formed blocks: horizontal cut uses the tier at that level with the courtyard hole', () => {
+  const b = { id: 'f1', name: 'Formed', shape: 'box', mat: 'brick', x: 0, z: 0, w: 40, d: 30, f: 4, y0: 0,
+    form: { court: { w: 10, d: 10, f0: 1 }, steps: [{ at: 2, f: 5 }] } };
+  const low = analyzeSectionCut({ axis: 'y', pos: 2, fh: 4, blocks: [b] });
+  assert.equal(low.cutItems[0].rings.length, 1);
+  assert.ok(Math.abs(low.totalCutArea - 1200) < 1e-6);
+  const high = analyzeSectionCut({ axis: 'y', pos: 10, fh: 4, blocks: [b] });
+  assert.equal(high.cutItems[0].rings.length, 2);
+  assert.ok(Math.abs(high.totalCutArea - (40 * 25 - 100)) < 1e-6);
+  const above = analyzeSectionCut({ axis: 'y', pos: 17, fh: 4, blocks: [b] });
+  assert.equal(above.cutCount, 0);
+});

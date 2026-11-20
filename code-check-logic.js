@@ -102,6 +102,7 @@
     const o = opts(src.opts);
     const counts = typeof src.counts === 'function' ? src.counts : defaultCounts;
     const area = typeof src.area === 'function' ? src.area : (b => (Number(b.w) || 0) * (Number(b.d) || 0));
+    const gfaOf = typeof src.gfa === 'function' ? src.gfa : null; // optional: exact GFA of formed blocks
 
     let gfa = 0, upperGfa = 0, asphalt = 0, lotSpaces = 0, maxFloors = 0;
     const arch = [], cores = [];
@@ -114,8 +115,9 @@
       if (!counts(b)) return;
       const f = Math.max(1, Math.round(Number(b.f) || 1));
       const a = area(b);
-      gfa += a * f;
-      upperGfa += a * Math.max(0, f - 1);
+      const g = gfaOf ? gfaOf(b) : a * f;
+      gfa += g;
+      upperGfa += Math.max(0, g - a);
       maxFloors = Math.max(maxFloors, f);
       const item = { idx, b, f, fr: frame(b) };
       if (isCore(b)) { if (f >= 2) cores.push(item); } else arch.push(item);

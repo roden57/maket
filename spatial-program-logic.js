@@ -50,10 +50,11 @@
   }
 
   /**
-   * blocks: model blocks; program: normalized schedule; area(b): footprint m²; counts(b): counts toward floor area
+   * blocks: model blocks; program: normalized schedule; area(b): footprint m²; counts(b): counts toward floor area;
+   * gfa(b) (optional): gross floor area of all floors (step-backs and courtyards make it differ from footprint × floors)
    * returns rows per program entry, an 'unassigned' bucket (blocks whose function is not in the program) and totals
    */
-  function computeStatus({ blocks, program, area, counts }) {
+  function computeStatus({ blocks, program, area, counts, gfa }) {
     const A = typeof area === 'function' ? area : (b => num(b.w, 0) * num(b.d, 0));
     const C = typeof counts === 'function' ? counts : (b => !b.hidden);
     const prog = normalizeProgram(program);
@@ -61,7 +62,7 @@
     let unassigned = 0, unassignedN = 0;
     (Array.isArray(blocks) ? blocks : []).forEach(b => {
       if (!b || b.hidden || !C(b)) return;
-      const built = A(b) * Math.max(1, Math.round(num(b.f, 1)));
+      const built = typeof gfa === 'function' ? gfa(b) : A(b) * Math.max(1, Math.round(num(b.f, 1)));
       const fn = b.fn || '';
       if (prog.some(p => p.fn === fn)) { by[fn] = (by[fn] || 0) + built; nBy[fn] = (nBy[fn] || 0) + 1; }
       else { unassigned += built; unassignedN++; }

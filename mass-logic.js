@@ -32,7 +32,18 @@
     return Math.abs(getRotOf(b)) % 180 === 0 ? [w, d] : [d, w];
   }
 
-  function getRoofHeight(b) {
+
+  // massing form operations (courtyard / step-backs / chamfer / sloped roof): form-ops-logic.js
+  let formReq = null;
+  function FORM() {
+    const g = typeof globalThis !== 'undefined' ? globalThis.MC3D_FORM : null;
+    if (g) return g;
+    if (formReq === null) { try { formReq = typeof require === 'function' ? require('./form-ops-logic.js') : false; } catch (e) { formReq = false; } }
+    return formReq || null;
+  }
+
+  function getRoofHeight(b, fh) {
+    if (b.form && b.shape === 'box') { const F = FORM(); if (F && F.has(b)) return F.roofRise(b, fh); }
     if (b.shape !== 'gable' && b.shape !== 'shed') return 0;
     return Math.max(0.5, b.rh === undefined ? 3 : (Number(b.rh) || 0));
   }
@@ -40,7 +51,7 @@
   function getBlockHeight(b, fh) {
     const floorH = Math.max(1, Number(fh) || 4);
     const floors = Math.max(1, Number(b.f) || 1);
-    return floors * floorH + getRoofHeight(b);
+    return floors * floorH + getRoofHeight(b, floorH);
   }
 
   function polyPtsScaled(b, w, d) {
@@ -79,7 +90,7 @@
     const floorH = Math.max(1, Number(fh) || 4);
     const floors = Math.max(1, Number(b.f) || 1);
     const [w, d] = getLocalDims(b);
-    const roofH = getRoofHeight(b);
+    const roofH = getRoofHeight(b, floorH);
     const wallH = floors * floorH;
     const h = wallH + roofH;
     const y0 = Number(b.y0) || 0;
@@ -194,7 +205,21 @@
       daylightPct = (1 - (darkW * darkD) / Math.max(1, footprint)) * 100;
     }
 
-    const gfa = footprint * floors;
+    let gfa = footprint * floors;
+    const F = b.form && shape === 'box' ? FORM() : null;
+    if (F && F.has(b)) {
+      // courtyard / step-backs / chamfer / sloped roof: exact tier-by-tier quantities
+      const m = F.metrics(b, floorH);
+      footprint = m.footprint; perimeter = m.perimeter; volume = m.volume; envelopeArea = m.envelope; gfa = m.gfa;
+      const T = F.tiers(b, floorH), t0 = T[0];
+      const rw = t0.rect.x1 - t0.rect.x0, rd = t0.rect.z1 - t0.rect.z0;
+      if (t0.holeRect) {
+        const wing = Math.min(t0.holeRect.x0 - t0.rect.x0, t0.rect.x1 - t0.holeRect.x1, t0.holeRect.z0 - t0.rect.z0, t0.rect.z1 - t0.holeRect.z1);
+        daylightPct = Math.min(100, ((2 * DAYLIGHT_DEPTH_M) / Math.max(0.5, wing)) * 100);
+      } else {
+        daylightPct = (1 - (Math.max(0, rw - 2 * DAYLIGHT_DEPTH_M) * Math.max(0, rd - 2 * DAYLIGHT_DEPTH_M)) / Math.max(1, footprint)) * 100;
+      }
+    }
     const svr = volume > 0 ? envelopeArea / volume : 0;
     // Optimal 5-exposed-face ground-coupled rectangular prism envelope = 3 * (2 * V)^(2/3)
     const idealEnvelope = volume > 0 ? 3 * Math.pow(2 * volume, 2 / 3) : 0;
