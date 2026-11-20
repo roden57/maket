@@ -31,7 +31,7 @@ h, b, js = S('head.html'), S('body.html'), S('app.src.js')
 full = (js.replace('__INIT__', S('init.json')).replace('__SK2__', S('sketch2.json'))
           .replace('__SK3__', S('sketch3.json')).replace('__SK4__', S('sketch4.json')))
 # Loaded in this order, after three.js / d3 and before app.js
-MODULES = ['form-ops-logic', 'context-logic', 'wind-logic', 'areas-logic', 'shadow-heatmap-logic', 'section-logic', 'site-logic', 'facade-logic',
+MODULES = ['form-ops-logic', 'context-logic', 'wind-logic', 'plan2d-logic', 'areas-logic', 'shadow-heatmap-logic', 'section-logic', 'site-logic', 'facade-logic',
            'mass-logic', 'analysis-studio-logic', 'code-check-logic', 'massing-anim-logic', 'spatial-program-logic', 'snap-guides-logic', 'i18n', 'occupancy-chart',
            'unsaved-logic']
 SB_URL = 'https://kwoftzpxtytcgahsgjro.supabase.co'

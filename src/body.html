@@ -85,6 +85,7 @@
       <button class="icon-btn" id="qUndo" title="تراجع Ctrl+Z"><svg class="ic"><use href="#i-undo"/></svg></button>
       <button class="icon-btn" id="qRedo" title="إعادة Ctrl+Y"><svg class="ic"><use href="#i-redo"/></svg></button>
       <button class="icon-btn" id="qSave" title="حفظ سريع"><svg class="ic"><use href="#i-save"/></svg></button>
+      <button class="icon-btn" id="qKeys" title="اختصارات لوحة المفاتيح (?)"><svg class="ic" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M7 14h10"/></svg></button>
       <button class="icon-btn" id="qHelp" title="دليل الاستخدام"><svg class="ic"><use href="#i-help"/></svg></button>
     </div>
     <button class="btn-primary" id="qExp" title="تصدير النموذج واللوحات"><svg class="ic"><use href="#i-download"/></svg> تصدير</button>
@@ -1216,6 +1217,8 @@
         <label class="qchk"><input type="checkbox" class="xf" value="dwg2d" checked> <b>AutoCAD مسقط</b> — DXF 2D</label>
         <label class="qchk"><input type="checkbox" class="xf" value="dae" checked> <b>SketchUp</b> — DAE</label>
         <label class="qchk"><input type="checkbox" class="xf" value="obj"> <b>OBJ</b> (Blender / Rhino / 3ds Max)</label>
+        <label class="qchk"><input type="checkbox" class="xf" value="glb"> <b>glTF</b> — GLB (Blender / Twinmotion / الويب)</label>
+        <label class="qchk"><input type="checkbox" class="xf" value="svg2d" checked> <b>مسقط بالأبعاد</b> — SVG (بمقياس رسم)</label>
         <label class="qchk"><input type="checkbox" class="xf" value="csv" checked> <b>جدول الكتل</b> — CSV</label>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:10px"><button class="sm pri2" id="exp3D">تنزيل النموذج</button><span class="hint">الوحدات: متر</span></div>
@@ -1308,6 +1311,10 @@
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button type="button" class="sm pri2" id="osmGo">جلب المباني</button></div>
     <div class="hint" style="margin-top:6px">البيانات © مساهمو OpenStreetMap (ODbL). يرسل إحداثيات القطعة فقط لخادم Overpass.</div>
   </div>
+  <div id="mKeys" style="display:none;font-size:13px;width:min(640px,84vw)">
+    <div class="hint" style="margin-bottom:8px">الاختصارات تشتغل حتى إذا لوحة المفاتيح عربية. اضغط <kbd>?</kbd> بأي وقت حتى تفتح هالنافذة.</div>
+    <div id="keysBody" class="keys-grid"></div>
+  </div>
   <div id="mInput" style="display:none;font-size:13px"><div class="fld" style="margin:8px 0"><input type="text" id="inpVal" style="width:min(360px,80vw)"></div><button class="sm pri2" id="inpOk">موافق</button></div>
   <div id="mAuth" style="display:none;font-size:13px">
     <div class="hint" style="margin-bottom:8px">احفظ تصاميمك ولوحاتك وروابط المراجعة وملاحظاتها في حسابك الشخصي للوصول إليها من أي جهاز.</div>
@@ -1352,7 +1359,7 @@
     <button class="sm pri2" id="qGo" style="margin-top:8px;padding:6px 18px">إنشاء اللوحة</button>
   </div>
   <div id="mHelp" style="display:none;font-size:13px;line-height:1.9;max-height:60vh;overflow:auto">
-    <button class="sm pri2" id="bTour" style="margin-bottom:8px">بدء الجولة التعريفية</button><br>
+    <button class="sm pri2" id="bTour" style="margin-bottom:8px">بدء الجولة التعريفية</button> <button class="sm" id="bKeysHelp" style="margin-bottom:8px">اختصارات لوحة المفاتيح</button><br>
     <b>التحديد والتحريك</b><br>• النقر على الكتلة = تحديد (دون تحريك غير مقصود)، وبعد التحديد اسحبها لتحريكها<br>• المربعات البرتقالية على الحواف لتمديد الكتلة، والمخروط الأزرق لتغيير عدد الطوابق<br>• Shift + نقر = تحديد أكثر من كتلة · النقر بالزر الأيمن = قائمة أوامر سريعة<br>
     <b>الكاميرا والرسم</b><br>• السحب في الفراغ = تدوير، الزر الأيمن = تحريك، العجلة = تقريب/تبعيد<br>• <b>وضع المسقط</b>: إسقاط عمودي بدون منظور للرسم الدقيق<br>• اختر الشكل والمادة والوظيفة والطوابق من اللوحة الجانبية ثم اسحب أداة الرسم على الأرض<br>
     <b>التحليل واللوحات والتصدير</b><br>• يمكنك تخصيص بيانات المشروع والموقع والمدينة والرياح من تبويبي "ملف" و"الشمس والرياح"<br>• تبويب "اللوحات" يوفّر لوحة سريعة A4–A1 مع جدول عنوان ومقياس رسم وتصدير PDF/PNG/JPG<br>• تصدير النموذج ثلاثي الأبعاد بصيغ Revit (IFC)، AutoCAD (DXF 2D/3D)، SketchUp (DAE)، OBJ، وCSV<br>

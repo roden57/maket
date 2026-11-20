@@ -44,6 +44,7 @@ three.js r128 (cdnjs) + OrbitControls (jsdelivr) + d3 7.9.0 (cdnjs). qrcodejs 1.
 | form-ops-logic.js | MC3D_FORM | أدوات التشكيل على الكتلة المستطيلة (`b.form`): فناء داخلي، تدرج الطوابق، شطف الزوايا، سقف مائل — طبقات (tiers) منها تنحسب المساحات والرسم والمقطع والظلال والتصدير |
 | context-logic.js | MC3D_CTX | السياق الحضري: مجاور سريع على جهة من القطعة (`quickBlocks`)، استيراد OpenStreetMap (`overpassQuery`/`parseOSM`/`toBlocks`)، إسقاط lat/lon على المشهد مع زاوية الشمال |
 | wind-logic.js | MC3D_WIND | طبقة الرياح بالمشهد: وردة رياح تخطيطية (`rose`)، ومناطق تقريبية (`zones`): ظل الرياح خلف الكتل، تسارع بالفجوات، تيارات الزوايا — قواعد مبسطة مو CFD |
+| plan2d-logic.js | MC3D_PLAN2D | مسقط ثنائي الأبعاد بالأبعاد: SVG بمقياس رسم (عربي، سهم شمال، مقياس) + أبعاد DXF (طبقة DIMS) تنضاف لـ `dxf2D` |
 | areas-logic.js | MC3D_AREAS | إشغال الموقع ومخطط المساحات |
 | shadow-heatmap-logic.js | — | خريطة ساعات الظل |
 | section-logic.js | MC3D_SECTION | مستوى المقطع وتحليله |
@@ -67,6 +68,9 @@ three.js r128 (cdnjs) + OrbitControls (jsdelivr) + d3 7.9.0 (cdnjs). qrcodejs 1.
 - **المساحة الطابقية:** `gfaOf(b)` (= `areaOf(b) × floors` للكتل العادية، وطابق بطابق للكتل المشكّلة) على الكتل اللي `counts(b)`؛ `areaOf(b)` = مساحة الطابق الأرضي (البصمة)، و`floorAreaOf(b,k)` لطابق واحد.
 - **أدوات التشكيل `b.form`:** `{court:{w,d,ox,oz,f0}, steps:[{at,f,b,r,l}], ch:{r,c:{fr,fl,bl,br}}, slope:{a,dir}}` للشكل `box` فقط. الجهات محلية: f=+z، b=-z، r=+x، l=-x (أسماؤها بالبوصلة من `sideCompass`). الواجهة باللوحة الجانبية «أدوات التشكيل» (`formUI`/`bindForm`)، والهندسة `formGeom`.
 - **التحديث:** `refresh()` → `build()` (المشهد) + `panel()` + `stats()` + `save()`.
+- **التراجع:** `snap()` قبل التغيير كالعادة، و`undoNet()` داخل `save()` شبكة أمان: أي تغيير يوصل للحفظ بدون snap ياخذ نقطة تراجع (التغييرات خلال 0.7 ث تندمج، ولا شي أثناء السحب).
+- **الاختصارات:** المعالج الرئيسي لـ `keydown` يقرا الحروف من `e.code` عبر `kbKey()` حتى تشتغل بلوحة المفاتيح العربية. الجدول بـ `KEYS()` والنافذة `openKeys()` (زر ⌨ أو `?`). M = تحريك يتبع الماوس (`moveG`/`startGrab`/`endGrab`)، T = قياس، S = مقطع، R = تدوير 90° لكل المحدد.
+- **الجولة التعريفية:** `getTour()`؛ عنصر رابع اختياري = التبويب اللي يفتح. `mc3d_tour=2` (تنعرض مرة ثانية للنسخة الجديدة).
 - **اللوحات:** `sheets{}`، عناصر `img` بكاميرا محفوظة تُعاد بدقة عالية عند التصدير (`hqPass`). مخططات التحليل على اللوحة تحمل `it.an`.
 - **أقسام كبيرة بالملف (ابحث بالعنوان):** `MASSING ANIMATION STUDIO`، `SHARING FOR REVIEW`، `SPATIAL PROGRAM & AREA SCHEDULE`، `analysis studio`، `analysis diagrams as sheet images`.
 
@@ -79,7 +83,7 @@ three.js r128 (cdnjs) + OrbitControls (jsdelivr) + d3 7.9.0 (cdnjs). qrcodejs 1.
 ```bash
 python build.py            # يبني index.html + app.js + dist/claude-artifact.html ثم node --check ثم node --test
 python build.py --force    # إذا تغيّر index.html/app.js يدوياً وتريد الكتابة فوقهم
-npm test                   # الاختبارات فقط (116 اختبار حالياً، كلها ناجحة)
+npm test                   # الاختبارات فقط (121 اختبار حالياً، كلها ناجحة)
 ```
 
 - `build.py` **يرفض البناء** إذا انعدل `index.html` أو `app.js` يدوياً منذ آخر بناء (يقارن بـ `.build-hash.json`) — انقل التعديل إلى `src/` أولاً.

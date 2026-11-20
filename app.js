@@ -109,8 +109,14 @@ let undoS=[],redoS=[],lastPush=0;
 const snapStr=()=>JSON.stringify({s:state,n:curName});
 function restore(str){const o=JSON.parse(str);if(o&&o.s){state=normState(o.s);curName=o.n||curName}else state=normState(o)}
 function snap(force){const n=Date.now();if(!force&&n-lastPush<700)return;lastPush=n;undoS.push(snapStr());if(undoS.length>100)undoS.shift();redoS=[]}
-function doUndo(){if(!undoS.length)return flash(L('لا يوجد ما يمكن التراجع عنه','Nothing to undo'));redoS.push(snapStr());restore(undoS.pop());clearSel();siteChanged();refresh();fillDesigns()}
-function doRedo(){if(!redoS.length)return;undoS.push(snapStr());restore(redoS.pop());clearSel();siteChanged();refresh();fillDesigns()}
+// undo safety net: any change that reaches save() without a snap() first still gets an undo point
+// (rapid edits within 0.7 s merge into one step; nothing is recorded in the middle of a drag)
+let lastSeenStr=null,undoBusy=false;
+function undoNet(){if(typeof hasActiveCanvasGesture==='function'&&hasActiveCanvasGesture())return;const cur=snapStr();
+ if(lastSeenStr!==null&&cur!==lastSeenStr&&!undoBusy){if(undoS[undoS.length-1]!==lastSeenStr){const n=Date.now();if(n-lastPush>=700){undoS.push(lastSeenStr);if(undoS.length>100)undoS.shift();lastPush=n}}redoS=[]}
+ lastSeenStr=cur}
+function doUndo(){if(!undoS.length)return flash(L('لا يوجد ما يمكن التراجع عنه','Nothing to undo'));undoBusy=true;try{redoS.push(snapStr());restore(undoS.pop());clearSel();siteChanged();refresh();fillDesigns()}finally{undoBusy=false;lastSeenStr=snapStr()}flash(L(`تراجع ↶ (باقي ${undoS.length})`,`Undo ↶ (${undoS.length} left)`))}
+function doRedo(){if(!redoS.length)return flash(L('لا يوجد ما يمكن إعادته','Nothing to redo'));undoBusy=true;try{undoS.push(snapStr());restore(redoS.pop());clearSel();siteChanged();refresh();fillDesigns()}finally{undoBusy=false;lastSeenStr=snapStr()}flash(L('إعادة ↷','Redo ↷'))}
 function uniq(base){if(!designs[base])return base;let i=2;while(designs[base+' '+i])i++;return base+' '+i}
 const $=id=>document.getElementById(id);
 function flash(t){const m=$('msg');m.textContent=t;m.style.display='block';clearTimeout(flash.t);flash.t=setTimeout(()=>m.style.display='none',Math.min(6000,1800+String(t).length*35))}
@@ -536,6 +542,7 @@ function elemList(){const box=$('elBox');if(!box)return;box.innerHTML='';state.b
  const [bh_,bl]=d.querySelectorAll('button');bh_.onclick=()=>{snap(true);b.hidden=!b.hidden;if(b.hidden)selSet.delete(i);refresh()};bl.onclick=()=>{b.lock=!b.lock;refresh()};box.appendChild(d)})}
 function growSide(b,k,s){if(k==='R'||k==='L'){if(b.w+s<1)return;b.w+=s;b.x+=k==='R'?s/2:-s/2}else{if(b.d+s<1)return;b.d+=s;b.z+=k==='B'?s/2:-s/2}}
 function rotFree(dv){if(!selSet.size)return;snap();selSet.forEach(i=>{const b=state.blocks[i];if(b.lock)return;b.rot=(((b.rot||0)+dv)%360+360)%360});refresh()}
+function rot90Sel(){const ids=[...selSet].filter(i=>!state.blocks[i].lock);if(!ids.length)return;snap(true);ids.forEach(i=>{const b=state.blocks[i];b.ry=(b.ry+90)%360;[b.w,b.d]=[b.d,b.w];if(b.form&&window.MC3D_FORM)b.form=MC3D_FORM.rotForm90(b.form)});refresh()}
 function rot90(){if(sel<0)return;snap(true);const b=state.blocks[sel];b.ry=(b.ry+90)%360;[b.w,b.d]=[b.d,b.w];if(b.form&&window.MC3D_FORM)b.form=MC3D_FORM.rotForm90(b.form);refresh()}
 function split(){if(sel<0)return;const b=state.blocks[sel];if(b.f<2)return flash(L('الكتلة من طابق واحد','Mass has only 1 floor'));snap(true);const parts=[];
  const fp=hasForm(b)?MC3D_FORM.splitFloors(b,state.fh):null;
@@ -548,7 +555,7 @@ function del(){if(!selSet.size)return;const ids=[...selSet].filter(i=>!state.blo
 function refresh(){build();panel();stats();save();if(typeof ctxRender==='function')ctxRender();if(typeof buildWind==='function'&&(showWind||showWindZ))buildWind();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis();if(typeof renderFacadeStudio==='function')renderFacadeStudio();if(typeof renderMassStudio==='function')renderMassStudio()}
 let saveT=null,appBooted=false;
 const unsavedTracker=window.MC3D_UNSAVED?window.MC3D_UNSAVED.createUnsavedTracker():null;
-function hasActiveCanvasGesture(){return Boolean((typeof drawing!=='undefined'&&drawing)||(typeof dragging!=='undefined'&&dragging&&dragging.moved)||(typeof resizing!=='undefined'&&resizing)||(typeof cutting!=='undefined'&&cutting)||(typeof polyD!=='undefined'&&polyD))}
+function hasActiveCanvasGesture(){return Boolean((typeof moveG!=='undefined'&&moveG)||(typeof drawing!=='undefined'&&drawing)||(typeof dragging!=='undefined'&&dragging&&dragging.moved)||(typeof resizing!=='undefined'&&resizing)||(typeof cutting!=='undefined'&&cutting)||(typeof polyD!=='undefined'&&polyD))}
 function updateCurNameBadge(ok){
  const el=$('curname');if(!el)return;
  const dirty=unsavedTracker?unsavedTracker.hasUnsavedChanges(state,curName,hasActiveCanvasGesture()):false;
@@ -565,7 +572,7 @@ function flushLocalSaveClean(ok){
  updateCurNameBadge(ok!==false);
 }
 function syncDesigns(){const disk=LS.get('mc3d_designs');if(disk&&typeof disk==='object'){Object.keys(designs).forEach(k=>{if(!(k in disk)&&k!==curName)delete designs[k]});Object.keys(disk).forEach(k=>{if(k!==curName)designs[k]=disk[k]})}}
-function save(){const okCur=LS.set('mc3d_cur',state),okName=LS.set('mc3d_name',curName);
+function save(){undoNet();const okCur=LS.set('mc3d_cur',state),okName=LS.set('mc3d_name',curName);
  if(unsavedTracker&&(!okCur||!okName))unsavedTracker.setLocalSaveStatus({ok:false});
  if(curName){designs[curName]=clone(state);clearTimeout(saveT);
   if(unsavedTracker&&appBooted)unsavedTracker.setLocalSaveStatus({pending:true});
@@ -590,7 +597,7 @@ $('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.c
   const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;refresh();flushLocalSaveClean(ok);flash(L('حُذف نهائياً: ','Permanently deleted: ')+n+(designs[curName]?L(' — المفتوح حالياً: ',' — current: ')+curName:''))})};
 addEventListener('storage',e=>{if(e.key==='mc3d_designs'){syncDesigns();fillDesigns();$('dsel').value=curName}
  if(e.key==='mc3d_sheets'&&typeof sheets!=='undefined'){const d=LS.get('mc3d_sheets');if(d){Object.keys(sheets).forEach(k=>{if(!(k in d)&&k!==curSheet)delete sheets[k]});Object.keys(d).forEach(k=>{if(k!==curSheet)sheets[k]=d[k]});fillSheets()}}});
-const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة'],share:['mShare','مشاركة التصميم للمراجعة'],rvwelcome:['mRvWelcome','مراجعة تصميم'],rvproj:['mRvProj','تفاصيل المشروع'],rvnote:['mRvNote','ملاحظة'],ctxq:['mCtxQ','إضافة مبنى مجاور'],osm:['mOsm','استيراد المباني المحيطة من OpenStreetMap']};
+const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة'],share:['mShare','مشاركة التصميم للمراجعة'],rvwelcome:['mRvWelcome','مراجعة تصميم'],rvproj:['mRvProj','تفاصيل المشروع'],rvnote:['mRvNote','ملاحظة'],keys:['mKeys','اختصارات لوحة المفاتيح'],ctxq:['mCtxQ','إضافة مبنى مجاور'],osm:['mOsm','استيراد المباني المحيطة من OpenStreetMap']};
 function modal(kind){$('modal').style.display='flex';Object.entries(MODALS).forEach(([k,[id]])=>{const e=$(id);if(e)e.style.display=k===kind?'block':'none'});$('modal').querySelector('.box').classList.toggle('wide',kind==='prog');$('mTitle').textContent=dn('modals',kind,(MODALS[kind]||[0,''])[1])}
 $('bIO').onclick=()=>{$('ioText').value=JSON.stringify(state);modal('io')};
 $('mClose').onclick=()=>{$('modal').style.display='none';crop=null};
@@ -1272,19 +1279,35 @@ function mirror(ax){if(!selSet.size)return;snap(true);const ids=[...selSet];let 
 function toggleLock(){if(!selSet.size)return;const v=!state.blocks[sel].lock;selSet.forEach(i=>state.blocks[i].lock=v);refresh();flash(v?L('قُفلت — لن تتحرك خطأً','Locked'):L('أُلغي القفل','Unlocked'))}
 function toggleHide(){if(!selSet.size)return;snap(true);selSet.forEach(i=>state.blocks[i].hidden=true);clearSel();refresh();flash(L('أُخفيت — يمكن إظهارها من قائمة العناصر','Hidden — restore from the Outliner list'))}
 addEventListener('pointerup',up);addEventListener('pointercancel',up);
-addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA')return;
- const k=e.key,ctrl=e.ctrlKey||e.metaKey;
+addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.target.isContentEditable)return;
+ const ctrl=e.ctrlKey||e.metaKey,K=kbKey(e),k=K.length===1&&/[a-z]/i.test(K)?(e.shiftKey?K.toUpperCase():K.toLowerCase()):e.key;
+ if(moveG){if(k==='Escape'){e.preventDefault();endGrab(true)}else if(k==='Enter'){e.preventDefault();endGrab(false)}return}
+ if(k==='?'||e.key==='؟'||(e.code==='Slash'&&e.shiftKey)||k==='F1'){e.preventDefault();openKeys();return}
+ if($('modal').style.display==='flex'){if(k==='Escape')$('modal').style.display='none';return}
  if(polyD){if(k==='Enter'){e.preventDefault();finishPoly();return}if(k==='Escape'){cancelPoly();return}if(k==='Backspace'){e.preventDefault();polyD.pts.pop();if(!polyD.pts.length)cancelPoly();else updPoly();return}}
  if(ctrl&&(k==='z'||k==='Z')){if(sheetOpen)return;e.preventDefault();e.shiftKey?doRedo():doUndo();return}
  if(ctrl&&(k==='y'||k==='Y')){if(sheetOpen)return;e.preventDefault();doRedo();return}
+ if(sheetOpen)return; // the sheet editor has its own keys
+ if(ctrl&&(k==='s'||k==='S')){e.preventDefault();$('qSave').click();return}
+ if(ctrl&&(k==='e'||k==='E')){e.preventDefault();openExport();return}
+ if(!ctrl&&!e.altKey){const vk={'1':'iso','2':'top','3':'front','4':'side','5':'eye'}[e.key]||{Digit1:'iso',Digit2:'top',Digit3:'front',Digit4:'side',Digit5:'eye'}[e.code];if(vk){e.preventDefault();view(vk);return}}
+ if(!ctrl&&(k==='s'||k==='S')){setSecOn(!sec.on);if(sec.on)showTab('section');flash(sec.on?L('المقطع شغّال (S للإطفاء)','Section on (S to turn off)'):L('المقطع مطفي','Section off'));return}
+ if(!ctrl&&(k==='f'||k==='F')){$('bFitSite').click();return}
+ if(!ctrl&&(k==='g'||k==='G')){$('bGrid').click();return}
+ if(!ctrl&&(k==='n'||k==='N')){$('bNames').click();return}
+ if(!ctrl&&(k==='p'||k==='P')){$('bPlan').click();return}
+ if(!ctrl&&(k==='w'||k==='W')){$('bWind').click();return}
+ if(!ctrl&&(k==='t'||k==='T')){setTool('meas');return}
  if(ctrl&&(k==='a'||k==='A')){e.preventDefault();$('bAll').click();return}
  if(ctrl&&(k==='c'||k==='C')){copySel();return}if(ctrl&&(k==='v'||k==='V')){e.preventDefault();pasteClip();return}
  if(ctrl&&(k==='d'||k==='D')){e.preventDefault();dup();return}
- if(k==='v'||k==='V'){setTool('select');return}if(k==='b'||k==='B'){setTool('draw');return}if(k==='m'||k==='M'){setTool('meas');return}
- if(k==='Escape'){dragging=null;resizing=null;O.enabled=true;clearSnapGuides();clearSel();setTool('select');refresh();return}
+ if(!ctrl&&(k==='v'||k==='V')){setTool('select');return}if(!ctrl&&(k==='b'||k==='B')){setTool('draw');return}
+ if(!ctrl&&(k==='m'||k==='M')){if(selSet.size){setTool('select');startGrab()}else{setTool('select');flash(L('تحريك: حدّد كتلة أولاً ثم اضغط M','Move: select a mass first, then press M'))}return}
+ if(k==='Escape'){if($('tour').style.display==='flex'){endTour();return}dragging=null;resizing=null;O.enabled=true;clearSnapGuides();clearSel();setTool('select');refresh();return}
  if(!selSet.size)return;
  if(k==='Delete'||k==='Backspace'){e.preventDefault();del();return}
- if(k==='d'||k==='D'){dup();return}if(k==='R'&&e.shiftKey){rotFree(15);return}if((k==='r'||k==='R')&&selSet.size===1){rot90();return}if(k==='l'||k==='L'){toggleLock();return}if(k==='h'||k==='H'){toggleHide();return}
+ if(k==='d'||k==='D'){dup();return}if((k==='r'||k==='R')&&e.altKey){e.preventDefault();rotFree(-15);return}if(k==='R'&&e.shiftKey){rotFree(15);return}if(k==='r'){rot90Sel();return}if(k==='l'||k==='L'){toggleLock();return}if(k==='h'||k==='H'){toggleHide();return}
+ if((e.key==='+'||e.key==='='||e.code==='NumpadAdd')&&!ctrl){e.preventDefault();snap();selSet.forEach(i=>state.blocks[i].f++);refresh();return}if((e.key==='-'||e.code==='NumpadSubtract')&&!ctrl){e.preventDefault();snap();selSet.forEach(i=>{if(state.blocks[i].f>1)state.blocks[i].f--});refresh();return}
  if(k==='PageUp'){snap();selSet.forEach(i=>state.blocks[i].f++);refresh();return}if(k==='PageDown'){snap();selSet.forEach(i=>{if(state.blocks[i].f>1)state.blocks[i].f--});refresh();return}
  const st=snapStep*(e.shiftKey?5:1),mvk={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[k];
  if(mvk){e.preventDefault();snap();selSet.forEach(i=>{if(state.blocks[i].lock)return;state.blocks[i].x+=mvk[0];state.blocks[i].z+=mvk[1]});refresh()}});
@@ -1992,6 +2015,33 @@ $('osmGo').onclick=async()=>{const ll=MC3D_CTX.parseLatLon($('osmLL').value),stE
  say(L(`انضاف <b>${res.blocks.length}</b> مبنى مجاور (${est} بارتفاع تقديري ${+$('osmF').value||2} طوابق${res.skipped.site?`، تجاهلت ${res.skipped.site} داخل القطعة`:''}). عدّل الارتفاعات من «الارتفاع التقديري» أو بتحديد المبنى.`,`Added <b>${res.blocks.length}</b> neighbours (${est} estimated)`));
  setTimeout(()=>{if(typeof view==='function')view('top')},50)};
 
+// ================= WORK FASTER: move mode (M), shortcuts window, 2D plan export =================
+// letter shortcuts read e.code (KeyM…) so they work with the Arabic keyboard layout too
+function kbKey(e){return /^Key[A-Z]$/.test(e.code||'')?e.code.slice(3):e.key}
+var moveG=null; // M: the selection follows the mouse on the ground; click / Enter places it, Esc / right-click cancels
+function startGrab(){const ids=[...selSet].filter(i=>state.blocks[i]&&!state.blocks[i].lock);if(!ids.length)return flash(L('الكتلة مقفلة','Mass is locked'));
+ moveG={ids,orig:ids.map(i=>({x:state.blocks[i].x,z:state.blocks[i].z})),p0:null,moved:false};el.style.cursor='move';
+ flash(L('تحريك: حرّك الماوس، ونقرة تثبّت — Esc للإلغاء','Move: move the mouse, click to place — Esc cancels'))}
+function endGrab(cancel){if(!moveG)return;const g=moveG;moveG=null;el.style.cursor='';
+ if(cancel){g.ids.forEach((i,k)=>Object.assign(state.blocks[i],g.orig[k]));if(g.moved&&undoS.length)undoS.pop()}
+ refresh();if(!cancel&&g.moved)flash(L('تحرّكت ✓ (Ctrl+Z للتراجع)','Moved ✓ (Ctrl+Z to undo)'))}
+addEventListener('pointermove',e=>{if(!moveG)return;const p=gpt(e);if(!p)return;if(!moveG.p0){moveG.p0=p.clone();return}
+ const dx=sn(p.x-moveG.p0.x),dz=sn(p.z-moveG.p0.z);if(!moveG.moved&&(dx||dz)){snap(true);moveG.moved=true}
+ moveG.ids.forEach((i,k)=>{state.blocks[i].x=moveG.orig[k].x+dx;state.blocks[i].z=moveG.orig[k].z+dz});build()},true);
+addEventListener('pointerdown',e=>{if(!moveG||e.target!==R.domElement)return;e.preventDefault();e.stopImmediatePropagation();endGrab(e.button!==0)},true);
+addEventListener('contextmenu',e=>{if(moveG){e.preventDefault();e.stopImmediatePropagation()}},true);
+const KEYS=()=>[
+ [L('تعديل','Edit'),[[['Ctrl','Z'],L('تراجع','Undo')],[['Ctrl','Y'],L('إعادة','Redo')],[['Ctrl','Shift','Z'],L('إعادة','Redo')],[['Ctrl','C'],L('نسخ','Copy')],[['Ctrl','V'],L('لصق','Paste')],[['D'],L('تكرار الكتلة','Duplicate')],[['Delete'],L('حذف','Delete')],[['Ctrl','A'],L('تحديد الكل','Select all')],[['Ctrl','S'],L('حفظ','Save')],[['Ctrl','E'],L('تصدير','Export')],[['Esc'],L('إلغاء / إنهاء التحديد','Cancel / clear selection')]]],
+ [L('الأدوات','Tools'),[[['V'],L('تحديد وسحب','Select & drag')],[['M'],L('تحريك: الكتلة تتبع الماوس، نقرة تثبّت','Move: follows the mouse, click to place')],[['B'],L('رسم كتلة','Draw a mass')],[['T'],L('قياس','Measure')],[['S'],L('المقطع تشغيل / إطفاء','Section on / off')],[['R'],L('تدوير 90°','Rotate 90°')],[['Shift','R'],L('تدوير +15°','Rotate +15°')],[['Alt','R'],L('تدوير −15°','Rotate −15°')]]],
+ [L('الكتلة المحددة','Selected mass'),[[['←','→','↑','↓'],L('تحريك خطوة (Shift = ×5)','Nudge (Shift = ×5)')],[['+'],L('طابق زيادة','Add a floor')],[['−'],L('طابق نقص','Remove a floor')],[['PgUp','PgDn'],L('طوابق ±','Floors ±')],[['L'],L('قفل / فتح','Lock / unlock')],[['H'],L('إخفاء','Hide')]]],
+ [L('العرض','View'),[[['1'],L('أيزو (كل ضغطة زاوية جديدة)','Iso (new angle each press)')],[['2'],L('مسقط','Plan')],[['3'],L('واجهة','Front')],[['4'],L('جانبي','Side')],[['5'],L('مستوى العين','Eye level')],[['F'],L('تأطير القطعة','Frame the site')],[['P'],L('وضع المسقط 2D','2D plan mode')],[['G'],L('الشبكة','Grid')],[['N'],L('أسماء الكتل','Mass labels')],[['W'],L('أسهم الرياح','Wind arrows')],[['?'],L('هذه النافذة','This window')]]]];
+function openKeys(){$('keysBody').innerHTML=KEYS().map(([h,rows])=>`<div><h4>${h}</h4>${rows.map(([ks,t])=>`<div class="kr"><span>${t}</span><span>${ks.map(x=>`<kbd>${x}</kbd>`).join(' ')}</span></div>`).join('')}</div>`).join('');modal('keys')}
+$('qKeys').onclick=openKeys;$('bKeysHelp').onclick=openKeys;
+// items for the dimensioned 2D plan (same codes B01… as the other CAD files)
+function planItems(){return state.blocks.map((b,i)=>({b,i})).filter(({b})=>!b.hidden).map(({b,i})=>{const [w,d]=b.shape==='riwaq'?[b.w,b.d]:loc(b);
+ return {code:'B'+String(i+1).padStart(2,'0'),label:b.name,kind:isProp(b)?'prop':isFlat(b)?'flat':b.mat==='context'?'ctx':'own',rings:footprint(b),frame:{x:b.x,z:b.z,w,d,rot:(b.shape==='riwaq'?0:rotOf(b))+(b.rot||0)},floors:b.f,top:b.y0+bh(b)}})}
+function planSVG(){const P=MC3D_PLAN2D.build({site:state.site,items:planItems()});return MC3D_PLAN2D.toSVG(P,{scale:MC3D_PLAN2D.fitScale(P),title:(state.meta&&state.meta.title)||curName})}
+
 // ================= EXPORT 3D (OBJ + DAE in ZIP) =================
 const scriptP={};function loadScript(src){if(!scriptP[src])scriptP[src]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>{delete scriptP[src];rej()};document.head.appendChild(s)});return scriptP[src]}
 
@@ -2049,6 +2099,7 @@ function dxf2D(){const st=state.site,layers=[['SITE',7],['SETBACK',1],['TEXT',7]
  state.blocks.forEach((b,i)=>{if(b.hidden)return;const layer=isProp(b)?'PROPS':isFlat(b)?'OPEN_SPACE':b.mat==='context'?'CONTEXT':'FN_'+((b.fn||'none').toUpperCase());const fpr=footprint(b);fpr.forEach((r,k)=>pl(r,k&&hasForm(b)?'COURTYARD':layer));
   if(hasForm(b)){const g0=JSON.stringify(fpr);MC3D_FORM.tiers(b,state.fh).slice(1).forEach(t=>{const ws=MC3D_FORM.worldRings(b,state.fh,t.f0);if(JSON.stringify(ws)!==g0)ws.forEach(r=>pl(r,'UPPER_TIERS'))})}
   if(!isProp(b))tx(b.x,b.z,1.2,'B'+String(i+1).padStart(2,'0')+(counts(b)?` ${b.f}F +${(b.y0+bh(b)).toFixed(1)}`:''))});
+ if(window.MC3D_PLAN2D){layers.push(['DIMS',5]);e+=MC3D_PLAN2D.dimsToDXF(MC3D_PLAN2D.build({site:state.site,items:planItems()}))}
  return dxfHeader(layers)+e+'0\nENDSEC\n0\nEOF\n'}
 function ifcEnc(t){let o='';for(const ch of String(t)){const c=ch.codePointAt(0);if(c<128)o+=ch==="'"?"''":ch==='\\'?'\\\\':ch;else o+='\\X2\\'+c.toString(16).toUpperCase().padStart(4,'0')+'\\X0\\'}return o}
 function ifcGid(){const A='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$';let s=A[Math.floor(Math.random()*4)];for(let i=0;i<21;i++)s+=A[Math.floor(Math.random()*64)];return s}
@@ -2080,6 +2131,10 @@ async function exportModel(){if(!DL)return flash(L('التنزيل غير متا
   if(fm.includes('dwg2d')){zip.file('AutoCAD plan - siteplan.dxf',dxf2D());readme.push(L('AutoCAD plan - siteplan.dxf ← مسقط 2D: حدود القطعة والارتداد وحدود الكتل على طبقات حسب الوظيفة، ورقم كل كتلة وطوابقها ومنسوبها','AutoCAD plan - siteplan.dxf -> 2D site plan with boundary, setbacks, and function layers'))}
   if(fm.includes('dae')){try{await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/ColladaExporter.js');const sc=new THREE.Scene(),cl=bg.clone(true),rm=[];cl.traverse(o=>{if((o.isMesh&&o.material&&o.material.visible===false)||o.isLine||o.isLineSegments)rm.push(o)});rm.forEach(o=>o.parent&&o.parent.remove(o));sc.add(cl);sc.add(plinth.clone());
    const r=new THREE.ColladaExporter().parse(sc,null,{upAxis:'Y_UP',unitName:'meter',unitMeter:1});if(r&&r.data){zip.file('SketchUp - model.dae',r.data);readme.push(L('SketchUp - model.dae ← سكتش أب: File ← Import ← COLLADA (.dae). يعمل أيضاً مع Lumion وTwinmotion','SketchUp - model.dae -> File -> Import -> COLLADA (.dae). Also works in Lumion & Twinmotion'))}}catch(er){readme.push(L('(تعذّر إنشاء DAE — تأكد من الإنترنت)','(Failed to create DAE — check internet connection)'))}}
+  if(fm.includes('glb')){try{await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js');const sc=new THREE.Scene(),cl=bg.clone(true),rm=[];cl.traverse(o=>{if((o.isMesh&&o.material&&o.material.visible===false)||o.isLine||o.isLineSegments||o.isSprite)rm.push(o)});rm.forEach(o=>o.parent&&o.parent.remove(o));
+    cl.traverse(o=>{if(o.isMesh){const c=o.material.color?o.material.color.clone():new THREE.Color('#cccccc');o.material=new THREE.MeshStandardMaterial({color:c,roughness:.85,metalness:0,transparent:!!o.material.transparent,opacity:o.material.opacity})}});sc.add(cl);sc.add(plinth.clone());
+    const glb=await new Promise((res,rej)=>{try{new THREE.GLTFExporter().parse(sc,res,{binary:true,onlyVisible:true})}catch(er){rej(er)}});zip.file('glTF - model.glb',glb);readme.push(L('glTF - model.glb ← Blender: File ← Import ← glTF، ويفتح بـ Twinmotion والمتصفح (3D Viewer)','glTF - model.glb -> Blender File -> Import -> glTF; also Twinmotion and web viewers'))}catch(er){readme.push(L('(تعذّر إنشاء GLB — تأكد من الإنترنت)','(Failed to create GLB — check internet connection)'))}}
+  if(fm.includes('svg2d')&&window.MC3D_PLAN2D){zip.file('Plan 2D - plan.svg',planSVG());readme.push(L('Plan 2D - plan.svg ← مسقط بالأبعاد وبمقياس رسم: يفتح بالمتصفح وIllustrator وInkscape ويندرج باللوحات','Plan 2D - plan.svg -> dimensioned plan to scale: opens in any browser, Illustrator, Inkscape'))}
   if(fm.includes('obj')){let obj='mtllib model.mtl\n',mtl='',mats={},vo=1;state.blocks.forEach((b,i)=>{if(b.hidden)return;const tris=blockTris(i);if(!tris.length)return;obj+=`o B${String(i+1).padStart(2,'0')}\n`;let cur=null;
     tris.forEach(({t,c})=>{const mn='m_'+c.toString(16).padStart(6,'0');if(!mats[mn]){mats[mn]=1;mtl+=`newmtl ${mn}\nKd ${(((c>>16)&255)/255).toFixed(4)} ${(((c>>8)&255)/255).toFixed(4)} ${((c&255)/255).toFixed(4)}\n\n`}if(mn!==cur){obj+=`usemtl ${mn}\n`;cur=mn}t.forEach(p=>obj+=`v ${f3(p[0])} ${f3(p[1])} ${f3(p[2])}\n`);obj+=`f ${vo} ${vo+1} ${vo+2}\n`;vo+=3})});
    zip.file('OBJ - model.obj',obj);zip.file('model.mtl',mtl);readme.push(L('OBJ - model.obj + model.mtl ← بلندر، رينو، لومين، 3ds Max','OBJ - model.obj + model.mtl -> Blender, Rhino, Lumion, 3ds Max'))}
@@ -3935,20 +3990,24 @@ if(REV){$('rvwGo').onclick=()=>{rvSaveName();$('modal').style.display='none'};$(
 $('bReview').onclick=e=>{e.stopPropagation();popMenu(e.currentTarget,[[L('رابط مباشر للمراجعة (دون حساب) — مع التفاصيل','Live review link (no sign-in) — with details'),openShare],[L('ملف مراجعة تفاعلي (يفتح بأي متصفح)','Interactive review file (any browser)'),reviewFile],[L('نسخ الملاحظات كنص','Copy notes as text'),()=>$('ntCopy').click()],[L('سحب رابط هذا التصميم','Unpublish review link'),unpublishLink]])};
 
 // ================= TOUR =================
-function getTour(){return [
- [L('مرحباً بك في ماكيت','Welcome to Maket'),L('استوديو نمذجة كتلية معمارية ثلاثي الأبعاد لكل المصممين. جولة سريعة من 6 خطوات للتعرف على الواجهة.','A universal 3D architectural massing studio. Take a quick 6-step tour of the workspace.'),'#top'],
+function getTour(){const T=[
+ [L('مرحباً بك في ماكيت','Welcome to Maket'),L('استوديو نمذجة كتلية معمارية ثلاثي الأبعاد. جولة سريعة للتعرف على الواجهة والأدوات الجديدة.','A 3D architectural massing studio. A quick tour of the workspace and the new tools.'),'#top'],
  [L('أدوات الرسم السريعة','Quick Canvas Tools'),L('استخدم الشريط العائم يسار الشاشة للتحديد والرسم والقص والقياس، وتفعيل المسقط الأفقي 2D أو التحديد المتعدد.','Use the floating left rail to Select, Draw, Cut, Measure, toggle 2D Plan, or Multi-Select.'),'#toolRail'],
  [L('لوحة النمذجة والعناصر','Modeling Inspector'),L('من هنا تضبط الشكل والمادة والتصنيف والطوابق قبل الرسم، وتتحكم بقائمة جميع الكتل في المشروع.','Choose default shape, material, zone, and floors before drawing, and manage your project outliner.'),'[data-t=home]'],
  [L('تعديل الكتلة والخصائص','Contextual Block Editing'),L('انقر على أي كتلة لتظهر لوحة «تعديل الكتلة» باليمين، واسحب المربعات البرتقالية للأبعاد والمخروط الأزرق للطوابق.','Click any mass to open the Edit Mass panel, drag orange handles to resize, and the blue cone for floors.'),'#tabs'],
  [L('الشمس والرياح والعرض','Sun, Wind & Display'),L('خصّص المدينة أو الإحداثيات لمحاكاة الشمس والرياح الحقيقية، واختر زوايا الكاميرا أو الإظهار المحسّن.','Pick any city or custom coordinates for real sun & wind studies, plus camera views and enhanced rendering.'),'[data-t=view]'],
- [L('اللوحات والتصدير الاحترافي','Sheets & CAD/BIM Export'),L('أنشئ لوحات عرض معمارية A4–A1 مع جدول عنوان ومقياس رسم، وصدّر إلى PDF وRevit (IFC) وAutoCAD (DXF) وSketchUp.','Build A4–A1 boards with title blocks and scale bars, and export to PDF, Revit (IFC), AutoCAD (DXF), and SketchUp.'),'#qExp']
-]}
-let tourI=0;function showTour(i){const TR=getTour();tourI=i;const [t,txt,sel]=TR[i];$('tourT').textContent=t;$('tourX').textContent=txt;$('tourN').textContent=(i+1)+' / '+TR.length;$('tourPrev').style.visibility=i?'visible':'hidden';$('tourNext').textContent=i===TR.length-1?L('ابدأ ✓','Start ✓'):L('التالي →','Next →');
+ [L('أدوات التشكيل','Form Tools'),L('بلوحة «تعديل الكتلة» لأي كتلة مستطيلة: فناء داخلي، تدرج الطوابق (Step-backs) من أي جهة، شطف الزوايا، وسقف مائل بزاوية. المساحات والتغطية وFAR تنحسب طابق بطابق.','In the Edit Mass panel of any box: courtyard void, step-backs on any side, chamfered corners and a sloped roof. Areas, coverage and FAR follow floor by floor.'),'#tabs'],
+ [L('السياق الحضري','Urban Context'),L('أضف مباني مجاورة بسرعة على أي جهة، أو استوردها من OpenStreetMap حسب إحداثيات موقعك. ترمي ظلال، بس ما تدخل بالتغطية ولا FAR.','Add neighbours on any side in one click, or import them from OpenStreetMap by your site coordinates. They cast shadows but never count toward coverage or FAR.'),'#ctxGrp','site'],
+ [L('الرياح','Wind'),L('«اتجاه الرياح» يعرض الأسهم ووردة رياح تخطيطية، و«مناطق الرياح» يرسم ظل الرياح والتسارع بين الكتل وتيارات الزوايا — كلها تقريبية للمقارنة بين البدائل.','"Wind direction" shows arrows and a schematic rose; "Wind zones" draws wind shadows, gap speed-ups and corner streams — approximate, for comparing options.'),'#bWindZ','sun'],
+ [L('سرعة الشغل','Work Faster'),L('Ctrl+Z / Ctrl+Y للتراجع والإعادة بكل شي. M تحريك (الكتلة تتبع الماوس)، R تدوير، S مقطع، 1–5 زوايا الكاميرا، F تأطير. اضغط ? لكل الاختصارات.','Ctrl+Z / Ctrl+Y undo and redo everything. M moves (the mass follows the mouse), R rotates, S toggles the section, 1–5 camera views, F frames. Press ? for all shortcuts.'),'#qKeys'],
+ [L('اللوحات والتصدير الاحترافي','Sheets & CAD/BIM Export'),L('لوحات A4–A1 بجدول عنوان ومقياس رسم، وتصدير PDF وRevit (IFC) وAutoCAD (DXF ثلاثي ومسقط بالأبعاد) وSketchUp (DAE) وOBJ وglTF، ومسقط SVG بالأبعاد وبمقياس رسم.','A4–A1 boards with title blocks and scale bars; export to PDF, Revit (IFC), AutoCAD (3D DXF and a dimensioned plan), SketchUp (DAE), OBJ, glTF, and a dimensioned SVG plan to scale.'),'#qExp']
+];return T}
+let tourI=0;function showTour(i){const TR=getTour();tourI=i;const [t,txt,sel,tab]=TR[i];if(tab&&typeof showTab==='function'){if(document.body.classList.contains('insp-closed')){document.body.classList.remove('insp-closed');setTimeout(()=>{fit();if(typeof layoutSheet==='function')layoutSheet()},220)}showTab(tab);setTimeout(()=>{const e=sel&&document.querySelector(sel);if(e&&e.scrollIntoView)e.scrollIntoView({block:'start',behavior:'smooth'})},120)}$('tourT').textContent=t;$('tourX').textContent=txt;$('tourN').textContent=(i+1)+' / '+TR.length;$('tourPrev').style.visibility=i?'visible':'hidden';$('tourNext').textContent=i===TR.length-1?L('ابدأ ✓','Start ✓'):L('التالي →','Next →');
  document.querySelectorAll('.tourhl').forEach(e=>e.classList.remove('tourhl'));if(sel){const e=document.querySelector(sel);if(e)e.classList.add('tourhl')}$('tour').style.display='flex'}
-function endTour(){$('tour').style.display='none';document.querySelectorAll('.tourhl').forEach(e=>e.classList.remove('tourhl'));LS.set('mc3d_tour',1)}
+function endTour(){$('tour').style.display='none';document.querySelectorAll('.tourhl').forEach(e=>e.classList.remove('tourhl'));LS.set('mc3d_tour',2)}
 $('tourNext').onclick=()=>{const TR=getTour();if(tourI<TR.length-1)showTour(tourI+1);else endTour()};$('tourPrev').onclick=()=>showTour(Math.max(0,tourI-1));$('tourSkip').onclick=endTour;
 $('bTour').onclick=()=>{$('modal').style.display='none';showTour(0)};
-if(!LS.get('mc3d_tour'))setTimeout(()=>showTour(0),1200);
+if((+LS.get('mc3d_tour')||0)<2&&!REV)setTimeout(()=>showTour(0),1200); // v2: shown once again after the new tools
 
 // ================= BILINGUAL SWITCHING HOOK =================
 function syncLangUI(){
