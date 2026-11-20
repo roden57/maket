@@ -7,7 +7,8 @@ The tool is an in-browser 3D massing modeller with sheets (A4–A1) and exports.
 ## Talking to the user
 - Reply in **Arabic, Iraqi dialect**. Keep it short and practical. He is an architecture student, not a programmer.
 - Keep his email private. Do not put it anywhere.
-- When a change is done, rebuild, commit and push. The live site updates by itself, usually within 1–2 minutes.
+- When a change is done, rebuild and commit locally. **Do not push to GitHub until he explicitly asks** (his instruction, 2026-11-20). When he asks, push everything; the live site then updates by itself, usually within 1–2 minutes.
+- Never test in a browser window where he is signed in to his account (sync would upload test edits). Test on `http://127.0.0.1:8000`, a different origin from `localhost`.
 
 ## Layout
 - **`src/head.html`:** `<head>` and all CSS.
