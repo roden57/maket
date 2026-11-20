@@ -31,7 +31,7 @@ const CITIES={
  london:{n:'لندن',lat:51.51,lon:-0.13,tz:0,wind:225},
  custom:{n:'مخصص (إحداثيات يدوية)',lat:30.0,lon:35.0,tz:3,wind:315}
 };
-const MATS={brick:{n:'طابوق',c:'#c4683f'},glass:{n:'زجاج',c:'#8ec3e6'},concrete:{n:'خرسانة',c:'#cfcac0'},stone:{n:'حجر',c:'#e3d3b5'},white:{n:'أبيض',c:'#f4f4f0'},joint:{n:'مفصل (أزرق)',c:'#2f4fa8'},green:{n:'فناء / خضرة',c:'#9cc58a'},paving:{n:'تبليط',c:'#d9d2c3'},asphalt:{n:'شارع / إسفلت',c:'#55585d'},water:{n:'ماء',c:'#7fb7d9'},context:{n:'مبنى مجاور (سياق)',c:'#b4b6ba'}};
+const MATS={brick:{n:'طابوق',c:'#c4683f'},glass:{n:'زجاج',c:'#8ec3e6'},concrete:{n:'خرسانة',c:'#cfcac0'},stone:{n:'حجر',c:'#e3d3b5'},white:{n:'أبيض',c:'#f4f4f0'},joint:{n:'مفصل (أزرق)',c:'#2f4fa8'},green:{n:'فناء / خضرة',c:'#9cc58a'},paving:{n:'تبليط',c:'#d9d2c3'},asphalt:{n:'شارع / إسفلت',c:'#55585d'},water:{n:'ماء',c:'#7fb7d9'},context:{n:'مبنى مجاور (سياق)',c:'#c2bcc1'}};
 const FLAT=['green','paving','asphalt','water'];
 const SHAPES={box:'مستطيل',poly:'مضلع حر (نقاط)',cyl:'أسطوانة',tri:'مثلث',L:'حرف L',U:'حرف U',vault:'قبو',pyr:'هرم',ring:'حلقة',court:'كتلة بفناء وسطي',gate:'كتلة ببوابة (ممر)',gable:'سقف جملون',shed:'سقف مائل',riwaq:'رواق أعمدة',tree:'شجرة',person:'شخص (مقياس)',car:'سيارة'};
 const PROPS={tree:[5,5],person:[.6,.6],car:[4.5,1.9]};
@@ -156,7 +156,7 @@ function sunPos(dateStr,hour){
  const azS=Math.atan2(Math.sin(ha),Math.cos(ha)*Math.sin(la)-Math.tan(dec)*Math.cos(la));
  return {alt,az:(azS+Math.PI+2*Math.PI)%(2*Math.PI)}}
 function fmtH(h){const H=Math.floor(h),M=Math.round((h-H)*60);return `${H}:${String(M).padStart(2,'0')}`}
-function setSun(){const m=Math.max(state.site.w,state.site.d)*1.2;const sc=sun.shadow.camera;sc.left=-m;sc.right=m;sc.top=m;sc.bottom=-m;sc.near=1;sc.far=m*8;sc.updateProjectionMatrix();
+function setSun(){const m=Math.min(450,window.MC3D_CTX?MC3D_CTX.extent(state.blocks,Math.max(state.site.w,state.site.d)*1.2)+8:Math.max(state.site.w,state.site.d)*1.2);const sc=sun.shadow.camera;sc.left=-m;sc.right=m;sc.top=m;sc.bottom=-m;sc.near=1;sc.far=m*8;sc.updateProjectionMatrix();
  if(state.sun.on){const p=sunPos(state.sun.date,state.sun.hour);const th=p.az+state.site.north*Math.PI/180;
   const dir=new THREE.Vector3(Math.sin(th)*Math.cos(p.alt),Math.sin(p.alt),-Math.cos(th)*Math.cos(p.alt));
   sun.position.copy(dir.multiplyScalar(m*3));const day=p.alt>0;sun.intensity=day?0.95:0;hemi.intensity=day?0.6:0.35;
@@ -283,7 +283,7 @@ const gateG=b=>{const [w]=loc(b);return [Math.max(1,Math.min(b.gw||6,w-2)),Math.
 const roofH=b=>(b.shape==='gable'||b.shape==='shed')?Math.max(.5,b.rh===undefined?3:b.rh):hasForm(b)?MC3D_FORM.roofRise(b,state.fh):0;
 function bh(b){if(b.shape==='tree')return b.w*1.3;if(b.shape==='person')return 1.75;if(b.shape==='car')return 1.55;
  if(isFlat(b))return b.mat==='asphalt'?0.1:0.3;if(b.shape==='riwaq')return Math.max(3,b.f*state.fh-0.5);return b.f*state.fh+roofH(b)}
-const WHITE={green:'#dfe8d6',water:'#d3e4ee',asphalt:'#c4c4c4',paving:'#ecebe6',glass:'#d6e8f3',context:'#d9d9d9'};
+const WHITE={green:'#dfe8d6',water:'#d3e4ee',asphalt:'#c4c4c4',paving:'#ecebe6',glass:'#d6e8f3',context:'#e2dee1'};
 const getMassAnalysis=()=>{if(!window.MC3D_MASS)return null;if(!massAnalysisCache)massAnalysisCache=MC3D_MASS.analyzeProjectMasses(state.blocks,state.fh);return massAnalysisCache};
 let anColorMap=null,anGhost=null; // analysis studio 3D overlay: block index -> colour; Set of indices kept solid (others ghosted)
 const colOf=b=>{if(anColorMap){const ai=state.blocks.indexOf(b);if(anColorMap[ai])return anColorMap[ai]}if(massOverlay!=='none'&&window.MC3D_MASS&&MC3D_MASS.isMassAnalyzable(b)){const an=getMassAnalysis();const idx=state.blocks.indexOf(b);const it=an&&(idx>=0?an.byIndex[idx]:an.items.find(x=>x.id===b.id));const oc=it?MC3D_MASS.getMassOverlayColor(it,massOverlay,an):null;if(oc)return oc}if(colorMode==='white')return WHITE[b.mat]||'#f7f6f2';if(colorMode==='fn'&&!isFlat(b)&&!isProp(b)&&b.mat!=='context')return FNS[b.fn||''].c;return MATS[b.mat].c};
@@ -305,7 +305,7 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
   pick=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({visible:false}));grp.add(pick);
   if(isSel)grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(pick.geometry),LM('#ffb000')))}
  else{const gg=geom(b,h);const mt=matOf(b);if(mt.map)worldUV(gg,b);const m=new THREE.Mesh(gg,mt);m.castShadow=b.mat!=='glass'&&!isFlat(b);m.receiveShadow=true;grp.add(m);pick=m;
-  const ec=isSel?'#ffb000':colorMode==='white'?'#55534e':(b.mat==='glass'||b.mat==='joint'?'#16285c':(isFlat(b)?'#7d7d70':'#5a2a18'));
+  const ec=isSel?'#ffb000':colorMode==='white'?(b.mat==='context'?'#9a90a3':'#55534e'):(b.mat==='glass'||b.mat==='joint'?'#16285c':b.mat==='context'?'#5b5163':(isFlat(b)?'#7d7d70':'#5a2a18'));
   grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry,25),LM(ec)));
   if(b.park&&b.mat==='asphalt'&&b.shape==='box'&&window.MC3D_CODE){const pts=[],y=h/2+.03;MC3D_CODE.parkLayout(b.w,b.d).lines.forEach(([x1,z1,x2,z2])=>pts.push(x1,y,z1,x2,y,z2));
    if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM('#f8fafc',.95)))}}
@@ -318,7 +318,7 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
    if(b.mat==='glass'){const sx=Math.max(1,Math.round(b.w/2.5)),sz=Math.max(1,Math.round(b.d/2.5));
     for(let k=1;k<sx;k++){const xx=-b.w/2+k*b.w/sx;pts.push(xx,-h/2,z,xx,h/2,z,xx,-h/2,-z,xx,h/2,-z)}
     for(let k=1;k<sz;k++){const zz=-b.d/2+k*b.d/sz;pts.push(x,-h/2,zz,x,h/2,zz,-x,-h/2,zz,-x,h/2,zz)}}
-   if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM(b.mat==='glass'?'#1f4e79':'#e7a07c',b.mat==='glass'?.8:.6)))}}
+   if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM(b.mat==='glass'?'#1f4e79':b.mat==='context'?'#8f8790':'#e7a07c',b.mat==='glass'?.8:.6)))}}
   if((b.fac||(b.facCfg&&((b.facCfg.ground&&b.facCfg.ground.type)||(b.facCfg.sideFac&&Object.values(b.facCfg.sideFac).some(Boolean)))))&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray'&&!(hasForm(b)&&MC3D_FORM.changesOutline(b)))facade(b,h,grp)}
  grp.rotation.y=-((b.shape==='riwaq'?0:rotOf(b))+(b.rot||0))*Math.PI/180;
  pick.userData.i=i;grp.position.set(b.x,b.y0+h/2,b.z);return [grp,pick]}
@@ -445,10 +445,11 @@ function bindForm(b){const box=$('selBox');
  if($('fmSlD'))$('fmSlD').onchange=e=>{snap(true);F().slope.dir=e.target.value;done()};
  if($('fmClear'))$('fmClear').onclick=()=>{snap(true);delete b.form;done()}}
 const DEFP={t:8,gw:6,gf:1,rh:3};
+function ctxNote(b){if(b.mat!=='context')return '';const fh=state.fh;return `<div class="grp"><div class="gc"><span>${L('مبنى مجاور (سياق)','Neighbour (context)')}</span><span class="ctx-badge${b.est?' est':''}">${b.est?L('ارتفاع تقديري','estimated height'):b.ctx==='osm'?'OSM':L('يدوي','manual')}</span></div><div class="gb"><div class="hint">${L('يأثر على الظلال بس — ما يدخل بالتغطية ولا FAR. الارتفاع','Shadows only — not in coverage / FAR. Height')} ≈ ${(b.f*fh).toFixed(1)} ${L('م','m')} (${b.f} × ${fh})</div>${b.est?`<button class="sm" id="ctxOk">${L('✓ الارتفاع صحيح','✓ Height is right')}</button>`:''}</div></div>`}
 function shapeExtra(b){let h='';if(b.shape==='court')h+=numRow('pT',L('عمق الجناح','Wing Depth'),courtT(b),1);if(b.shape==='gate'){const [gw]=gateG(b);h+=numRow('pGW',L('عرض البوابة','Portal Width'),gw,1)+numRow('pGF',L('طوابق البوابة','Portal Floors'),b.gf||1,1)}
  if(b.shape==='gable'||b.shape==='shed')h+=numRow('pRH',L('ارتفاع السقف','Roof Height'),roofH(b),.5);let out=h?`<div class="grp"><div class="gc">${L('إعدادات الشكل','Shape Settings')}</div><div class="gb"><div class="col">${h}</div></div></div>`:'';
  if(counts(b)&&state.prog){const sp=state.prog.sp.filter(x=>x.bid===b.id),a=sp.reduce((s,x)=>s+x.a,0),cap=gfaOf(b)*state.prog.eff;out+=`<div class="grp"><div class="gc">${L('البرنامج الوظيفي','Program Allocation')}</div><div class="gb"><button class="big" id="pProg"><i><svg class="ic"><use href="#i-clip"/></svg></i>${sp.length} ${L('فضاء','spaces')} (${Math.round(a)}/${Math.round(cap)} ${L('م²','m²')})</button></div></div>`}
- return (counts(b)&&window.MC3D_FORM?formUI(b):'')+out}
+ return ctxNote(b)+(counts(b)&&window.MC3D_FORM?formUI(b):'')+out}
 function numRow(id,l,v,st){return `<div class="fld"><span class="fld-lbl">${l}</span><div class="stepper"><button class="sm" data-n="${id}" data-s="-${st}">−</button><input type="number" id="${id}" value="${+(+v).toFixed(2)}" step="${st}"><button class="sm" data-n="${id}" data-s="${st}">+</button></div></div>`}
 let lastSelPanel=-2,curTab='home',userTab='home';
 const paneLeaveTimers=new WeakMap();
@@ -505,7 +506,7 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
   <div class="grp"><div class="gc">${L('أوامر سريعة','Quick Actions')}</div><div class="gb"><div class="gb-row"><button class="big" id="pDup"><i><svg class="ic"><use href="#i-copy"/></svg></i>${L('نسخ','Duplicate')}</button><button class="big warn" id="pDel"><i><svg class="ic"><use href="#i-trash"/></svg></i>${L('حذف','Delete')}</button></div><button class="big" id="pDesel"><i><svg class="ic"><use href="#i-x"/></svg></i>${L('إنهاء التحديد','Clear Selection')}</button></div></div>`;
   $('mFn').onchange=e=>{if(e.target.value==='__')return;snap(true);ids.forEach(i=>state.blocks[i].fn=e.target.value);refresh()};
   $('mMat').onchange=e=>{if(e.target.value==='__')return;snap(true);ids.forEach(i=>state.blocks[i].mat=e.target.value);refresh()};
-  $('mFp').onclick=()=>{snap();ids.forEach(i=>state.blocks[i].f++);refresh()};$('mFm').onclick=()=>{snap();ids.forEach(i=>{if(state.blocks[i].f>1)state.blocks[i].f--});refresh()};
+  $('mFp').onclick=()=>{snap();ids.forEach(i=>{state.blocks[i].f++;delete state.blocks[i].est});refresh()};$('mFm').onclick=()=>{snap();ids.forEach(i=>{if(state.blocks[i].f>1)state.blocks[i].f--;delete state.blocks[i].est});refresh()};
   $('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()};return}
  tm.textContent=L('تعديل الكتلة','Edit Mass');const b=state.blocks[ids[0]];
  box.innerHTML=`<div class="grp"><div class="gc"><span>${L('التعريف','Identity')}</span><span class="ins-area-badge">≈ ${Math.round(gfaOf(b))} ${L('م²','m²')}</span></div><div class="gb">
@@ -524,10 +525,10 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
  $('pMat').onchange=e=>{snap(true);b.mat=e.target.value;refresh()};
  $('pFn').onchange=e=>{snap(true);b.fn=e.target.value;refresh()};
  const map={pF:'f',pY0:'y0',pW:'w',pD:'d',pX:'x',pZ:'z',pT:'t',pGW:'gw',pGF:'gf',pRH:'rh'},min={f:1,y0:0,w:.3,d:.3,x:-9999,z:-9999,t:1,gw:1,gf:1,rh:.5};
- Object.entries(map).forEach(([id,k])=>{if(!$(id))return;$(id).onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b[k]=Math.max(min[k],v);refresh()}});
- box.querySelectorAll('[data-n]').forEach(bt=>bt.onclick=()=>{const k=map[bt.dataset.n];snap();if(b[k]===undefined)b[k]=DEFP[k]||0;b[k]=Math.max(min[k],+(b[k]+parseFloat(bt.dataset.s)).toFixed(2));refresh()});
+ Object.entries(map).forEach(([id,k])=>{if(!$(id))return;$(id).onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b[k]=Math.max(min[k],v);if(k==='f')delete b.est;refresh()}});
+ box.querySelectorAll('[data-n]').forEach(bt=>bt.onclick=()=>{const k=map[bt.dataset.n];snap();if(b[k]===undefined)b[k]=DEFP[k]||0;b[k]=Math.max(min[k],+(b[k]+parseFloat(bt.dataset.s)).toFixed(2));if(k==='f')delete b.est;refresh()});
  if($('pProg'))$('pProg').onclick=openProg;
- bindForm(b);
+ bindForm(b);if($('ctxOk'))$('ctxOk').onclick=()=>{snap(true);delete b.est;refresh()};
  $('pLock').onclick=toggleLock;$('pRm').onclick=()=>rotFree(-15);$('pRp').onclick=()=>rotFree(15);$('pRotA').onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b.rot=((v%360)+360)%360;refresh()};$('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()}}
 function elemList(){const box=$('elBox');if(!box)return;box.innerHTML='';state.blocks.forEach((b,i)=>{const d=document.createElement('div');d.className='chip'+(selSet.has(i)?' on':'')+(b.hidden?' off':'');
  d.innerHTML=`<span class="sw" style="background:${colOf(b)}"></span><span class="nm"></span><button title="${L('إظهار/إخفاء','Show/Hide')}">${b.hidden?IC('eyeoff'):IC('eye')}</button><button title="${L('قفل','Lock')}">${b.lock?IC('lock'):IC('unlock')}</button>`;d.querySelector('.nm').textContent=b.name;
@@ -544,7 +545,7 @@ function dup(){if(!selSet.size)return;snap(true);const ids=[...selSet],start=sta
  ids.forEach(i=>{const b=clone(state.blocks[i]);b.x+=snapStep*4;b.z+=snapStep*4;if(ids.length===1)b.name+=L(' (نسخة)',' (Copy)');state.blocks.push(b)});
  selSet=new Set(ids.map((_,k)=>start+k));sel=start;refresh()}
 function del(){if(!selSet.size)return;const ids=[...selSet].filter(i=>!state.blocks[i].lock);if(!ids.length)return flash(L('الكتلة مقفلة','Mass is locked'));snap(true);ids.sort((a,b)=>b-a).forEach(i=>state.blocks.splice(i,1));clearSel();refresh()}
-function refresh(){build();panel();stats();save();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis();if(typeof renderFacadeStudio==='function')renderFacadeStudio();if(typeof renderMassStudio==='function')renderMassStudio()}
+function refresh(){build();panel();stats();save();if(typeof ctxRender==='function')ctxRender();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis();if(typeof renderFacadeStudio==='function')renderFacadeStudio();if(typeof renderMassStudio==='function')renderMassStudio()}
 let saveT=null,appBooted=false;
 const unsavedTracker=window.MC3D_UNSAVED?window.MC3D_UNSAVED.createUnsavedTracker():null;
 function hasActiveCanvasGesture(){return Boolean((typeof drawing!=='undefined'&&drawing)||(typeof dragging!=='undefined'&&dragging&&dragging.moved)||(typeof resizing!=='undefined'&&resizing)||(typeof cutting!=='undefined'&&cutting)||(typeof polyD!=='undefined'&&polyD))}
@@ -589,7 +590,7 @@ $('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.c
   const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;refresh();flushLocalSaveClean(ok);flash(L('حُذف نهائياً: ','Permanently deleted: ')+n+(designs[curName]?L(' — المفتوح حالياً: ',' — current: ')+curName:''))})};
 addEventListener('storage',e=>{if(e.key==='mc3d_designs'){syncDesigns();fillDesigns();$('dsel').value=curName}
  if(e.key==='mc3d_sheets'&&typeof sheets!=='undefined'){const d=LS.get('mc3d_sheets');if(d){Object.keys(sheets).forEach(k=>{if(!(k in d)&&k!==curSheet)delete sheets[k]});Object.keys(d).forEach(k=>{if(k!==curSheet)sheets[k]=d[k]});fillSheets()}}});
-const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة'],share:['mShare','مشاركة التصميم للمراجعة'],rvwelcome:['mRvWelcome','مراجعة تصميم'],rvproj:['mRvProj','تفاصيل المشروع'],rvnote:['mRvNote','ملاحظة']};
+const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة'],share:['mShare','مشاركة التصميم للمراجعة'],rvwelcome:['mRvWelcome','مراجعة تصميم'],rvproj:['mRvProj','تفاصيل المشروع'],rvnote:['mRvNote','ملاحظة'],ctxq:['mCtxQ','إضافة مبنى مجاور'],osm:['mOsm','استيراد المباني المحيطة من OpenStreetMap']};
 function modal(kind){$('modal').style.display='flex';Object.entries(MODALS).forEach(([k,[id]])=>{const e=$(id);if(e)e.style.display=k===kind?'block':'none'});$('modal').querySelector('.box').classList.toggle('wide',kind==='prog');$('mTitle').textContent=dn('modals',kind,(MODALS[kind]||[0,''])[1])}
 $('bIO').onclick=()=>{$('ioText').value=JSON.stringify(state);modal('io')};
 $('mClose').onclick=()=>{$('modal').style.display='none';crop=null};
@@ -1907,6 +1908,47 @@ if($('hmOp'))$('hmOp').oninput=e=>{
  if(hmMesh&&hmMesh.material)hmMesh.material.opacity=hmOpacity;
 };
 if($('hmQual'))$('hmQual').onchange=e=>{hmQuality=e.target.value==='high'?'high':'std';if(shadowHmOn)rebuildShadowHeatmap()};
+
+// ================= URBAN CONTEXT (neighbouring buildings) =================
+// Neighbours are blocks with mat 'context': they cast shadows (3D sun + shadow-hours map) but counts() skips them,
+// so coverage, FAR, GFA, setbacks and code checks ignore them. Logic + tests: context-logic.js
+// Extra fields: b.ctx = 'quick' | 'osm', b.osm = OSM id, b.est = height is an estimate (no data in OSM).
+let cqSide='s';
+function ctxRender(){if(!window.MC3D_CTX||!$('ctxCount'))return;const s=MC3D_CTX.summary(state.blocks);
+ $('ctxCount').textContent=s.total?`${s.total} ${L('مبنى','bldg')}${s.osm?` · OSM ${s.osm}`:''}`:'';
+ $('bCtxVis').textContent=s.total&&s.hidden===s.total?L('إظهار','Show'):L('إخفاء','Hide');
+ ['bCtxSel','bCtxVis','bCtxDel'].forEach(id=>$(id).disabled=!s.total);
+ $('ctxEstRow').style.display=s.estimated?'':'none';$('ctxEstLbl').textContent=L(`ارتفاع ${s.estimated} مبنى تقديري — طوابق`,`${s.estimated} estimated — floors`)}
+function ctxAdd(list,msg){if(!list.length)return flash(L('ما لكيت مكان فارغ','No free spot found'));snap(true);const start=state.blocks.length;
+ list.forEach((b,k)=>state.blocks.push(norm(Object.assign({name:L('مجاور','Neighbour')+' '+(MC3D_CTX.summary(state.blocks).total+1)},b))));ensureIds(state);
+ selSet=new Set(list.map((_,k)=>start+k));sel=start;refresh();if(typeof setSun==='function')setSun();flash(msg)}
+$('bCtxQuick').onclick=()=>{modal('ctxq');document.querySelectorAll('#mCtxQ [data-cs]').forEach(b=>b.classList.toggle('on',b.dataset.cs===cqSide))};
+document.querySelectorAll('#mCtxQ [data-cs]').forEach(b=>b.onclick=()=>{cqSide=b.dataset.cs;document.querySelectorAll('#mCtxQ [data-cs]').forEach(x=>x.classList.toggle('on',x===b))});
+$('cqAdd').onclick=()=>{const g=$('cqGap').value.trim();const list=MC3D_CTX.quickBlocks({site:state.site,side:cqSide,front:+$('cqFront').value,depth:+$('cqDepth').value,floors:+$('cqFloors').value,gap:g===''?undefined:+g,fill:$('cqFill').checked,blocks:state.blocks});
+ $('modal').style.display='none';ctxAdd(list,L(`انضافت ${list.length} كتلة مجاورة ✓`,`Added ${list.length} neighbour(s) ✓`))};
+$('bCtxSel').onclick=()=>{const ids=state.blocks.map((b,i)=>b.mat==='context'?i:-1).filter(i=>i>=0);ids.forEach(i=>state.blocks[i].hidden=false);selSet=new Set(ids);sel=ids[0];refresh();showTab('mod')};
+$('bCtxVis').onclick=()=>{const ctx=state.blocks.filter(b=>b.mat==='context');const show=ctx.every(b=>b.hidden);snap(true);ctx.forEach(b=>b.hidden=!show);if(!show)ctx.forEach(b=>{const i=state.blocks.indexOf(b);selSet.delete(i)});refresh();setSun()};
+$('bCtxDel').onclick=e=>arm(e.currentTarget,()=>{snap(true);state.blocks=state.blocks.filter(b=>b.mat!=='context');clearSel();refresh();setSun();flash(L('انحذفت المباني المجاورة','Neighbours removed'))});
+$('bCtxEst').onclick=()=>{const f=Math.max(1,Math.round(+$('ctxEstF').value||1));snap(true);state.blocks.forEach(b=>{if(b.mat==='context'&&b.est)b.f=f});refresh();setSun()};
+$('bCtxOsm').onclick=()=>{modal('osm');const st=state.site;$('osmLL').value=(+st.lat).toFixed(6)+', '+(+st.lon).toFixed(6);$('osmSt').style.display='none'};
+$('osmGo').onclick=async()=>{const ll=MC3D_CTX.parseLatLon($('osmLL').value),stEl=$('osmSt');const say=(t,bad)=>{stEl.style.display='';stEl.innerHTML=bad?`<span class="warnTxt">${t}</span>`:t};
+ if(!ll)return say(L('اكتب الإحداثيات بهالشكل: 33.3571, 44.3836','Enter coordinates like 33.3571, 44.3836'),1);
+ const R=Math.max(30,Math.min(400,+$('osmR').value||150)),q=MC3D_CTX.overpassQuery(ll.lat,ll.lon,R);$('osmGo').disabled=true;say(L('جاري جلب المباني من OpenStreetMap…','Fetching buildings from OpenStreetMap…'));
+ let json=null,lastErr='';
+ for(const ep of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){
+  try{const ac=new AbortController(),t=setTimeout(()=>ac.abort(),35000);const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:ac.signal});clearTimeout(t);
+   if(!r.ok){lastErr='HTTP '+r.status;continue}json=await r.json();break}catch(er){lastErr=er&&er.name==='AbortError'?L('انتهى الوقت','timeout'):String(er&&er.message||er)}}
+ $('osmGo').disabled=false;
+ if(!json)return say(L('تعذّر الاتصال بخادم OpenStreetMap ('+lastErr+') — تأكد من الإنترنت وأعد المحاولة. (داخل Claude قد يكون الاتصال الخارجي ممنوعاً — جرّب من الموقع العام)','Could not reach OpenStreetMap ('+lastErr+') — check the internet and retry'),1);
+ const st=state.site;const B=MC3D_CTX.parseOSM(json,{lat:ll.lat,lon:ll.lon,north:st.north||0});
+ const res=MC3D_CTX.toBlocks(B,{fh:state.fh,defFloors:+$('osmF').value||2,site:st,skipSite:$('osmSkip').checked,minArea:15});
+ if(!res.blocks.length)return say(L(`ما لكيت مباني بهالمنطقة (${B.length} بالخريطة، ${res.skipped.site} داخل القطعة) — كبّر نصف القطر أو تأكد من الإحداثيات`,`No buildings found (${B.length} in map, ${res.skipped.site} on the plot)`),1);
+ snap(true);if($('osmReplace').checked)state.blocks=state.blocks.filter(b=>!(b.mat==='context'&&b.ctx==='osm'));
+ st.lat=+ll.lat.toFixed(6);st.lon=+ll.lon.toFixed(6);if($('siteLat'))$('siteLat').value=st.lat;if($('siteLon'))$('siteLon').value=st.lon;
+ res.blocks.forEach(b=>state.blocks.push(norm(b)));ensureIds(state);clearSel();refresh();setSun();
+ const est=res.blocks.filter(b=>b.est).length;
+ say(L(`انضاف <b>${res.blocks.length}</b> مبنى مجاور (${est} بارتفاع تقديري ${+$('osmF').value||2} طوابق${res.skipped.site?`، تجاهلت ${res.skipped.site} داخل القطعة`:''}). عدّل الارتفاعات من «الارتفاع التقديري» أو بتحديد المبنى.`,`Added <b>${res.blocks.length}</b> neighbours (${est} estimated)`));
+ setTimeout(()=>{if(typeof view==='function')view('top')},50)};
 
 // ================= EXPORT 3D (OBJ + DAE in ZIP) =================
 const scriptP={};function loadScript(src){if(!scriptP[src])scriptP[src]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>{delete scriptP[src];rej()};document.head.appendChild(s)});return scriptP[src]}

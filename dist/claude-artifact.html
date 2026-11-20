@@ -2282,6 +2282,11 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
 .fm-tbl .fm-del{padding:2px 6px}
 .fm-auto{display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:12px;color:var(--muted)}
 .fm-auto input{width:52px;height:28px;text-align:center;font-family:var(--font-mono);border:1px solid var(--line-strong);border-radius:4px;background:#fff;color:var(--ink)}
+/* Urban context (neighbouring buildings) */
+.ctx-sides{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ctx-sides .on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.ctx-badge{font-size:10.5px;font-weight:600;border-radius:10px;padding:1px 7px;background:#e2e8f0;color:#334155}
+.ctx-badge.est{background:#fef3c7;color:#92400e}
 </style>
 </head>
 <body>
@@ -2638,6 +2643,23 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
             <input type="range" id="sRoadW" min="4" max="36" step="1" value="12">
             <b id="sRoadWL" style="font-family:var(--font-mono)">12 م</b>
           </div>
+        </div>
+      </div>
+
+      <div class="grp" id="ctxGrp">
+        <div class="gc"><span>السياق الحضري (المباني المجاورة)</span><span class="hint" id="ctxCount"></span></div>
+        <div class="gb">
+          <div class="hint">المجاورين يأثرون على الظل وخريطة تراكم الظل بس، وما يدخلون بالتغطية ولا FAR ولا المساحات.</div>
+          <div class="gb-row">
+            <button type="button" class="big" id="bCtxQuick"><i><svg class="ic"><use href="#i-cube"/></svg></i>مجاور سريع</button>
+            <button type="button" class="big" id="bCtxOsm"><i><svg class="ic"><use href="#i-plan"/></svg></i>من OpenStreetMap</button>
+          </div>
+          <div class="gb-row-3">
+            <button type="button" class="sm" id="bCtxSel">تحديد الكل</button>
+            <button type="button" class="sm" id="bCtxVis">إخفاء</button>
+            <button type="button" class="sm" id="bCtxDel">حذف الكل</button>
+          </div>
+          <div class="fld" id="ctxEstRow"><span class="fld-lbl" id="ctxEstLbl">الارتفاع التقديري</span><div class="stepper"><input type="number" id="ctxEstF" value="2" min="1" max="60" step="1"><button type="button" class="sm" id="bCtxEst">طبّق</button></div></div>
         </div>
       </div>
 
@@ -3551,6 +3573,31 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
       <div><b>سعة الكتل والطوابق</b> <span class="hint">(المساحة × الكفاءة)</span><div id="pgCap"></div></div>
     </div>
   </div>
+  <div id="mCtxQ" style="display:none;font-size:13px;min-width:min(420px,88vw)">
+    <div class="hint" style="margin-bottom:8px">كتلة مجاورة خارج حدود القطعة (وعبر الشارع إذا الجهة بيها شارع). بعدين تكدر تسحبها وتعدّلها مثل أي كتلة.</div>
+    <div class="ctx-sides" role="group" aria-label="الجهة"><button type="button" class="sm" data-cs="n">شمال</button><button type="button" class="sm" data-cs="s">جنوب</button><button type="button" class="sm" data-cs="e">شرق</button><button type="button" class="sm" data-cs="w">غرب</button></div>
+    <div class="fld-grid" style="margin-top:8px">
+      <div class="fld-stack">الواجهة على الجهة (م) <input type="number" id="cqFront" value="20" min="2" step="1"></div>
+      <div class="fld-stack">العمق (م) <input type="number" id="cqDepth" value="15" min="2" step="1"></div>
+      <div class="fld-stack">الطوابق <input type="number" id="cqFloors" value="3" min="1" max="80" step="1"></div>
+      <div class="fld-stack">المسافة عن القطعة (م) <input type="number" id="cqGap" placeholder="تلقائي" min="0" step="1"></div>
+    </div>
+    <label class="fm-chk" style="margin:8px 0"><input type="checkbox" id="cqFill"> املأ الجهة كلها بكتل متتالية</label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="sm pri2" id="cqAdd">إضافة</button></div>
+  </div>
+  <div id="mOsm" style="display:none;font-size:13px;min-width:min(480px,90vw)">
+    <div class="hint" style="margin-bottom:8px">يجيب المباني الموجودة حول موقع مشروعك من خريطة OpenStreetMap ويحوّلها لكتل مجاورة. المبنى اللي ما بيه ارتفاع بالخريطة ياخذ الارتفاع التقديري، وتكدر تعدّله بعدين.</div>
+    <div class="fld-stack">إحداثيات مركز القطعة (انسخها من Google Maps: كليك يمين على الموقع) <input type="text" id="osmLL" dir="ltr" placeholder="33.3571, 44.3836"></div>
+    <div class="fld-grid" style="margin-top:8px">
+      <div class="fld-stack">نصف القطر (م) <input type="number" id="osmR" value="150" min="30" max="400" step="10"></div>
+      <div class="fld-stack">طوابق تقديرية (بدون بيانات) <input type="number" id="osmF" value="2" min="1" max="40" step="1"></div>
+    </div>
+    <label class="fm-chk" style="margin:8px 0"><input type="checkbox" id="osmSkip" checked> تجاهل المباني اللي داخل قطعتي (راح تنهدم)</label>
+    <label class="fm-chk" style="margin:0 0 8px"><input type="checkbox" id="osmReplace" checked> احذف مجاوري OSM السابقين قبل الاستيراد</label>
+    <div class="fm-info" id="osmSt" style="display:none"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button type="button" class="sm pri2" id="osmGo">جلب المباني</button></div>
+    <div class="hint" style="margin-top:6px">البيانات © مساهمو OpenStreetMap (ODbL). يرسل إحداثيات القطعة فقط لخادم Overpass.</div>
+  </div>
   <div id="mInput" style="display:none;font-size:13px"><div class="fld" style="margin:8px 0"><input type="text" id="inpVal" style="width:min(360px,80vw)"></div><button class="sm pri2" id="inpOk">موافق</button></div>
   <div id="mAuth" style="display:none;font-size:13px">
     <div class="hint" style="margin-bottom:8px">احفظ تصاميمك ولوحاتك وروابط المراجعة وملاحظاتها في حسابك الشخصي للوصول إليها من أي جهاز.</div>
@@ -4029,6 +4076,233 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
     SIDES, CORNERS, MIN_W, WALL, supports, norm, has, changesOutline, tiers, roof, roofT, roofRise, floorArea, footArea, gfa,
     insideLocal, metrics, worldRings, prisms, cutRingsAt, solid, insideWorld3D, splitFloors, autoSteps, sideCompass, rotForm90, info, ringArea, pip
   };
+});
+
+</script>
+<script>
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.MC3D_CTX = factory();
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  // Urban context: neighbouring buildings as `context` blocks (they cast shadows but never count toward
+  // the project's coverage / FAR / GFA). Two sources:
+  //   1. quick neighbours placed along a side of the plot (quickBlocks)
+  //   2. OpenStreetMap buildings around the site's lat/lon (overpassQuery → parseOSM → toBlocks)
+  // Scene frame: the site is centred at (0,0); with north = 0, true north is -z and east is +x.
+  // The site's `north` angle rotates true north in the scene the same way the sun does in the app.
+
+  const num = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+  const r2 = v => Math.round(v * 100) / 100;
+  const M_LAT = 110574;          // metres per degree of latitude
+  const M_LON = 111320;          // metres per degree of longitude at the equator
+
+  // ---------- quick neighbours ----------
+  const SIDE = {
+    n: { ax: 'x', nz: -1 }, s: { ax: 'x', nz: 1 },
+    e: { ax: 'z', nx: 1 }, w: { ax: 'z', nx: -1 }
+  };
+
+  function aabb(b) {
+    const w = num(b.w, 1), d = num(b.d, 1), a = (num(b.rot, 0) + ((b.shape || 'box') === 'box' ? 0 : num(b.ry, 0))) * Math.PI / 180;
+    const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a));
+    const hw = (w * c + d * s) / 2, hd = (w * s + d * c) / 2;
+    return { x0: num(b.x, 0) - hw, x1: num(b.x, 0) + hw, z0: num(b.z, 0) - hd, z1: num(b.z, 0) + hd };
+  }
+  const hit = (A, B) => A.x0 < B.x1 - 1e-6 && A.x1 > B.x0 + 1e-6 && A.z0 < B.z1 - 1e-6 && A.z1 > B.z0 + 1e-6;
+
+  /**
+   * Neighbour blocks along one side of the plot, just outside it (across the street when that side has one).
+   * opts: {site, side:'n'|'s'|'e'|'w', front (m along the side), depth (m), floors, gap?, fill?, blocks (existing)}
+   * fill: repeat along the whole side; otherwise one block in the first free slot.
+   */
+  function quickBlocks(opts) {
+    const site = opts.site || {}, side = SIDE[opts.side] ? opts.side : 's';
+    const W = num(site.w, 100), D = num(site.d, 100);
+    const front = Math.max(2, num(opts.front, 12)), depth = Math.max(2, num(opts.depth, 15));
+    const floors = Math.max(1, Math.round(num(opts.floors, 3)));
+    const street = site.streets && site.streets[side];
+    const gap = opts.gap !== undefined ? Math.max(0, num(opts.gap, 0)) : (street ? Math.max(0, num(site.roadW, 12)) : 0);
+    const S = SIDE[side], along = S.ax === 'x';
+    const len = along ? W : D;
+    // block centre across the side line
+    const off = (along ? D : W) / 2 + gap + depth / 2;
+    const taken = (opts.blocks || []).filter(b => b && !b.hidden).map(aabb);
+    const out = [];
+    const mk = t => {
+      const b = { shape: 'box', mat: 'context', fn: '', f: floors, y0: 0, ry: 0, rot: 0, ctx: 'quick' };
+      if (along) Object.assign(b, { w: front, d: depth, x: r2(t), z: r2(S.nz * off) });
+      else Object.assign(b, { w: depth, d: front, x: r2(S.nx * off), z: r2(t) });
+      return b;
+    };
+    const step = 0.5;
+    const t0 = -len / 2 + front / 2, tEnd = len / 2 - front / 2;
+    if (opts.fill) {
+      for (let t = t0; t <= tEnd + 1e-6;) {
+        const b = mk(t);
+        if (taken.some(A => hit(A, aabb(b)))) { t += step; continue; }
+        out.push(b); taken.push(aabb(b)); t += front;
+      }
+      return out;
+    }
+    // single block: first free slot from the middle outward, then beyond the corners
+    const lim = len / 2 + front * 4;
+    for (let k = 0; k * step <= lim; k++) {
+      for (const sg of k ? [1, -1] : [1]) {
+        const b = mk(sg * k * step);
+        if (!taken.some(A => hit(A, aabb(b)))) return [b];
+      }
+    }
+    return [];
+  }
+
+  // ---------- OpenStreetMap ----------
+  function overpassQuery(lat, lon, radius) {
+    const R = Math.round(Math.max(20, Math.min(400, num(radius, 150))));
+    const p = `(around:${R},${num(lat, 0).toFixed(6)},${num(lon, 0).toFixed(6)})`;
+    return `[out:json][timeout:30];(way["building"]["building"!="no"]${p};relation["building"]["type"="multipolygon"]${p};);out geom tags;`;
+  }
+
+  /** lat/lon → scene (x,z) metres around the site centre, respecting the site's north angle */
+  function projector(lat0, lon0, northDeg) {
+    const k = Math.cos(num(lat0, 0) * Math.PI / 180) * M_LON, N = num(northDeg, 0) * Math.PI / 180;
+    const c = Math.cos(N), s = Math.sin(N);
+    return (lat, lon) => {
+      const e = (lon - lon0) * k, n = (lat - lat0) * M_LAT;
+      return [e * c + n * s, e * s - n * c];
+    };
+  }
+
+  /** "33.3567, 44.3833" / "33.3567 44.3833" (as copied from Google Maps) → {lat, lon} or null */
+  function parseLatLon(text) {
+    const m = String(text || '').match(/(-?\d+(?:\.\d+)?)\s*[,،\s]\s*(-?\d+(?:\.\d+)?)/);
+    if (!m) return null;
+    const lat = +m[1], lon = +m[2];
+    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    return { lat, lon };
+  }
+
+  function parseHeight(tags) {
+    const t = tags || {};
+    const h = parseFloat(String(t.height || t['building:height'] || '').replace(',', '.'));
+    if (h > 0) return { h, src: 'height' };
+    const lv = parseFloat(t['building:levels'] || t.levels || '');
+    if (lv > 0) return { lv: lv + (parseFloat(t['roof:levels']) > 0 ? parseFloat(t['roof:levels']) * 0.5 : 0), src: 'levels' };
+    return null;
+  }
+
+  function ringArea(P) {
+    let a = 0;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) a += (P[j][0] + P[i][0]) * (P[j][1] - P[i][1]);
+    return a / 2;
+  }
+
+  /** drop duplicate / near-collinear points of a closed ring */
+  function cleanRing(P) {
+    let Q = P.slice();
+    if (Q.length > 1 && Math.hypot(Q[0][0] - Q[Q.length - 1][0], Q[0][1] - Q[Q.length - 1][1]) < 1e-6) Q.pop();
+    Q = Q.filter((p, i) => i === 0 || Math.hypot(p[0] - Q[i - 1][0], p[1] - Q[i - 1][1]) > 0.3);
+    if (Q.length > 3 && Math.hypot(Q[0][0] - Q[Q.length - 1][0], Q[0][1] - Q[Q.length - 1][1]) <= 0.3) Q.pop();
+    let changed = true;
+    while (changed && Q.length > 3) {
+      changed = false;
+      for (let i = 0; i < Q.length; i++) {
+        const a = Q[(i + Q.length - 1) % Q.length], b = Q[i], c = Q[(i + 1) % Q.length];
+        const tri = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+        if (tri < 0.05 * Math.max(1, Math.hypot(c[0] - a[0], c[1] - a[1]))) { Q.splice(i, 1); changed = true; break; }
+      }
+    }
+    return Q;
+  }
+
+  /** join open way segments (multipolygon outers) into closed rings */
+  function joinRings(segs) {
+    const key = p => p.lat.toFixed(7) + ',' + p.lon.toFixed(7);
+    const left = segs.filter(s => s && s.length > 1).map(s => s.slice());
+    const out = [];
+    while (left.length) {
+      let ring = left.shift();
+      let guard = 0;
+      while (key(ring[0]) !== key(ring[ring.length - 1]) && guard++ < 200) {
+        const end = key(ring[ring.length - 1]);
+        const i = left.findIndex(s => key(s[0]) === end || key(s[s.length - 1]) === end);
+        if (i < 0) break;
+        const s = left.splice(i, 1)[0];
+        ring = ring.concat((key(s[0]) === end ? s : s.slice().reverse()).slice(1));
+      }
+      if (ring.length >= 4 && key(ring[0]) === key(ring[ring.length - 1])) out.push(ring);
+    }
+    return out;
+  }
+
+  /**
+   * Overpass JSON → buildings in scene metres: [{id, name, ring:[[x,z]...], area, h?, lv?, src}]
+   * opts: {lat, lon, north}
+   */
+  function parseOSM(json, opts) {
+    const o = opts || {}, P = projector(num(o.lat, 0), num(o.lon, 0), num(o.north, 0));
+    const els = (json && Array.isArray(json.elements)) ? json.elements : [];
+    const out = [];
+    els.forEach(el => {
+      let rings = [];
+      if (el.type === 'way' && Array.isArray(el.geometry)) rings = joinRings([el.geometry]);
+      else if (el.type === 'relation' && Array.isArray(el.members)) {
+        rings = joinRings(el.members.filter(m => m.type === 'way' && (m.role === 'outer' || m.role === '') && Array.isArray(m.geometry)).map(m => m.geometry));
+      }
+      rings.forEach((g, k) => {
+        const ring = cleanRing(g.map(p => P(p.lat, p.lon)));
+        if (ring.length < 3) return;
+        const area = Math.abs(ringArea(ring));
+        const ht = parseHeight(el.tags);
+        out.push(Object.assign({ id: el.type[0] + el.id + (k ? '_' + k : ''), name: (el.tags && (el.tags.name || el.tags['name:ar'])) || '', ring, area, src: ht ? ht.src : 'estimate' }, ht || {}));
+      });
+    });
+    return out;
+  }
+
+  /**
+   * buildings → context blocks (shape 'poly', mat 'context', rot 0).
+   * opts: {fh, defFloors, site, skipSite (drop buildings whose centre is on the plot), minArea}
+   * returns {blocks, skipped:{site, small}}
+   */
+  function toBlocks(buildings, opts) {
+    const o = opts || {}, fh = num(o.fh, 4) > 0 ? num(o.fh, 4) : 4, def = Math.max(1, Math.round(num(o.defFloors, 2)));
+    const site = o.site || {}, W = num(site.w, 0) / 2, D = num(site.d, 0) / 2, minA = Math.max(0, num(o.minArea, 15));
+    const blocks = [], skipped = { site: 0, small: 0 };
+    (buildings || []).forEach(bd => {
+      if (bd.area < minA) { skipped.small++; return; }
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, cx = 0, cz = 0;
+      bd.ring.forEach(([x, z]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); cx += x / bd.ring.length; cz += z / bd.ring.length; });
+      if (o.skipSite && W > 0 && Math.abs(cx) < W && Math.abs(cz) < D) { skipped.site++; return; }
+      const floors = bd.h ? Math.max(1, Math.round(bd.h / fh)) : bd.lv ? Math.max(1, Math.round(bd.lv)) : def;
+      const b = {
+        name: (bd.name ? bd.name : 'مجاور') + ' · OSM', shape: 'poly', mat: 'context', fn: '', f: floors, y0: 0, ry: 0, rot: 0,
+        x: r2((x0 + x1) / 2), z: r2((z0 + z1) / 2), w: Math.max(1, r2(x1 - x0)), d: Math.max(1, r2(z1 - z0)),
+        pts: bd.ring.map(([x, z]) => [r2(x), r2(z)]), ctx: 'osm', osm: bd.id, est: bd.src === 'estimate'
+      };
+      blocks.push(b);
+    });
+    return { blocks, skipped };
+  }
+
+  /** summary for the panel: how many neighbours, how many have estimated heights */
+  function summary(blocks) {
+    const ctx = (blocks || []).filter(b => b && b.mat === 'context');
+    return { total: ctx.length, osm: ctx.filter(b => b.ctx === 'osm').length, estimated: ctx.filter(b => b.est).length, hidden: ctx.filter(b => b.hidden).length };
+  }
+
+  /** half-size of a square around the origin that holds every block (for the sun's shadow box) */
+  function extent(blocks, minHalf) {
+    let m = num(minHalf, 0);
+    (blocks || []).forEach(b => { if (!b || b.hidden) return; const A = aabb(b); m = Math.max(m, Math.abs(A.x0), Math.abs(A.x1), Math.abs(A.z0), Math.abs(A.z1)); });
+    return m;
+  }
+
+  return { quickBlocks, overpassQuery, projector, parseLatLon, parseHeight, parseOSM, toBlocks, summary, extent, cleanRing, joinRings, aabb };
 });
 
 </script>
@@ -10117,7 +10391,7 @@ const CITIES={
  london:{n:'لندن',lat:51.51,lon:-0.13,tz:0,wind:225},
  custom:{n:'مخصص (إحداثيات يدوية)',lat:30.0,lon:35.0,tz:3,wind:315}
 };
-const MATS={brick:{n:'طابوق',c:'#c4683f'},glass:{n:'زجاج',c:'#8ec3e6'},concrete:{n:'خرسانة',c:'#cfcac0'},stone:{n:'حجر',c:'#e3d3b5'},white:{n:'أبيض',c:'#f4f4f0'},joint:{n:'مفصل (أزرق)',c:'#2f4fa8'},green:{n:'فناء / خضرة',c:'#9cc58a'},paving:{n:'تبليط',c:'#d9d2c3'},asphalt:{n:'شارع / إسفلت',c:'#55585d'},water:{n:'ماء',c:'#7fb7d9'},context:{n:'مبنى مجاور (سياق)',c:'#b4b6ba'}};
+const MATS={brick:{n:'طابوق',c:'#c4683f'},glass:{n:'زجاج',c:'#8ec3e6'},concrete:{n:'خرسانة',c:'#cfcac0'},stone:{n:'حجر',c:'#e3d3b5'},white:{n:'أبيض',c:'#f4f4f0'},joint:{n:'مفصل (أزرق)',c:'#2f4fa8'},green:{n:'فناء / خضرة',c:'#9cc58a'},paving:{n:'تبليط',c:'#d9d2c3'},asphalt:{n:'شارع / إسفلت',c:'#55585d'},water:{n:'ماء',c:'#7fb7d9'},context:{n:'مبنى مجاور (سياق)',c:'#c2bcc1'}};
 const FLAT=['green','paving','asphalt','water'];
 const SHAPES={box:'مستطيل',poly:'مضلع حر (نقاط)',cyl:'أسطوانة',tri:'مثلث',L:'حرف L',U:'حرف U',vault:'قبو',pyr:'هرم',ring:'حلقة',court:'كتلة بفناء وسطي',gate:'كتلة ببوابة (ممر)',gable:'سقف جملون',shed:'سقف مائل',riwaq:'رواق أعمدة',tree:'شجرة',person:'شخص (مقياس)',car:'سيارة'};
 const PROPS={tree:[5,5],person:[.6,.6],car:[4.5,1.9]};
@@ -10242,7 +10516,7 @@ function sunPos(dateStr,hour){
  const azS=Math.atan2(Math.sin(ha),Math.cos(ha)*Math.sin(la)-Math.tan(dec)*Math.cos(la));
  return {alt,az:(azS+Math.PI+2*Math.PI)%(2*Math.PI)}}
 function fmtH(h){const H=Math.floor(h),M=Math.round((h-H)*60);return `${H}:${String(M).padStart(2,'0')}`}
-function setSun(){const m=Math.max(state.site.w,state.site.d)*1.2;const sc=sun.shadow.camera;sc.left=-m;sc.right=m;sc.top=m;sc.bottom=-m;sc.near=1;sc.far=m*8;sc.updateProjectionMatrix();
+function setSun(){const m=Math.min(450,window.MC3D_CTX?MC3D_CTX.extent(state.blocks,Math.max(state.site.w,state.site.d)*1.2)+8:Math.max(state.site.w,state.site.d)*1.2);const sc=sun.shadow.camera;sc.left=-m;sc.right=m;sc.top=m;sc.bottom=-m;sc.near=1;sc.far=m*8;sc.updateProjectionMatrix();
  if(state.sun.on){const p=sunPos(state.sun.date,state.sun.hour);const th=p.az+state.site.north*Math.PI/180;
   const dir=new THREE.Vector3(Math.sin(th)*Math.cos(p.alt),Math.sin(p.alt),-Math.cos(th)*Math.cos(p.alt));
   sun.position.copy(dir.multiplyScalar(m*3));const day=p.alt>0;sun.intensity=day?0.95:0;hemi.intensity=day?0.6:0.35;
@@ -10369,7 +10643,7 @@ const gateG=b=>{const [w]=loc(b);return [Math.max(1,Math.min(b.gw||6,w-2)),Math.
 const roofH=b=>(b.shape==='gable'||b.shape==='shed')?Math.max(.5,b.rh===undefined?3:b.rh):hasForm(b)?MC3D_FORM.roofRise(b,state.fh):0;
 function bh(b){if(b.shape==='tree')return b.w*1.3;if(b.shape==='person')return 1.75;if(b.shape==='car')return 1.55;
  if(isFlat(b))return b.mat==='asphalt'?0.1:0.3;if(b.shape==='riwaq')return Math.max(3,b.f*state.fh-0.5);return b.f*state.fh+roofH(b)}
-const WHITE={green:'#dfe8d6',water:'#d3e4ee',asphalt:'#c4c4c4',paving:'#ecebe6',glass:'#d6e8f3',context:'#d9d9d9'};
+const WHITE={green:'#dfe8d6',water:'#d3e4ee',asphalt:'#c4c4c4',paving:'#ecebe6',glass:'#d6e8f3',context:'#e2dee1'};
 const getMassAnalysis=()=>{if(!window.MC3D_MASS)return null;if(!massAnalysisCache)massAnalysisCache=MC3D_MASS.analyzeProjectMasses(state.blocks,state.fh);return massAnalysisCache};
 let anColorMap=null,anGhost=null; // analysis studio 3D overlay: block index -> colour; Set of indices kept solid (others ghosted)
 const colOf=b=>{if(anColorMap){const ai=state.blocks.indexOf(b);if(anColorMap[ai])return anColorMap[ai]}if(massOverlay!=='none'&&window.MC3D_MASS&&MC3D_MASS.isMassAnalyzable(b)){const an=getMassAnalysis();const idx=state.blocks.indexOf(b);const it=an&&(idx>=0?an.byIndex[idx]:an.items.find(x=>x.id===b.id));const oc=it?MC3D_MASS.getMassOverlayColor(it,massOverlay,an):null;if(oc)return oc}if(colorMode==='white')return WHITE[b.mat]||'#f7f6f2';if(colorMode==='fn'&&!isFlat(b)&&!isProp(b)&&b.mat!=='context')return FNS[b.fn||''].c;return MATS[b.mat].c};
@@ -10391,7 +10665,7 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
   pick=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshBasicMaterial({visible:false}));grp.add(pick);
   if(isSel)grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(pick.geometry),LM('#ffb000')))}
  else{const gg=geom(b,h);const mt=matOf(b);if(mt.map)worldUV(gg,b);const m=new THREE.Mesh(gg,mt);m.castShadow=b.mat!=='glass'&&!isFlat(b);m.receiveShadow=true;grp.add(m);pick=m;
-  const ec=isSel?'#ffb000':colorMode==='white'?'#55534e':(b.mat==='glass'||b.mat==='joint'?'#16285c':(isFlat(b)?'#7d7d70':'#5a2a18'));
+  const ec=isSel?'#ffb000':colorMode==='white'?(b.mat==='context'?'#9a90a3':'#55534e'):(b.mat==='glass'||b.mat==='joint'?'#16285c':b.mat==='context'?'#5b5163':(isFlat(b)?'#7d7d70':'#5a2a18'));
   grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry,25),LM(ec)));
   if(b.park&&b.mat==='asphalt'&&b.shape==='box'&&window.MC3D_CODE){const pts=[],y=h/2+.03;MC3D_CODE.parkLayout(b.w,b.d).lines.forEach(([x1,z1,x2,z2])=>pts.push(x1,y,z1,x2,y,z2));
    if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM('#f8fafc',.95)))}}
@@ -10404,7 +10678,7 @@ function makeBlock(b,i){const h=bh(b);const grp=new THREE.Group();const isSel=se
    if(b.mat==='glass'){const sx=Math.max(1,Math.round(b.w/2.5)),sz=Math.max(1,Math.round(b.d/2.5));
     for(let k=1;k<sx;k++){const xx=-b.w/2+k*b.w/sx;pts.push(xx,-h/2,z,xx,h/2,z,xx,-h/2,-z,xx,h/2,-z)}
     for(let k=1;k<sz;k++){const zz=-b.d/2+k*b.d/sz;pts.push(x,-h/2,zz,x,h/2,zz,-x,-h/2,zz,-x,h/2,zz)}}
-   if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM(b.mat==='glass'?'#1f4e79':'#e7a07c',b.mat==='glass'?.8:.6)))}}
+   if(pts.length){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));grp.add(new THREE.LineSegments(g,LM(b.mat==='glass'?'#1f4e79':b.mat==='context'?'#8f8790':'#e7a07c',b.mat==='glass'?.8:.6)))}}
   if((b.fac||(b.facCfg&&((b.facCfg.ground&&b.facCfg.ground.type)||(b.facCfg.sideFac&&Object.values(b.facCfg.sideFac).some(Boolean)))))&&RECTISH.includes(b.shape)&&!isFlat(b)&&b.mat!=='context'&&colorMode!=='xray'&&!(hasForm(b)&&MC3D_FORM.changesOutline(b)))facade(b,h,grp)}
  grp.rotation.y=-((b.shape==='riwaq'?0:rotOf(b))+(b.rot||0))*Math.PI/180;
  pick.userData.i=i;grp.position.set(b.x,b.y0+h/2,b.z);return [grp,pick]}
@@ -10531,10 +10805,11 @@ function bindForm(b){const box=$('selBox');
  if($('fmSlD'))$('fmSlD').onchange=e=>{snap(true);F().slope.dir=e.target.value;done()};
  if($('fmClear'))$('fmClear').onclick=()=>{snap(true);delete b.form;done()}}
 const DEFP={t:8,gw:6,gf:1,rh:3};
+function ctxNote(b){if(b.mat!=='context')return '';const fh=state.fh;return `<div class="grp"><div class="gc"><span>${L('مبنى مجاور (سياق)','Neighbour (context)')}</span><span class="ctx-badge${b.est?' est':''}">${b.est?L('ارتفاع تقديري','estimated height'):b.ctx==='osm'?'OSM':L('يدوي','manual')}</span></div><div class="gb"><div class="hint">${L('يأثر على الظلال بس — ما يدخل بالتغطية ولا FAR. الارتفاع','Shadows only — not in coverage / FAR. Height')} ≈ ${(b.f*fh).toFixed(1)} ${L('م','m')} (${b.f} × ${fh})</div>${b.est?`<button class="sm" id="ctxOk">${L('✓ الارتفاع صحيح','✓ Height is right')}</button>`:''}</div></div>`}
 function shapeExtra(b){let h='';if(b.shape==='court')h+=numRow('pT',L('عمق الجناح','Wing Depth'),courtT(b),1);if(b.shape==='gate'){const [gw]=gateG(b);h+=numRow('pGW',L('عرض البوابة','Portal Width'),gw,1)+numRow('pGF',L('طوابق البوابة','Portal Floors'),b.gf||1,1)}
  if(b.shape==='gable'||b.shape==='shed')h+=numRow('pRH',L('ارتفاع السقف','Roof Height'),roofH(b),.5);let out=h?`<div class="grp"><div class="gc">${L('إعدادات الشكل','Shape Settings')}</div><div class="gb"><div class="col">${h}</div></div></div>`:'';
  if(counts(b)&&state.prog){const sp=state.prog.sp.filter(x=>x.bid===b.id),a=sp.reduce((s,x)=>s+x.a,0),cap=gfaOf(b)*state.prog.eff;out+=`<div class="grp"><div class="gc">${L('البرنامج الوظيفي','Program Allocation')}</div><div class="gb"><button class="big" id="pProg"><i><svg class="ic"><use href="#i-clip"/></svg></i>${sp.length} ${L('فضاء','spaces')} (${Math.round(a)}/${Math.round(cap)} ${L('م²','m²')})</button></div></div>`}
- return (counts(b)&&window.MC3D_FORM?formUI(b):'')+out}
+ return ctxNote(b)+(counts(b)&&window.MC3D_FORM?formUI(b):'')+out}
 function numRow(id,l,v,st){return `<div class="fld"><span class="fld-lbl">${l}</span><div class="stepper"><button class="sm" data-n="${id}" data-s="-${st}">−</button><input type="number" id="${id}" value="${+(+v).toFixed(2)}" step="${st}"><button class="sm" data-n="${id}" data-s="${st}">+</button></div></div>`}
 let lastSelPanel=-2,curTab='home',userTab='home';
 const paneLeaveTimers=new WeakMap();
@@ -10591,7 +10866,7 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
   <div class="grp"><div class="gc">${L('أوامر سريعة','Quick Actions')}</div><div class="gb"><div class="gb-row"><button class="big" id="pDup"><i><svg class="ic"><use href="#i-copy"/></svg></i>${L('نسخ','Duplicate')}</button><button class="big warn" id="pDel"><i><svg class="ic"><use href="#i-trash"/></svg></i>${L('حذف','Delete')}</button></div><button class="big" id="pDesel"><i><svg class="ic"><use href="#i-x"/></svg></i>${L('إنهاء التحديد','Clear Selection')}</button></div></div>`;
   $('mFn').onchange=e=>{if(e.target.value==='__')return;snap(true);ids.forEach(i=>state.blocks[i].fn=e.target.value);refresh()};
   $('mMat').onchange=e=>{if(e.target.value==='__')return;snap(true);ids.forEach(i=>state.blocks[i].mat=e.target.value);refresh()};
-  $('mFp').onclick=()=>{snap();ids.forEach(i=>state.blocks[i].f++);refresh()};$('mFm').onclick=()=>{snap();ids.forEach(i=>{if(state.blocks[i].f>1)state.blocks[i].f--});refresh()};
+  $('mFp').onclick=()=>{snap();ids.forEach(i=>{state.blocks[i].f++;delete state.blocks[i].est});refresh()};$('mFm').onclick=()=>{snap();ids.forEach(i=>{if(state.blocks[i].f>1)state.blocks[i].f--;delete state.blocks[i].est});refresh()};
   $('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()};return}
  tm.textContent=L('تعديل الكتلة','Edit Mass');const b=state.blocks[ids[0]];
  box.innerHTML=`<div class="grp"><div class="gc"><span>${L('التعريف','Identity')}</span><span class="ins-area-badge">≈ ${Math.round(gfaOf(b))} ${L('م²','m²')}</span></div><div class="gb">
@@ -10610,10 +10885,10 @@ function panel(){const box=$('selBox'),tm=$('tabMod');const ids=[...selSet].filt
  $('pMat').onchange=e=>{snap(true);b.mat=e.target.value;refresh()};
  $('pFn').onchange=e=>{snap(true);b.fn=e.target.value;refresh()};
  const map={pF:'f',pY0:'y0',pW:'w',pD:'d',pX:'x',pZ:'z',pT:'t',pGW:'gw',pGF:'gf',pRH:'rh'},min={f:1,y0:0,w:.3,d:.3,x:-9999,z:-9999,t:1,gw:1,gf:1,rh:.5};
- Object.entries(map).forEach(([id,k])=>{if(!$(id))return;$(id).onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b[k]=Math.max(min[k],v);refresh()}});
- box.querySelectorAll('[data-n]').forEach(bt=>bt.onclick=()=>{const k=map[bt.dataset.n];snap();if(b[k]===undefined)b[k]=DEFP[k]||0;b[k]=Math.max(min[k],+(b[k]+parseFloat(bt.dataset.s)).toFixed(2));refresh()});
+ Object.entries(map).forEach(([id,k])=>{if(!$(id))return;$(id).onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b[k]=Math.max(min[k],v);if(k==='f')delete b.est;refresh()}});
+ box.querySelectorAll('[data-n]').forEach(bt=>bt.onclick=()=>{const k=map[bt.dataset.n];snap();if(b[k]===undefined)b[k]=DEFP[k]||0;b[k]=Math.max(min[k],+(b[k]+parseFloat(bt.dataset.s)).toFixed(2));if(k==='f')delete b.est;refresh()});
  if($('pProg'))$('pProg').onclick=openProg;
- bindForm(b);
+ bindForm(b);if($('ctxOk'))$('ctxOk').onclick=()=>{snap(true);delete b.est;refresh()};
  $('pLock').onclick=toggleLock;$('pRm').onclick=()=>rotFree(-15);$('pRp').onclick=()=>rotFree(15);$('pRotA').onchange=e=>{const v=parseFloat(e.target.value);if(isNaN(v))return;snap(true);b.rot=((v%360)+360)%360;refresh()};$('pDup').onclick=dup;$('pDel').onclick=del;$('pDesel').onclick=()=>{clearSel();refresh()}}
 function elemList(){const box=$('elBox');if(!box)return;box.innerHTML='';state.blocks.forEach((b,i)=>{const d=document.createElement('div');d.className='chip'+(selSet.has(i)?' on':'')+(b.hidden?' off':'');
  d.innerHTML=`<span class="sw" style="background:${colOf(b)}"></span><span class="nm"></span><button title="${L('إظهار/إخفاء','Show/Hide')}">${b.hidden?IC('eyeoff'):IC('eye')}</button><button title="${L('قفل','Lock')}">${b.lock?IC('lock'):IC('unlock')}</button>`;d.querySelector('.nm').textContent=b.name;
@@ -10630,7 +10905,7 @@ function dup(){if(!selSet.size)return;snap(true);const ids=[...selSet],start=sta
  ids.forEach(i=>{const b=clone(state.blocks[i]);b.x+=snapStep*4;b.z+=snapStep*4;if(ids.length===1)b.name+=L(' (نسخة)',' (Copy)');state.blocks.push(b)});
  selSet=new Set(ids.map((_,k)=>start+k));sel=start;refresh()}
 function del(){if(!selSet.size)return;const ids=[...selSet].filter(i=>!state.blocks[i].lock);if(!ids.length)return flash(L('الكتلة مقفلة','Mass is locked'));snap(true);ids.sort((a,b)=>b-a).forEach(i=>state.blocks.splice(i,1));clearSel();refresh()}
-function refresh(){build();panel();stats();save();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis();if(typeof renderFacadeStudio==='function')renderFacadeStudio();if(typeof renderMassStudio==='function')renderMassStudio()}
+function refresh(){build();panel();stats();save();if(typeof ctxRender==='function')ctxRender();renderNames(true);elemList();if(typeof galSync==='function')galSync();if(typeof scheduleShadowHeatmap==='function')scheduleShadowHeatmap();if(typeof renderSectionAnalysis==='function')renderSectionAnalysis();if(typeof renderFacadeStudio==='function')renderFacadeStudio();if(typeof renderMassStudio==='function')renderMassStudio()}
 let saveT=null,appBooted=false;
 const unsavedTracker=window.MC3D_UNSAVED?window.MC3D_UNSAVED.createUnsavedTracker():null;
 function hasActiveCanvasGesture(){return Boolean((typeof drawing!=='undefined'&&drawing)||(typeof dragging!=='undefined'&&dragging&&dragging.moved)||(typeof resizing!=='undefined'&&resizing)||(typeof cutting!=='undefined'&&cutting)||(typeof polyD!=='undefined'&&polyD))}
@@ -10675,7 +10950,7 @@ $('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.c
   const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;refresh();flushLocalSaveClean(ok);flash(L('حُذف نهائياً: ','Permanently deleted: ')+n+(designs[curName]?L(' — المفتوح حالياً: ',' — current: ')+curName:''))})};
 addEventListener('storage',e=>{if(e.key==='mc3d_designs'){syncDesigns();fillDesigns();$('dsel').value=curName}
  if(e.key==='mc3d_sheets'&&typeof sheets!=='undefined'){const d=LS.get('mc3d_sheets');if(d){Object.keys(sheets).forEach(k=>{if(!(k in d)&&k!==curSheet)delete sheets[k]});Object.keys(d).forEach(k=>{if(k!==curSheet)sheets[k]=d[k]});fillSheets()}}});
-const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة'],share:['mShare','مشاركة التصميم للمراجعة'],rvwelcome:['mRvWelcome','مراجعة تصميم'],rvproj:['mRvProj','تفاصيل المشروع'],rvnote:['mRvNote','ملاحظة']};
+const MODALS={io:['mIO','نسخ / لصق التصميم'],shot:['mShot','صورة النموذج'],help:['mHelp','دليل الاستخدام'],crop:['mCrop','قص اللقطة'],quick:['mQuick','لوحة سريعة — اختر المحتوى'],report:['mReport','تقرير المساحات'],export:['mExport','تصدير — اختر الصيغة'],input:['mInput',''],auth:['mAuth','الحساب'],notes:['mNotes','الملاحظات على الكتل'],prog:['mProg','توزيع البرنامج الوظيفي على الكتل والطوابق'],rvinfo:['mRvInfo','مشاركة للمراجعة'],anim:['mAnim','استوديو فيديو تكوّن الكتلة'],share:['mShare','مشاركة التصميم للمراجعة'],rvwelcome:['mRvWelcome','مراجعة تصميم'],rvproj:['mRvProj','تفاصيل المشروع'],rvnote:['mRvNote','ملاحظة'],ctxq:['mCtxQ','إضافة مبنى مجاور'],osm:['mOsm','استيراد المباني المحيطة من OpenStreetMap']};
 function modal(kind){$('modal').style.display='flex';Object.entries(MODALS).forEach(([k,[id]])=>{const e=$(id);if(e)e.style.display=k===kind?'block':'none'});$('modal').querySelector('.box').classList.toggle('wide',kind==='prog');$('mTitle').textContent=dn('modals',kind,(MODALS[kind]||[0,''])[1])}
 $('bIO').onclick=()=>{$('ioText').value=JSON.stringify(state);modal('io')};
 $('mClose').onclick=()=>{$('modal').style.display='none';crop=null};
@@ -11993,6 +12268,47 @@ if($('hmOp'))$('hmOp').oninput=e=>{
  if(hmMesh&&hmMesh.material)hmMesh.material.opacity=hmOpacity;
 };
 if($('hmQual'))$('hmQual').onchange=e=>{hmQuality=e.target.value==='high'?'high':'std';if(shadowHmOn)rebuildShadowHeatmap()};
+
+// ================= URBAN CONTEXT (neighbouring buildings) =================
+// Neighbours are blocks with mat 'context': they cast shadows (3D sun + shadow-hours map) but counts() skips them,
+// so coverage, FAR, GFA, setbacks and code checks ignore them. Logic + tests: context-logic.js
+// Extra fields: b.ctx = 'quick' | 'osm', b.osm = OSM id, b.est = height is an estimate (no data in OSM).
+let cqSide='s';
+function ctxRender(){if(!window.MC3D_CTX||!$('ctxCount'))return;const s=MC3D_CTX.summary(state.blocks);
+ $('ctxCount').textContent=s.total?`${s.total} ${L('مبنى','bldg')}${s.osm?` · OSM ${s.osm}`:''}`:'';
+ $('bCtxVis').textContent=s.total&&s.hidden===s.total?L('إظهار','Show'):L('إخفاء','Hide');
+ ['bCtxSel','bCtxVis','bCtxDel'].forEach(id=>$(id).disabled=!s.total);
+ $('ctxEstRow').style.display=s.estimated?'':'none';$('ctxEstLbl').textContent=L(`ارتفاع ${s.estimated} مبنى تقديري — طوابق`,`${s.estimated} estimated — floors`)}
+function ctxAdd(list,msg){if(!list.length)return flash(L('ما لكيت مكان فارغ','No free spot found'));snap(true);const start=state.blocks.length;
+ list.forEach((b,k)=>state.blocks.push(norm(Object.assign({name:L('مجاور','Neighbour')+' '+(MC3D_CTX.summary(state.blocks).total+1)},b))));ensureIds(state);
+ selSet=new Set(list.map((_,k)=>start+k));sel=start;refresh();if(typeof setSun==='function')setSun();flash(msg)}
+$('bCtxQuick').onclick=()=>{modal('ctxq');document.querySelectorAll('#mCtxQ [data-cs]').forEach(b=>b.classList.toggle('on',b.dataset.cs===cqSide))};
+document.querySelectorAll('#mCtxQ [data-cs]').forEach(b=>b.onclick=()=>{cqSide=b.dataset.cs;document.querySelectorAll('#mCtxQ [data-cs]').forEach(x=>x.classList.toggle('on',x===b))});
+$('cqAdd').onclick=()=>{const g=$('cqGap').value.trim();const list=MC3D_CTX.quickBlocks({site:state.site,side:cqSide,front:+$('cqFront').value,depth:+$('cqDepth').value,floors:+$('cqFloors').value,gap:g===''?undefined:+g,fill:$('cqFill').checked,blocks:state.blocks});
+ $('modal').style.display='none';ctxAdd(list,L(`انضافت ${list.length} كتلة مجاورة ✓`,`Added ${list.length} neighbour(s) ✓`))};
+$('bCtxSel').onclick=()=>{const ids=state.blocks.map((b,i)=>b.mat==='context'?i:-1).filter(i=>i>=0);ids.forEach(i=>state.blocks[i].hidden=false);selSet=new Set(ids);sel=ids[0];refresh();showTab('mod')};
+$('bCtxVis').onclick=()=>{const ctx=state.blocks.filter(b=>b.mat==='context');const show=ctx.every(b=>b.hidden);snap(true);ctx.forEach(b=>b.hidden=!show);if(!show)ctx.forEach(b=>{const i=state.blocks.indexOf(b);selSet.delete(i)});refresh();setSun()};
+$('bCtxDel').onclick=e=>arm(e.currentTarget,()=>{snap(true);state.blocks=state.blocks.filter(b=>b.mat!=='context');clearSel();refresh();setSun();flash(L('انحذفت المباني المجاورة','Neighbours removed'))});
+$('bCtxEst').onclick=()=>{const f=Math.max(1,Math.round(+$('ctxEstF').value||1));snap(true);state.blocks.forEach(b=>{if(b.mat==='context'&&b.est)b.f=f});refresh();setSun()};
+$('bCtxOsm').onclick=()=>{modal('osm');const st=state.site;$('osmLL').value=(+st.lat).toFixed(6)+', '+(+st.lon).toFixed(6);$('osmSt').style.display='none'};
+$('osmGo').onclick=async()=>{const ll=MC3D_CTX.parseLatLon($('osmLL').value),stEl=$('osmSt');const say=(t,bad)=>{stEl.style.display='';stEl.innerHTML=bad?`<span class="warnTxt">${t}</span>`:t};
+ if(!ll)return say(L('اكتب الإحداثيات بهالشكل: 33.3571, 44.3836','Enter coordinates like 33.3571, 44.3836'),1);
+ const R=Math.max(30,Math.min(400,+$('osmR').value||150)),q=MC3D_CTX.overpassQuery(ll.lat,ll.lon,R);$('osmGo').disabled=true;say(L('جاري جلب المباني من OpenStreetMap…','Fetching buildings from OpenStreetMap…'));
+ let json=null,lastErr='';
+ for(const ep of ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter']){
+  try{const ac=new AbortController(),t=setTimeout(()=>ac.abort(),35000);const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:ac.signal});clearTimeout(t);
+   if(!r.ok){lastErr='HTTP '+r.status;continue}json=await r.json();break}catch(er){lastErr=er&&er.name==='AbortError'?L('انتهى الوقت','timeout'):String(er&&er.message||er)}}
+ $('osmGo').disabled=false;
+ if(!json)return say(L('تعذّر الاتصال بخادم OpenStreetMap ('+lastErr+') — تأكد من الإنترنت وأعد المحاولة. (داخل Claude قد يكون الاتصال الخارجي ممنوعاً — جرّب من الموقع العام)','Could not reach OpenStreetMap ('+lastErr+') — check the internet and retry'),1);
+ const st=state.site;const B=MC3D_CTX.parseOSM(json,{lat:ll.lat,lon:ll.lon,north:st.north||0});
+ const res=MC3D_CTX.toBlocks(B,{fh:state.fh,defFloors:+$('osmF').value||2,site:st,skipSite:$('osmSkip').checked,minArea:15});
+ if(!res.blocks.length)return say(L(`ما لكيت مباني بهالمنطقة (${B.length} بالخريطة، ${res.skipped.site} داخل القطعة) — كبّر نصف القطر أو تأكد من الإحداثيات`,`No buildings found (${B.length} in map, ${res.skipped.site} on the plot)`),1);
+ snap(true);if($('osmReplace').checked)state.blocks=state.blocks.filter(b=>!(b.mat==='context'&&b.ctx==='osm'));
+ st.lat=+ll.lat.toFixed(6);st.lon=+ll.lon.toFixed(6);if($('siteLat'))$('siteLat').value=st.lat;if($('siteLon'))$('siteLon').value=st.lon;
+ res.blocks.forEach(b=>state.blocks.push(norm(b)));ensureIds(state);clearSel();refresh();setSun();
+ const est=res.blocks.filter(b=>b.est).length;
+ say(L(`انضاف <b>${res.blocks.length}</b> مبنى مجاور (${est} بارتفاع تقديري ${+$('osmF').value||2} طوابق${res.skipped.site?`، تجاهلت ${res.skipped.site} داخل القطعة`:''}). عدّل الارتفاعات من «الارتفاع التقديري» أو بتحديد المبنى.`,`Added <b>${res.blocks.length}</b> neighbours (${est} estimated)`));
+ setTimeout(()=>{if(typeof view==='function')view('top')},50)};
 
 // ================= EXPORT 3D (OBJ + DAE in ZIP) =================
 const scriptP={};function loadScript(src){if(!scriptP[src])scriptP[src]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>res();s.onerror=()=>{delete scriptP[src];rej()};document.head.appendChild(s)});return scriptP[src]}

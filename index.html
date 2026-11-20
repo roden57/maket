@@ -2282,6 +2282,11 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
 .fm-tbl .fm-del{padding:2px 6px}
 .fm-auto{display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:12px;color:var(--muted)}
 .fm-auto input{width:52px;height:28px;text-align:center;font-family:var(--font-mono);border:1px solid var(--line-strong);border-radius:4px;background:#fff;color:var(--ink)}
+/* Urban context (neighbouring buildings) */
+.ctx-sides{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ctx-sides .on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.ctx-badge{font-size:10.5px;font-weight:600;border-radius:10px;padding:1px 7px;background:#e2e8f0;color:#334155}
+.ctx-badge.est{background:#fef3c7;color:#92400e}
 </style>
 </head>
 <body>
@@ -2638,6 +2643,23 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
             <input type="range" id="sRoadW" min="4" max="36" step="1" value="12">
             <b id="sRoadWL" style="font-family:var(--font-mono)">12 م</b>
           </div>
+        </div>
+      </div>
+
+      <div class="grp" id="ctxGrp">
+        <div class="gc"><span>السياق الحضري (المباني المجاورة)</span><span class="hint" id="ctxCount"></span></div>
+        <div class="gb">
+          <div class="hint">المجاورين يأثرون على الظل وخريطة تراكم الظل بس، وما يدخلون بالتغطية ولا FAR ولا المساحات.</div>
+          <div class="gb-row">
+            <button type="button" class="big" id="bCtxQuick"><i><svg class="ic"><use href="#i-cube"/></svg></i>مجاور سريع</button>
+            <button type="button" class="big" id="bCtxOsm"><i><svg class="ic"><use href="#i-plan"/></svg></i>من OpenStreetMap</button>
+          </div>
+          <div class="gb-row-3">
+            <button type="button" class="sm" id="bCtxSel">تحديد الكل</button>
+            <button type="button" class="sm" id="bCtxVis">إخفاء</button>
+            <button type="button" class="sm" id="bCtxDel">حذف الكل</button>
+          </div>
+          <div class="fld" id="ctxEstRow"><span class="fld-lbl" id="ctxEstLbl">الارتفاع التقديري</span><div class="stepper"><input type="number" id="ctxEstF" value="2" min="1" max="60" step="1"><button type="button" class="sm" id="bCtxEst">طبّق</button></div></div>
         </div>
       </div>
 
@@ -3551,6 +3573,31 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
       <div><b>سعة الكتل والطوابق</b> <span class="hint">(المساحة × الكفاءة)</span><div id="pgCap"></div></div>
     </div>
   </div>
+  <div id="mCtxQ" style="display:none;font-size:13px;min-width:min(420px,88vw)">
+    <div class="hint" style="margin-bottom:8px">كتلة مجاورة خارج حدود القطعة (وعبر الشارع إذا الجهة بيها شارع). بعدين تكدر تسحبها وتعدّلها مثل أي كتلة.</div>
+    <div class="ctx-sides" role="group" aria-label="الجهة"><button type="button" class="sm" data-cs="n">شمال</button><button type="button" class="sm" data-cs="s">جنوب</button><button type="button" class="sm" data-cs="e">شرق</button><button type="button" class="sm" data-cs="w">غرب</button></div>
+    <div class="fld-grid" style="margin-top:8px">
+      <div class="fld-stack">الواجهة على الجهة (م) <input type="number" id="cqFront" value="20" min="2" step="1"></div>
+      <div class="fld-stack">العمق (م) <input type="number" id="cqDepth" value="15" min="2" step="1"></div>
+      <div class="fld-stack">الطوابق <input type="number" id="cqFloors" value="3" min="1" max="80" step="1"></div>
+      <div class="fld-stack">المسافة عن القطعة (م) <input type="number" id="cqGap" placeholder="تلقائي" min="0" step="1"></div>
+    </div>
+    <label class="fm-chk" style="margin:8px 0"><input type="checkbox" id="cqFill"> املأ الجهة كلها بكتل متتالية</label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="sm pri2" id="cqAdd">إضافة</button></div>
+  </div>
+  <div id="mOsm" style="display:none;font-size:13px;min-width:min(480px,90vw)">
+    <div class="hint" style="margin-bottom:8px">يجيب المباني الموجودة حول موقع مشروعك من خريطة OpenStreetMap ويحوّلها لكتل مجاورة. المبنى اللي ما بيه ارتفاع بالخريطة ياخذ الارتفاع التقديري، وتكدر تعدّله بعدين.</div>
+    <div class="fld-stack">إحداثيات مركز القطعة (انسخها من Google Maps: كليك يمين على الموقع) <input type="text" id="osmLL" dir="ltr" placeholder="33.3571, 44.3836"></div>
+    <div class="fld-grid" style="margin-top:8px">
+      <div class="fld-stack">نصف القطر (م) <input type="number" id="osmR" value="150" min="30" max="400" step="10"></div>
+      <div class="fld-stack">طوابق تقديرية (بدون بيانات) <input type="number" id="osmF" value="2" min="1" max="40" step="1"></div>
+    </div>
+    <label class="fm-chk" style="margin:8px 0"><input type="checkbox" id="osmSkip" checked> تجاهل المباني اللي داخل قطعتي (راح تنهدم)</label>
+    <label class="fm-chk" style="margin:0 0 8px"><input type="checkbox" id="osmReplace" checked> احذف مجاوري OSM السابقين قبل الاستيراد</label>
+    <div class="fm-info" id="osmSt" style="display:none"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button type="button" class="sm pri2" id="osmGo">جلب المباني</button></div>
+    <div class="hint" style="margin-top:6px">البيانات © مساهمو OpenStreetMap (ODbL). يرسل إحداثيات القطعة فقط لخادم Overpass.</div>
+  </div>
   <div id="mInput" style="display:none;font-size:13px"><div class="fld" style="margin:8px 0"><input type="text" id="inpVal" style="width:min(360px,80vw)"></div><button class="sm pri2" id="inpOk">موافق</button></div>
   <div id="mAuth" style="display:none;font-size:13px">
     <div class="hint" style="margin-bottom:8px">احفظ تصاميمك ولوحاتك وروابط المراجعة وملاحظاتها في حسابك الشخصي للوصول إليها من أي جهاز.</div>
@@ -3607,23 +3654,24 @@ body.ma-playing #toolRail,body.ma-playing #camHud,body.ma-playing #msg,body.ma-p
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="form-ops-logic.js?v=1795161655"></script>
-<script src="areas-logic.js?v=1795161655"></script>
-<script src="shadow-heatmap-logic.js?v=1795161655"></script>
-<script src="section-logic.js?v=1795161655"></script>
-<script src="site-logic.js?v=1795161655"></script>
-<script src="facade-logic.js?v=1795161655"></script>
-<script src="mass-logic.js?v=1795161655"></script>
-<script src="analysis-studio-logic.js?v=1795161655"></script>
-<script src="code-check-logic.js?v=1795161655"></script>
-<script src="massing-anim-logic.js?v=1795161655"></script>
-<script src="spatial-program-logic.js?v=1795161655"></script>
-<script src="snap-guides-logic.js?v=1795161655"></script>
-<script src="i18n.js?v=1795161655"></script>
-<script src="occupancy-chart.js?v=1795161655"></script>
-<script src="unsaved-logic.js?v=1795161655"></script>
+<script src="form-ops-logic.js?v=1795162818"></script>
+<script src="context-logic.js?v=1795162818"></script>
+<script src="areas-logic.js?v=1795162818"></script>
+<script src="shadow-heatmap-logic.js?v=1795162818"></script>
+<script src="section-logic.js?v=1795162818"></script>
+<script src="site-logic.js?v=1795162818"></script>
+<script src="facade-logic.js?v=1795162818"></script>
+<script src="mass-logic.js?v=1795162818"></script>
+<script src="analysis-studio-logic.js?v=1795162818"></script>
+<script src="code-check-logic.js?v=1795162818"></script>
+<script src="massing-anim-logic.js?v=1795162818"></script>
+<script src="spatial-program-logic.js?v=1795162818"></script>
+<script src="snap-guides-logic.js?v=1795162818"></script>
+<script src="i18n.js?v=1795162818"></script>
+<script src="occupancy-chart.js?v=1795162818"></script>
+<script src="unsaved-logic.js?v=1795162818"></script>
 <script>
-(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1795161655';document.body.appendChild(s)}
+(function(){var q=new URLSearchParams(location.search).get('r');function go(){var s=document.createElement('script');s.src='app.js?v=1795162818';document.body.appendChild(s)}
 if(!q)return go();var ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f1f3f5;color:#0f172a;z-index:99;font:600 16px "IBM Plex Sans Arabic",Tajawal,sans-serif';ov.textContent=(window.L?L('جارٍ فتح التصميم…','Opening design…'):'جارٍ فتح التصميم…');document.body.appendChild(ov);
 fetch('https://kwoftzpxtytcgahsgjro.supabase.co/rest/v1/reviews?select=*&id=eq.'+encodeURIComponent(q),{headers:{apikey:'sb_publishable_YHx-GmgyEdNhCqhf98Ds2w_oCZAMMDp'}}).then(function(r){return r.json()}).then(function(j){if(j&&j[0])window.MC3D_REVIEW={name:j[0].name,st:j[0].st,key:q,remote:true};else alert((window.L?L('هذا الرابط غير صالح — يُرجى التحقق من الرابط','Invalid review link — please check the URL'):'هذا الرابط غير صالح — يُرجى التحقق من الرابط'))}).catch(function(){alert((window.L?L('تعذّر فتح التصميم — يُرجى التحقق من الاتصال بالإنترنت','Unable to open design — check your internet connection'):'تعذّر فتح التصميم — يُرجى التحقق من الاتصال بالإنترنت'))}).then(function(){ov.remove();go()})})();
 </script>

@@ -354,6 +354,23 @@
         </div>
       </div>
 
+      <div class="grp" id="ctxGrp">
+        <div class="gc"><span>السياق الحضري (المباني المجاورة)</span><span class="hint" id="ctxCount"></span></div>
+        <div class="gb">
+          <div class="hint">المجاورين يأثرون على الظل وخريطة تراكم الظل بس، وما يدخلون بالتغطية ولا FAR ولا المساحات.</div>
+          <div class="gb-row">
+            <button type="button" class="big" id="bCtxQuick"><i><svg class="ic"><use href="#i-cube"/></svg></i>مجاور سريع</button>
+            <button type="button" class="big" id="bCtxOsm"><i><svg class="ic"><use href="#i-plan"/></svg></i>من OpenStreetMap</button>
+          </div>
+          <div class="gb-row-3">
+            <button type="button" class="sm" id="bCtxSel">تحديد الكل</button>
+            <button type="button" class="sm" id="bCtxVis">إخفاء</button>
+            <button type="button" class="sm" id="bCtxDel">حذف الكل</button>
+          </div>
+          <div class="fld" id="ctxEstRow"><span class="fld-lbl" id="ctxEstLbl">الارتفاع التقديري</span><div class="stepper"><input type="number" id="ctxEstF" value="2" min="1" max="60" step="1"><button type="button" class="sm" id="bCtxEst">طبّق</button></div></div>
+        </div>
+      </div>
+
       <div class="grp" id="siteAnalysisGrp">
         <div class="gc">ملخص الموقع والارتدادات</div>
         <div class="gb">
@@ -1263,6 +1280,31 @@
       <div><b>الفضاءات</b> <span class="hint">(الاسم · م² · موقعه)</span><div id="pgList"></div></div>
       <div><b>سعة الكتل والطوابق</b> <span class="hint">(المساحة × الكفاءة)</span><div id="pgCap"></div></div>
     </div>
+  </div>
+  <div id="mCtxQ" style="display:none;font-size:13px;min-width:min(420px,88vw)">
+    <div class="hint" style="margin-bottom:8px">كتلة مجاورة خارج حدود القطعة (وعبر الشارع إذا الجهة بيها شارع). بعدين تكدر تسحبها وتعدّلها مثل أي كتلة.</div>
+    <div class="ctx-sides" role="group" aria-label="الجهة"><button type="button" class="sm" data-cs="n">شمال</button><button type="button" class="sm" data-cs="s">جنوب</button><button type="button" class="sm" data-cs="e">شرق</button><button type="button" class="sm" data-cs="w">غرب</button></div>
+    <div class="fld-grid" style="margin-top:8px">
+      <div class="fld-stack">الواجهة على الجهة (م) <input type="number" id="cqFront" value="20" min="2" step="1"></div>
+      <div class="fld-stack">العمق (م) <input type="number" id="cqDepth" value="15" min="2" step="1"></div>
+      <div class="fld-stack">الطوابق <input type="number" id="cqFloors" value="3" min="1" max="80" step="1"></div>
+      <div class="fld-stack">المسافة عن القطعة (م) <input type="number" id="cqGap" placeholder="تلقائي" min="0" step="1"></div>
+    </div>
+    <label class="fm-chk" style="margin:8px 0"><input type="checkbox" id="cqFill"> املأ الجهة كلها بكتل متتالية</label>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="sm pri2" id="cqAdd">إضافة</button></div>
+  </div>
+  <div id="mOsm" style="display:none;font-size:13px;min-width:min(480px,90vw)">
+    <div class="hint" style="margin-bottom:8px">يجيب المباني الموجودة حول موقع مشروعك من خريطة OpenStreetMap ويحوّلها لكتل مجاورة. المبنى اللي ما بيه ارتفاع بالخريطة ياخذ الارتفاع التقديري، وتكدر تعدّله بعدين.</div>
+    <div class="fld-stack">إحداثيات مركز القطعة (انسخها من Google Maps: كليك يمين على الموقع) <input type="text" id="osmLL" dir="ltr" placeholder="33.3571, 44.3836"></div>
+    <div class="fld-grid" style="margin-top:8px">
+      <div class="fld-stack">نصف القطر (م) <input type="number" id="osmR" value="150" min="30" max="400" step="10"></div>
+      <div class="fld-stack">طوابق تقديرية (بدون بيانات) <input type="number" id="osmF" value="2" min="1" max="40" step="1"></div>
+    </div>
+    <label class="fm-chk" style="margin:8px 0"><input type="checkbox" id="osmSkip" checked> تجاهل المباني اللي داخل قطعتي (راح تنهدم)</label>
+    <label class="fm-chk" style="margin:0 0 8px"><input type="checkbox" id="osmReplace" checked> احذف مجاوري OSM السابقين قبل الاستيراد</label>
+    <div class="fm-info" id="osmSt" style="display:none"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button type="button" class="sm pri2" id="osmGo">جلب المباني</button></div>
+    <div class="hint" style="margin-top:6px">البيانات © مساهمو OpenStreetMap (ODbL). يرسل إحداثيات القطعة فقط لخادم Overpass.</div>
   </div>
   <div id="mInput" style="display:none;font-size:13px"><div class="fld" style="margin:8px 0"><input type="text" id="inpVal" style="width:min(360px,80vw)"></div><button class="sm pri2" id="inpOk">موافق</button></div>
   <div id="mAuth" style="display:none;font-size:13px">
