@@ -2510,13 +2510,6 @@ kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--l
           <button type="button" class="sm" id="spReset" style="width:100%">↺ المطلوب من البرنامج الوظيفي (صافي ÷ الكفاءة)</button>
         </div>
       </div>
-
-      <div class="grp">
-        <div class="gc">قائمة الكتل والعناصر</div>
-        <div class="gb">
-          <div id="elBox"></div>
-        </div>
-      </div>
     </div>
 
     <!-- VIEW -->
@@ -12005,7 +11998,8 @@ function floors(dv){if(!selSet.size)return;snap();selSet.forEach(i=>{const b=sta
 function mirror(ax){if(!selSet.size)return;snap(true);const ids=[...selSet];let lo=1e9,hi=-1e9;ids.forEach(i=>{const b=state.blocks[i],c=ax==='x'?b.x:b.z,s=(ax==='x'?b.w:b.d)/2;lo=Math.min(lo,c-s);hi=Math.max(hi,c+s)});const m=lo+hi;
  ids.forEach(i=>{const b=state.blocks[i];if(ax==='x')b.x=+(m-b.x).toFixed(3);else b.z=+(m-b.z).toFixed(3);if(['tri','L'].includes(b.shape))b.ry=(b.ry+(ax==='x'?90:270))%360});refresh()}
 function toggleLock(){if(!selSet.size)return;const v=!state.blocks[sel].lock;selSet.forEach(i=>state.blocks[i].lock=v);refresh();flash(v?L('قُفلت — لن تتحرك خطأً','Locked'):L('أُلغي القفل','Unlocked'))}
-function toggleHide(){if(!selSet.size)return;snap(true);selSet.forEach(i=>state.blocks[i].hidden=true);clearSel();refresh();flash(L('أُخفيت — يمكن إظهارها من قائمة العناصر','Hidden — restore from the Outliner list'))}
+function toggleHide(){if(!selSet.size)return;snap(true);selSet.forEach(i=>state.blocks[i].hidden=true);clearSel();refresh();flash(L('أُخفيت — Shift+H يُظهر كل المخفي','Hidden — Shift+H shows everything hidden'))}
+function showAllHidden(){const H=state.blocks.filter(b=>b.hidden);if(!H.length)return flash(L('ما اكو كتل مخفية','No hidden masses'));snap(true);H.forEach(b=>b.hidden=false);refresh();flash(L(`انعرضت ${H.length} كتلة مخفية ✓`,`${H.length} hidden mass(es) shown ✓`))}
 addEventListener('pointerup',up);addEventListener('pointercancel',up);
 addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA'||e.target.isContentEditable)return;
  const ctrl=e.ctrlKey||e.metaKey,K=kbKey(e),k=K.length===1&&/[a-z]/i.test(K)?(e.shiftKey?K.toUpperCase():K.toLowerCase()):e.key;
@@ -12031,6 +12025,7 @@ addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='SEL
  if(ctrl&&(k==='d'||k==='D')){e.preventDefault();dup();return}
  if(!ctrl&&(k==='v'||k==='V')){setTool('select');return}if(!ctrl&&(k==='b'||k==='B')){setTool('draw');return}
  if(!ctrl&&(k==='m'||k==='M')){if(selSet.size){setTool('select');startGrab()}else{setTool('select');flash(L('تحريك: حدّد كتلة أولاً ثم اضغط M','Move: select a mass first, then press M'))}return}
+ if(!ctrl&&k==='H'&&e.shiftKey){showAllHidden();return}
  if(k==='Escape'){if($('tour').style.display==='flex'){endTour();return}dragging=null;resizing=null;O.enabled=true;clearSnapGuides();clearSel();setTool('select');refresh();return}
  if(!selSet.size)return;
  if(k==='Delete'||k==='Backspace'){e.preventDefault();del();return}
@@ -12761,7 +12756,7 @@ addEventListener('contextmenu',e=>{if(moveG){e.preventDefault();e.stopImmediateP
 const KEYS=()=>[
  [L('تعديل','Edit'),[[['Ctrl','Z'],L('تراجع','Undo')],[['Ctrl','Y'],L('إعادة','Redo')],[['Ctrl','Shift','Z'],L('إعادة','Redo')],[['Ctrl','C'],L('نسخ','Copy')],[['Ctrl','V'],L('لصق','Paste')],[['D'],L('تكرار الكتلة','Duplicate')],[['Delete'],L('حذف','Delete')],[['Ctrl','A'],L('تحديد الكل','Select all')],[['Ctrl','S'],L('حفظ','Save')],[['Ctrl','E'],L('تصدير','Export')],[['Esc'],L('إلغاء / إنهاء التحديد','Cancel / clear selection')]]],
  [L('الأدوات','Tools'),[[['V'],L('تحديد وسحب','Select & drag')],[['M'],L('تحريك: الكتلة تتبع الماوس، نقرة تثبّت','Move: follows the mouse, click to place')],[['B'],L('رسم كتلة','Draw a mass')],[['T'],L('قياس','Measure')],[['S'],L('المقطع تشغيل / إطفاء','Section on / off')],[['R'],L('تدوير 90°','Rotate 90°')],[['Shift','R'],L('تدوير +15°','Rotate +15°')],[['Alt','R'],L('تدوير −15°','Rotate −15°')]]],
- [L('الكتلة المحددة','Selected mass'),[[['←','→','↑','↓'],L('تحريك خطوة (Shift = ×5)','Nudge (Shift = ×5)')],[['+'],L('طابق زيادة','Add a floor')],[['−'],L('طابق نقص','Remove a floor')],[['PgUp','PgDn'],L('طوابق ±','Floors ±')],[['L'],L('قفل / فتح','Lock / unlock')],[['H'],L('إخفاء','Hide')]]],
+ [L('الكتلة المحددة','Selected mass'),[[['←','→','↑','↓'],L('تحريك خطوة (Shift = ×5)','Nudge (Shift = ×5)')],[['+'],L('طابق زيادة','Add a floor')],[['−'],L('طابق نقص','Remove a floor')],[['PgUp','PgDn'],L('طوابق ±','Floors ±')],[['L'],L('قفل / فتح','Lock / unlock')],[['H'],L('إخفاء','Hide')],[['Shift','H'],L('إظهار كل المخفي','Show all hidden')]]],
  [L('العرض','View'),[[['1'],L('أيزو (كل ضغطة زاوية جديدة)','Iso (new angle each press)')],[['2'],L('مسقط','Plan')],[['3'],L('واجهة','Front')],[['4'],L('جانبي','Side')],[['5'],L('مستوى العين','Eye level')],[['F'],L('تأطير القطعة','Frame the site')],[['P'],L('وضع المسقط 2D','2D plan mode')],[['G'],L('الشبكة','Grid')],[['N'],L('أسماء الكتل','Mass labels')],[['W'],L('أسهم الرياح','Wind arrows')],[['?'],L('هذه النافذة','This window')]]]];
 function openKeys(){$('keysBody').innerHTML=KEYS().map(([h,rows])=>`<div><h4>${h}</h4>${rows.map(([ks,t])=>`<div class="kr"><span>${t}</span><span>${ks.map(x=>`<kbd>${x}</kbd>`).join(' ')}</span></div>`).join('')}</div>`).join('');modal('keys')}
 $('qKeys').onclick=openKeys;$('bKeysHelp').onclick=openKeys;
