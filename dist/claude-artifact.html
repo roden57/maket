@@ -2440,6 +2440,7 @@ kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--l
         <div class="gc">التصاميم المحفوظة</div>
         <div class="gb">
           <div class="fld"><select id="dsel"></select><button class="sm" id="bOpen">فتح</button><button class="sm" id="bDelD">حذف</button></div>
+          <div class="fld"><button class="sm" id="bMain" title="التصميم الرئيسي يفتح تلقائياً أول ما تفتح الموقع، بأي جهاز">⭐ اجعل المفتوح هو الرئيسي</button><span class="hint" id="mainInfo"></span></div>
           <div class="fld"><input type="text" id="dname" placeholder="اسم التصميم الجديد"><button class="sm pri2" id="bSave">حفظ باسم</button></div>
         </div>
       </div>
@@ -10789,8 +10790,11 @@ normState(state);
 let firstMsg='';
 LS.set('mc3d_mig',9);
 let curName=LS.get('mc3d_name')||'تصميم افتراضي';
+// ⭐ main design: the saved design with state.main opens on start on every device (synced with the designs)
+const mainName=()=>Object.keys(designs).find(k=>designs[k]&&designs[k].main)||null;
+{const mn=REV?null:mainName();if(mn&&mn!==curName&&designs[mn]){designs[curName]=JSON.parse(JSON.stringify(state));state=normState(JSON.parse(JSON.stringify(designs[mn])));curName=mn;LS.set('mc3d_designs',designs)}}
 let imgData=null;try{imgData=localStorage.getItem('mc3d_img')}catch(e){}
-let sel=-1,selSet=new Set(),tool='select',colorMode='fn',massOverlay='none',massChartMetric='volume',massAnalysisCache=null,showGrid=true,showNames=false,showDims=true,snapStep=1,edgeOn=true,multiMode=false;
+let sel=-1,selSet=new Set(),tool='select',colorMode=REV?'fn':'white',massOverlay='none',massChartMetric='volume',massAnalysisCache=null,showGrid=true,showNames=false,showDims=true,snapStep=1,edgeOn=true,multiMode=false;
 let sec={on:false,axis:'x',pos:0,flip:false,angle:0,slice:false,thick:12,cap:true,showFrame:true},playing=false,whiteBg=false;
 let undoS=[],redoS=[],lastPush=0;
 const snapStr=()=>JSON.stringify({s:state,n:curName});
@@ -11066,7 +11070,7 @@ function stats(){if(window.MC3D_PROG_READY)syncFnTargets();if(typeof renderSpati
 
 // ---------- inspector panels ----------
 const opts=(o,v,grp)=>Object.entries(o).map(([k,x])=>`<option value="${k}" ${k===v?'selected':''}>${grp?dn(grp,k,x.n||x):(x.n||x)}</option>`).join('');
-$('dShape').innerHTML=opts(SHAPES,'box','shapes');$('dMat').innerHTML=opts(MATS,'brick','mats');$('dFn').innerHTML=opts(FNS,'','fns');
+$('dShape').innerHTML=opts(SHAPES,'box','shapes');$('dMat').innerHTML=opts(MATS,'white','mats');$('dFn').innerHTML=opts(FNS,'','fns');
 if($('citySel'))$('citySel').innerHTML=opts(CITIES,'baghdad','cities');
 function galSync(){}
 
@@ -11267,18 +11271,26 @@ function save(){undoNet();const okCur=LS.set('mc3d_cur',state),okName=LS.set('mc
    if(unsavedTracker)unsavedTracker.setLocalSaveStatus({pending:false,ok});
    fillDesigns();$('dsel').value=curName;updateCurNameBadge(ok)},300)}
  updateCurNameBadge(okCur&&okName?undefined:false)}
-function fillDesigns(){const ks=Object.keys(designs);$('dsel').innerHTML=ks.length?ks.map(k=>`<option>${k.replace(/</g,'&lt;')}</option>`).join(''):`<option value="">${L('— لا توجد تصاميم محفوظة —','— No saved designs —')}</option>`}
+function fillDesigns(){const mn=mainName(),ks=Object.keys(designs).sort((a,b)=>(b===mn)-(a===mn)),esc=k=>k.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+ if($('mainInfo'))$('mainInfo').textContent=mn?L('الرئيسي: ','Main: ')+mn:L('ما محدد تصميم رئيسي','No main design');if($('bMain'))$('bMain').classList.toggle('on',!!mn&&mn===curName);
+ $('dsel').innerHTML=ks.length?ks.map(k=>`<option value="${esc(k)}">${k===mn?'⭐ ':''}${esc(k)}</option>`).join(''):`<option value="">${L('— لا توجد تصاميم محفوظة —','— No saved designs —')}</option>`}
 
 // ---------- file ----------
-$('bNew').onclick=e=>arm(e.currentTarget,()=>{snap(true);state=blank();designs[curName]=clone(state);curName=uniq(L('تصميم جديد','New Design'));clearSel();siteChanged();refresh();view('top');setTool('draw');flash(L('لوحة فارغة — اسحب على الأرض لرسم أول كتلة','Blank canvas — drag on ground to draw your first mass'))});
-$('bSketch').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplCourtyard();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('فناء وسطي','Courtyard'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب الفناء الوسطي ✓','Loaded Courtyard template ✓'))});
-$('bSketch2').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplCluster();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('مجمع كتل','Mass Cluster'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب مجمع الكتل ✓','Loaded Mass Cluster template ✓'))});
-$('bSketch3').onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplTower();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L('برج ومنصة','Tower & Podium'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب البرج والمنصة ✓','Loaded Tower & Podium template ✓'))});
+$('bNew').onclick=e=>arm(e.currentTarget,()=>{snap(true);designs[curName]=clone(state);state=blank();delete state.main;curName=uniq(L('تصميم جديد','New Design'));clearSel();whiteDefault();siteChanged();refresh();view('top');setTool('draw');flash(L('لوحة فارغة — اسحب على الأرض لرسم أول كتلة','Blank canvas — drag on ground to draw your first mass'))});
+$('bSketch').onclick=e=>arm(e.currentTarget,()=>{snap(true);designs[curName]=clone(state);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplCourtyard();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;delete state.main;whiteDefault();curName=uniq(L('فناء وسطي','Courtyard'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب الفناء الوسطي ✓','Loaded Courtyard template ✓'))});
+$('bSketch2').onclick=e=>arm(e.currentTarget,()=>{snap(true);designs[curName]=clone(state);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplCluster();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;delete state.main;whiteDefault();curName=uniq(L('مجمع كتل','Mass Cluster'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب مجمع الكتل ✓','Loaded Mass Cluster template ✓'))});
+$('bSketch3').onclick=e=>arm(e.currentTarget,()=>{snap(true);designs[curName]=clone(state);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=tplTower();state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;delete state.main;whiteDefault();curName=uniq(L('برج ومنصة','Tower & Podium'));clearSel();siteChanged();refresh();view('iso');flash(L('تم تحميل قالب البرج والمنصة ✓','Loaded Tower & Podium template ✓'))});
 [['bOrig1',1,'المخطط الأول','Sketch 1'],['bOrig2',2,'المخطط الثاني','Sketch 2'],['bOrig3',3,'المخطط الثالث','Sketch 3']].forEach(([id,n,ar,en])=>{
- $(id).onclick=e=>arm(e.currentTarget,()=>{snap(true);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=sketchOrig(n);state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;designs[curName]=clone(state);curName=uniq(L(ar,en));clearSel();siteChanged();refresh();view('iso');flash(L('استُعيد '+ar+' الأصلي ✓','Restored original '+en+' ✓'))})});
-$('bSave').onclick=()=>{const n=($('dname').value||curName||'').trim();if(!n)return flash(L('أدخل اسماً للتصميم','Enter a design name'));designs[curName]=clone(state);designs[n]=clone(state);curName=n;const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=n;flushLocalSaveClean(ok);if(typeof cloudSoon==='function')cloudSoon();flash(ok?L('تم الحفظ: ','Saved: ')+n:L('⚠ الذاكرة ممتلئة','⚠ Storage full'))};
+ $(id).onclick=e=>arm(e.currentTarget,()=>{snap(true);designs[curName]=clone(state);const keep={site:clone(state.site),meta:clone(state.meta),sun:clone(state.sun),img:state.img};state=sketchOrig(n);state.site=Object.assign(state.site,{north:keep.site.north,city:keep.site.city,lat:keep.site.lat,lon:keep.site.lon,tz:keep.site.tz,wind:keep.site.wind});state.meta=keep.meta;state.sun=keep.sun;state.img=keep.img;delete state.main;whiteDefault();curName=uniq(L(ar,en));clearSel();siteChanged();refresh();view('iso');flash(L('استُعيد '+ar+' الأصلي ✓','Restored original '+en+' ✓'))})});
+$('bSave').onclick=()=>{const n=($('dname').value||curName||'').trim();if(!n)return flash(L('أدخل اسماً للتصميم','Enter a design name'));designs[curName]=clone(state);if(n!==curName)delete state.main;designs[n]=clone(state);curName=n;const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=n;flushLocalSaveClean(ok);if(typeof cloudSoon==='function')cloudSoon();flash(ok?L('تم الحفظ: ','Saved: ')+n:L('⚠ الذاكرة ممتلئة','⚠ Storage full'))};
 $('qSave').onclick=()=>{$('dname').value=curName;$('bSave').click()};
-$('bOpen').onclick=()=>{const n=$('dsel').value;if(!n||!designs[n])return;if(n===curName)return flash(L('هذا التصميم مفتوح أصلاً','This design is already open'));designs[curName]=clone(state);LS.set('mc3d_designs',designs);snap(true);state=normState(clone(designs[n]));curName=n;clearSel();siteChanged();refresh();fillDesigns();$('dsel').value=n;const ok=LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);flushLocalSaveClean(ok);flash(L('تم الفتح: '+n+' — التصميم السابق محفوظ','Opened: '+n+' — previous design saved'))};
+function whiteDefault(){if(!REV&&colorMode!=='white')setColor('white')}
+$('bMain').onclick=()=>{const was=mainName();Object.keys(designs).forEach(k=>{if(designs[k])delete designs[k].main});
+ if(was===curName){delete state.main;designs[curName]=clone(state);flash(L('انشال التعليم: ما اكو تصميم رئيسي هسه','Main design cleared'))}
+ else{state.main=true;designs[curName]=clone(state);flash(L('⭐ «'+curName+'» صار التصميم الرئيسي — يفتح تلقائياً بأي جهاز','⭐ "'+curName+'" is now the main design — it opens on start on any device'))}
+ const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state);fillDesigns();$('dsel').value=curName;flushLocalSaveClean(ok);if(typeof cloudSoon==='function')cloudSoon()};
+
+$('bOpen').onclick=()=>{const n=$('dsel').value;if(!n||!designs[n])return;if(n===curName)return flash(L('هذا التصميم مفتوح أصلاً','This design is already open'));designs[curName]=clone(state);LS.set('mc3d_designs',designs);snap(true);state=normState(clone(designs[n]));curName=n;clearSel();whiteDefault();siteChanged();refresh();fillDesigns();$('dsel').value=n;const ok=LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);flushLocalSaveClean(ok);flash(L('تم الفتح: '+n+' — التصميم السابق محفوظ','Opened: '+n+' — previous design saved'))};
 $('bDelD').onclick=e=>{const n=$('dsel').value;if(!n||!designs[n])return;arm(e.currentTarget,()=>{clearTimeout(saveT);saveT=null;syncDesigns();delete designs[n];
   if(n===curName){const rest=Object.keys(designs);snap(true);if(rest.length){curName=rest[0];state=normState(clone(designs[curName]))}else{state=blank();curName=L('تصميم جديد','New Design');designs[curName]=clone(state)}clearSel();siteChanged()}
   const ok=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);fillDesigns();$('dsel').value=curName;refresh();flushLocalSaveClean(ok);flash(L('حُذف نهائياً: ','Permanently deleted: ')+n+(designs[curName]?L(' — المفتوح حالياً: ',' — current: ')+curName:''))})};
@@ -11699,18 +11711,18 @@ $('tSel').onclick=()=>setTool('select');$('tCut').onclick=()=>setTool(tool==='cu
 // ---------- draw menu: pick what to draw (sets shape / material / function / floors in one click) ----------
 const DRAW_GROUPS=[['bld','كتل المبنى','Building masses'],['form','أشكال خاصة','Special forms'],['site','الموقع والفراغات الخارجية','Site & outdoor'],['prop','عناصر المقياس','Scale figures']];
 const DRAW_ITEMS=[
- {g:'bld',ar:'كتلة تعليمية',en:'Teaching block',sub:['قاعات ومدرجات','Classrooms & halls'],shape:'box',mat:'brick',fn:'main',f:3},
- {g:'bld',ar:'كتلة تدريب ومختبرات',en:'Training & labs',sub:['محاكاة ومهارات سريرية','Simulation & skills'],shape:'box',mat:'brick',fn:'spec',f:2},
- {g:'bld',ar:'كتلة إدارية',en:'Admin block',sub:['إدارة ومكاتب وخدمات','Admin, offices, services'],shape:'box',mat:'brick',fn:'adm',f:2},
- {g:'bld',ar:'كتلة عامة واستقبال',en:'Public & reception',sub:['بهو، مكتبة، كافتيريا','Lobby, library, cafe'],shape:'box',mat:'stone',fn:'pub',f:2},
+ {g:'bld',ar:'كتلة تعليمية',en:'Teaching block',sub:['قاعات ومدرجات','Classrooms & halls'],shape:'box',mat:'white',fn:'main',f:3},
+ {g:'bld',ar:'كتلة تدريب ومختبرات',en:'Training & labs',sub:['محاكاة ومهارات سريرية','Simulation & skills'],shape:'box',mat:'white',fn:'spec',f:2},
+ {g:'bld',ar:'كتلة إدارية',en:'Admin block',sub:['إدارة ومكاتب وخدمات','Admin, offices, services'],shape:'box',mat:'white',fn:'adm',f:2},
+ {g:'bld',ar:'كتلة عامة واستقبال',en:'Public & reception',sub:['بهو، مكتبة، كافتيريا','Lobby, library, cafe'],shape:'box',mat:'white',fn:'pub',f:2},
  {g:'bld',ar:'مفصل / نواة حركة',en:'Joint / core',sub:['سلالم ومصاعد وربط','Stairs, lifts, links'],shape:'box',mat:'joint',fn:'circ',f:4},
- {g:'form',ar:'مدرج / قاعة دائرية',en:'Auditorium (round)',shape:'cyl',mat:'concrete',fn:'main',f:2},
- {g:'form',ar:'كتلة بفناء وسطي',en:'Courtyard block',shape:'court',mat:'brick',fn:'',f:2},
- {g:'form',ar:'كتلة ببوابة',en:'Gateway block',shape:'gate',mat:'brick',fn:'pub',f:2},
- {g:'form',ar:'حرف L',en:'L-shape',shape:'L',mat:'brick',fn:'',f:3},
- {g:'form',ar:'حرف U',en:'U-shape',shape:'U',mat:'brick',fn:'',f:3},
+ {g:'form',ar:'مدرج / قاعة دائرية',en:'Auditorium (round)',shape:'cyl',mat:'white',fn:'main',f:2},
+ {g:'form',ar:'كتلة بفناء وسطي',en:'Courtyard block',shape:'court',mat:'white',fn:'',f:2},
+ {g:'form',ar:'كتلة ببوابة',en:'Gateway block',shape:'gate',mat:'white',fn:'pub',f:2},
+ {g:'form',ar:'حرف L',en:'L-shape',shape:'L',mat:'white',fn:'',f:3},
+ {g:'form',ar:'حرف U',en:'U-shape',shape:'U',mat:'white',fn:'',f:3},
  {g:'form',ar:'رواق أعمدة',en:'Colonnade',shape:'riwaq',mat:'white',fn:'circ',f:1},
- {g:'form',ar:'مضلع حر (نقاط)',en:'Free polygon',sub:['انقر النقاط ثم أغلق الشكل','Click points, close at start'],shape:'poly',mat:'brick',fn:'',f:2},
+ {g:'form',ar:'مضلع حر (نقاط)',en:'Free polygon',sub:['انقر النقاط ثم أغلق الشكل','Click points, close at start'],shape:'poly',mat:'white',fn:'',f:2},
  {g:'site',ar:'فناء / مساحة خضراء',en:'Courtyard / green',shape:'box',mat:'green',fn:'',f:1},
  {g:'site',ar:'ساحة مبلطة',en:'Paved plaza',shape:'box',mat:'paving',fn:'',f:1},
  {g:'site',ar:'مسطح مائي',en:'Water feature',shape:'box',mat:'water',fn:'',f:1},
@@ -12880,6 +12892,7 @@ async function reconcile(remote){if(!CL.col)return;if(CL.busy){CL.pending=true;r
   const meta={d:remote.d,s:remote.s,del:remote.del,u:now};const mj=JSON.stringify({d:meta.d,s:meta.s,del:meta.del});
   if(mj!==CL.lastMetaJ){await CL.col.doc('meta').set(meta);CL.lastMetaJ=mj}
   LS.set('mc3d_synced',sy);
+  {const mn=mainName();if(changedD&&mn&&mn!==curName&&!undoS.length&&!REV&&!CL.mainDone){designs[curName]=clone(state);state=normState(clone(designs[mn]));curName=mn;changedCur=true;msgs.unshift('⭐ '+mn)}CL.mainDone=true}
   if(changedD){LS.set('mc3d_designs',designs);fillDesigns();$('dsel').value=curName}
   if(changedCur){clearSel();siteChanged();refresh()}
   if(changedS){LS.set('mc3d_sheets',sheets);fillSheets();if(sheetOpen)layoutSheet()}
@@ -14700,7 +14713,7 @@ if((+LS.get('mc3d_tour')||0)<2&&!REV)setTimeout(()=>showTour(0),1200); // v2: sh
 function syncLangUI(){
  if(window.MC3D_I18N)MC3D_I18N.applyDOM();
  if($('dShape'))$('dShape').innerHTML=opts(SHAPES,$('dShape').value||'box','shapes');
- if($('dMat'))$('dMat').innerHTML=opts(MATS,$('dMat').value||'brick','mats');
+ if($('dMat'))$('dMat').innerHTML=opts(MATS,$('dMat').value||'white','mats');
  if($('dFn'))$('dFn').innerHTML=opts(FNS,$('dFn').value||'','fns');
  if($('citySel'))$('citySel').innerHTML=opts(CITIES,(state.site&&state.site.city)||'baghdad','cities');
  fillDesigns();
@@ -14727,7 +14740,7 @@ window.onLangChange=syncLangUI;
 if($('langBtn'))$('langBtn').onclick=()=>{if(window.MC3D_I18N)MC3D_I18N.toggle()};
 if(window.MC3D_I18N)MC3D_I18N.applyDOM();
 
-fillDesigns();fit();siteChanged();applySec();refresh();view('iso');if(firstMsg)setTimeout(()=>flash(firstMsg),600);
+fillDesigns();fit();siteChanged();applySec();[['cMat','mat'],['cFn','fn'],['cWhite','white'],['cXray','xray']].forEach(([id,v])=>tg(id,colorMode===v));refresh();view('iso');if(!REV&&mainName()===curName&&Object.keys(designs).length>1)firstMsg=firstMsg||L('⭐ فُتح التصميم الرئيسي: ','⭐ Opened the main design: ')+curName;if(firstMsg)setTimeout(()=>flash(firstMsg),600);
 syncLangUI();
 {if(curName)designs[curName]=clone(state);const okInit=LS.set('mc3d_designs',designs)&&LS.set('mc3d_cur',state)&&LS.set('mc3d_name',curName);appBooted=true;flushLocalSaveClean(okInit);}
 window.addEventListener('beforeunload',e=>{if(!unsavedTracker)return;unsavedTracker.handleBeforeUnload(e,state,curName,hasActiveCanvasGesture())});

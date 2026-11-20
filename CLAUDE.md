@@ -71,6 +71,8 @@ The tool is an in-browser 3D massing modeller with sheets (A4–A1) and exports.
 - No glass blocks in his designs. Joints use the opaque blue `joint` material.
 - Elevations are true orthographic. Captures include a ground plinth.
 - Iso and eye views cycle to a new angle on each click.
+- White is the default: the view starts in white mode on start, new projects, templates and opened designs, and new masses use the `white` material (2026-11-20).
+- He keeps one ⭐ main design (`state.main`) that opens automatically on start.
 
 ## Testing
 - `python build.py` runs the syntax checks and all `*.test.js` (`npm test` runs the tests alone). Add tests next to any helper module you change.
