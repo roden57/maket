@@ -2304,7 +2304,8 @@ kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--l
 /* Split-screen design comparison */
 #cmpOv{position:absolute;inset:0;pointer-events:none;display:none;z-index:4}
 #cmpOv.on{display:grid}
-#cmpOv .cp{position:relative;border:1px solid #cbd5e1;outline:1px solid #fff;outline-offset:-2px}
+#cmpOv .cp{position:relative;border:1px solid #cbd5e1;outline:1px solid #fff;outline-offset:-2px;pointer-events:auto;touch-action:none}
+#cmpOv .cp-h .cp-open{pointer-events:auto;font-size:11.5px}
 #cmpOv .cp-h{position:absolute;top:54px;inset-inline:8px;display:flex;flex-direction:column;gap:4px;align-items:flex-start;pointer-events:none}
 #cmpOv .cp-h select{pointer-events:auto;font:600 12.5px var(--font-ui);padding:4px 8px;border:1px solid var(--line-strong);border-radius:6px;background:#fff;color:var(--ink);max-width:100%}
 #cmpOv .cp-s{font-size:11.5px;line-height:1.55;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--ink-2)}
@@ -12778,11 +12779,13 @@ function planItems(){return state.blocks.map((b,i)=>({b,i})).filter(({b})=>!b.hi
 function planSVG(){const P=MC3D_PLAN2D.build({site:state.site,items:planItems()});return MC3D_PLAN2D.toSVG(P,{scale:MC3D_PLAN2D.fitScale(P),title:(state.meta&&state.meta.title)||curName})}
 
 // ================= SPLIT-SCREEN DESIGN COMPARISON (rail button «مقارنة») =================
-// 2–4 views side by side, one saved design each, all seen through the same camera (orbit / zoom / views stay in sync).
-// Each view has its own scene built with makeBlock() while `state` is swapped to that design. Editing is paused meanwhile.
-const cmp={on:false,n:2,panes:[]};
+// 2–4 views side by side, one saved design each. Every view has its own scene (built with makeBlock() while `state` is
+// swapped to that design) and its own camera + OrbitControls on its own overlay div, so zoom / orbit are per view;
+// «ربط الحركة» copies one view's camera to the others. View buttons / keys 1–5 reset every view. The right panel hides
+// while comparing. Editing is paused; Esc (even from a view's list) exits.
+const cmp={on:false,n:2,panes:[],link:false,_sync:false,inspWasOpen:false};
 function cmpRects(n,W,H){const cols=n===4?2:n,rows=n===4?2:1,pw=W/cols,ph=H/rows;return Array.from({length:n},(_,i)=>{const c=i%cols,r=Math.floor(i/cols);return {x:Math.round(W-(c+1)*pw),y:Math.round(r*ph),w:Math.round(pw),h:Math.round(ph)}})}
-function cmpDispose(sc){if(!sc)return;sc.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material&&o!==cmp._plinthKeep)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());if(o.isLight&&o.shadow&&o.shadow.map)o.shadow.map.dispose()})}
+function cmpDispose(sc){if(!sc)return;sc.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());if(o.isLight&&o.shadow&&o.shadow.map)o.shadow.map.dispose()})}
 function cmpState(name){return name===curName?state:(designs[name]?normState(clone(designs[name])):null)}
 function cmpBuild(name){const st=cmpState(name);if(!st)return null;const keep={state,sel,selSet};state=st;sel=-1;selSet=new Set();let sc,stats;
  try{sc=new THREE.Scene();sc.background=S.background&&S.background.isColor?S.background.clone():new THREE.Color('#eef1f4');
@@ -12795,34 +12798,56 @@ function cmpBuild(name){const st=cmpState(name);if(!st)return null;const keep={s
   stats=computeStats(st)}
  finally{state=keep.state;sel=keep.sel;selSet=keep.selSet}
  return {name,sc,stats,main:!!st.main}}
-function cmpLabel(i){const pn=cmp.panes[i],box=$('cmpOv').children[i];if(!box)return;const u2=L('م²','m²'),um=L('م','m'),s=pn&&pn.stats;
+// each view: its own camera (a copy of the main one) and controls bound to the view's div
+function cmpCam(p){if(!p||!p.el)return;if(p.ctl)p.ctl.dispose();const isO=C===camO,cam=isO?camO.clone():camP.clone();
+ p.cam=cam;p.isO=isO;p.hh=(camO.top-camO.bottom)/2;p.fov=camP.fov;
+ const c=new THREE.OrbitControls(cam,p.el);c.enableDamping=true;c.maxPolarAngle=O.maxPolarAngle;c.screenSpacePanning=true;c.enableRotate=O.enableRotate;
+ c.mouseButtons=Object.assign({},O.mouseButtons);c.touches=Object.assign({},O.touches);c.target.copy(O.target);c.update();
+ c.addEventListener('change',()=>cmpLinkFrom(p));p.ctl=c}
+function cmpCamsFromMain(){cmp.panes.forEach(cmpCam)}
+function cmpLinkFrom(src){if(!cmp.link||cmp._sync||!src.cam)return;cmp._sync=true;
+ cmp.panes.forEach(o=>{if(o===src||!o.cam||o.isO!==src.isO)return;o.cam.position.copy(src.cam.position);o.cam.quaternion.copy(src.cam.quaternion);o.cam.zoom=src.cam.zoom;o.cam.updateProjectionMatrix();o.ctl.target.copy(src.ctl.target);o.ctl.update()});
+ cmp._sync=false}
+function cmpLabel(i){const pn=cmp.panes[i],box=$('cmpOv').children[i];if(!box)return;pn.el=box;const u2=L('م²','m²'),um=L('م','m'),s=pn.stats;
  const names=Object.keys(designs);if(!names.includes(curName))names.unshift(curName);
- box.innerHTML=`<div class="cp-h"><select data-cp="${i}">${names.map(k=>`<option value="${k.replace(/"/g,'&quot;')}"${pn&&pn.name===k?' selected':''}>${(designs[k]&&designs[k].main)||(k===curName&&state.main)?'⭐ ':''}${k.replace(/</g,'&lt;')}</option>`).join('')}</select>`+
-  (s?`<div class="cp-s">${L('المساحة الطابقية','GFA')} <b>${Math.round(s.gfa).toLocaleString('en')}</b> ${u2} · ${L('التغطية','Coverage')} <b>${(s.cov*100).toFixed(0)}%</b> · FAR <b>${s.far.toFixed(2)}</b><br>${L('أعلى ارتفاع','Max height')} <b>${s.hmax.toFixed(1)}</b> ${um} · ${L('الكتل','Masses')} <b>${s.n}</b></div>`:'')+'</div>';
- box.querySelector('select').onchange=e=>{const old=cmp.panes[i];cmp.panes[i]=cmpBuild(e.target.value);if(old)cmpDispose(old.sc);cmpLabel(i)}}
-function cmpLayout(){const ov=$('cmpOv'),n=cmp.n;ov.style.gridTemplateColumns=`repeat(${n===4?2:n},1fr)`;ov.style.gridTemplateRows=n===4?'1fr 1fr':'1fr';
- ov.innerHTML=Array.from({length:n},()=>'<div class="cp"></div>').join('')+`<div id="cmpBar"><span>${L('عدد الشاشات','Views')}</span>${[2,3,4].map(k=>`<button class="sm${k===n?' on':''}" data-cn="${k}">${k}</button>`).join('')}<button class="sm" id="cmpX" title="${L('الكاميرا موحّدة بين الشاشات · 1–5 للزوايا · Esc للخروج','Linked camera · 1–5 views · Esc to exit')}">✕ ${L('إنهاء','Exit')}</button></div>`;
+ box.innerHTML=`<div class="cp-h"><select data-cp="${i}">${names.map(k=>`<option value="${k.replace(/"/g,'&quot;')}"${pn.name===k?' selected':''}>${(designs[k]&&designs[k].main)||(k===curName&&state.main)?'⭐ ':''}${k.replace(/</g,'&lt;')}</option>`).join('')}</select>`+
+  (s?`<div class="cp-s">${L('المساحة الطابقية','GFA')} <b>${Math.round(s.gfa).toLocaleString('en')}</b> ${u2} · ${L('التغطية','Coverage')} <b>${(s.cov*100).toFixed(0)}%</b> · FAR <b>${s.far.toFixed(2)}</b><br>${L('أعلى ارتفاع','Max height')} <b>${s.hmax.toFixed(1)}</b> ${um} · ${L('الكتل','Masses')} <b>${s.n}</b></div>`:'')+
+  `<button class="sm cp-open" title="${L('اطلع من المقارنة وافتح هذا التصميم','Exit compare and open this design')}">✎ ${L('افتح للتعديل','Open to edit')}</button></div>`;
+ const head=box.querySelector('.cp-h');['pointerdown','wheel','contextmenu'].forEach(ev=>head.addEventListener(ev,e=>e.stopPropagation()));
+ box.querySelector('select').onchange=e=>{const np=cmpBuild(e.target.value);e.target.blur();if(!np)return;cmpDispose(pn.sc);Object.assign(pn,{name:np.name,sc:np.sc,stats:np.stats,main:np.main});cmpLabel(i)};
+ box.querySelector('.cp-open').onclick=()=>{const n=pn.name;closeSplit();if(n!==curName&&designs[n]){$('dsel').value=n;$('bOpen').click()}}}
+function cmpLayout(){const ov=$('cmpOv'),n=cmp.n;cmp.panes.forEach(p=>{if(p.ctl){p.ctl.dispose();p.ctl=null}});
+ ov.style.gridTemplateColumns=`repeat(${n===4?2:n},1fr)`;ov.style.gridTemplateRows=n===4?'1fr 1fr':'1fr';
+ ov.innerHTML=Array.from({length:n},()=>'<div class="cp"></div>').join('')+`<div id="cmpBar"><span>${L('عدد الشاشات','Views')}</span>${[2,3,4].map(k=>`<button class="sm${k===n?' on':''}" data-cn="${k}">${k}</button>`).join('')}<button class="sm${cmp.link?' on':''}" id="cmpLink" title="${L('حرّك وحدة فيتحركن كلهن بنفس الزاوية','Move one view and all follow')}">🔗 ${L('ربط الحركة','Link views')}</button><button class="sm" id="cmpX" title="${L('Esc للخروج · 1–5 للزوايا','Esc to exit · 1–5 views')}">✕ ${L('إنهاء','Exit')}</button></div>`;
  ov.querySelectorAll('[data-cn]').forEach(b=>b.onclick=()=>cmpSetN(+b.dataset.cn));$('cmpX').onclick=closeSplit;
+ $('cmpLink').onclick=()=>{cmp.link=!cmp.link;tg('cmpLink',cmp.link);if(cmp.link&&cmp.panes[0])cmpLinkFrom(cmp.panes[0]);flash(cmp.link?L('الحركة مربوطة: كل الشاشات بنفس الزاوية','Views linked'):L('كل شاشة تتحرك لوحدها','Each view moves on its own'))};
  for(let i=0;i<n;i++)cmpLabel(i)}
-function cmpFrame(){view('iso',0)}
 function cmpSetN(n){const names=Object.keys(designs);if(!names.includes(curName))names.unshift(curName);n=Math.max(2,Math.min(4,n));
- while(cmp.panes.length<n){const used=new Set(cmp.panes.map(p=>p&&p.name));const nm=names.find(k=>!used.has(k))||names[cmp.panes.length%names.length];cmp.panes.push(cmpBuild(nm))}
- while(cmp.panes.length>n){const p=cmp.panes.pop();if(p)cmpDispose(p.sc)}cmp.n=n;cmpLayout();cmpFrame()}
+ while(cmp.panes.length<n){const used=new Set(cmp.panes.map(p=>p&&p.name));const nm=names.find(k=>!used.has(k))||names[cmp.panes.length%names.length];const p=cmpBuild(nm);if(!p)break;cmp.panes.push(p)}
+ while(cmp.panes.length>n){const p=cmp.panes.pop();if(p){if(p.ctl)p.ctl.dispose();cmpDispose(p.sc)}}cmp.n=n;cmpLayout();view('iso',0)}
 function openSplit(){const names=Object.keys(designs).filter(k=>k!==curName);if(!names.length)return flash(L('تحتاج تصميمين محفوظين على الأقل للمقارنة','Save at least two designs to compare'));
  if(typeof setTool==='function')setTool('select');clearSel();refresh();designs[curName]=clone(state);
  cmp.on=true;cmp.panes=[];tg('tCmp',true);['names','pins','lab'].forEach(id=>{const e=$(id);if(e)e.style.visibility='hidden'});
+ // full screen: hide the right panel while comparing, bring it back on exit
+ cmp.inspWasOpen=!document.body.classList.contains('insp-closed');document.body.classList.add('insp-closed');setTimeout(()=>{fit();if(typeof layoutSheet==='function')layoutSheet()},230);
  if(!$('cmpOv')){const ov=document.createElement('div');ov.id='cmpOv';el.appendChild(ov)}$('cmpOv').classList.add('on');
- cmpSetN(Math.min(Object.keys(designs).length,cmp.n||2));flash(L('وضع المقارنة: اختر التصميم أعلى كل شاشة — التعديل متوقف لحد ما تطلع (Esc)','Compare mode: pick a design at the top of each view — editing paused until you exit (Esc)'))}
-function closeSplit(){if(!cmp.on)return;cmp.on=false;cmp.panes.forEach(p=>p&&cmpDispose(p.sc));cmp.panes=[];tg('tCmp',false);
- const ov=$('cmpOv');if(ov){ov.classList.remove('on');ov.innerHTML=''}['names','pins','lab'].forEach(id=>{const e=$(id);if(e)e.style.visibility=''});fit();build()}
-function drawCompare(){const W=el.clientWidth,H=el.clientHeight;if(!W||!H)return;const P=cmpRects(cmp.n,W,H),isO=C===camO;
- const k={a:camP.aspect,f:camP.fov,l:camO.left,r:camO.right,t:camO.top,b:camO.bottom},A0=1.2;R.setScissorTest(true);
+ cmpSetN(Math.min(Object.keys(designs).length,cmp.n||2));flash(L('وضع المقارنة: كل شاشة تتحرك لوحدها (🔗 للربط) — Esc للخروج','Compare mode: each view moves on its own (🔗 to link) — Esc to exit'))}
+function closeSplit(){if(!cmp.on)return;cmp.on=false;cmp.panes.forEach(p=>{if(!p)return;if(p.ctl)p.ctl.dispose();cmpDispose(p.sc)});cmp.panes=[];tg('tCmp',false);
+ const ov=$('cmpOv');if(ov){ov.classList.remove('on');ov.innerHTML=''}['names','pins','lab'].forEach(id=>{const e=$(id);if(e)e.style.visibility=''});
+ if(cmp.inspWasOpen)document.body.classList.remove('insp-closed');setTimeout(()=>{fit();if(typeof layoutSheet==='function')layoutSheet()},230);fit();build()}
+function drawCompare(){const W=el.clientWidth,H=el.clientHeight;if(!W||!H)return;const P=cmpRects(cmp.n,W,H),A0=1.2;R.setScissorTest(true);
  // a view narrower than A0 widens its field of view so it shows at least what an A0-wide view would (the whole design stays in frame)
  P.forEach((r,i)=>{const pn=cmp.panes[i],a=r.w/r.h;R.setViewport(r.x,H-r.y-r.h,r.w,r.h);R.setScissor(r.x,H-r.y-r.h,r.w,r.h);
-  if(isO){const hh=(k.t-k.b)/2,hw=a<A0?hh*A0:hh*a,hv=a<A0?hw/a:hh;camO.left=-hw;camO.right=hw;camO.top=hv;camO.bottom=-hv;camO.updateProjectionMatrix()}
-  else{camP.aspect=a;const t=Math.tan(k.f*Math.PI/360);camP.fov=a<A0?2*Math.atan(t*A0/a)*180/Math.PI:k.f;camP.updateProjectionMatrix()}
-  if(pn)R.render(pn.sc,C);else{R.setClearColor('#e2e8f0');R.clear()}});
- R.setScissorTest(false);R.setViewport(0,0,W,H);camP.aspect=k.a;camP.fov=k.f;camP.updateProjectionMatrix();camO.left=k.l;camO.right=k.r;camO.top=k.t;camO.bottom=k.b;camO.updateProjectionMatrix()}
+  if(!pn||!pn.cam){R.setClearColor('#e2e8f0');R.clear();return}
+  pn.ctl.update();const cam=pn.cam;
+  if(pn.isO){const hh=pn.hh,hw=a<A0?hh*A0:hh*a,hv=a<A0?hw/a:hh;cam.left=-hw;cam.right=hw;cam.top=hv;cam.bottom=-hv}
+  else{cam.aspect=a;const t=Math.tan(pn.fov*Math.PI/360);cam.fov=a<A0?2*Math.atan(t*A0/a)*180/Math.PI:pn.fov}
+  cam.updateProjectionMatrix();R.render(pn.sc,cam)});
+ R.setScissorTest(false);R.setViewport(0,0,W,H)}
+// view buttons / keys reset every view to that angle
+{const _view=view;view=function(){const r=_view.apply(this,arguments);if(cmp.on)cmpCamsFromMain();return r}}
+// Esc leaves compare mode even when the keyboard focus is inside a view's design list
+addEventListener('keydown',e=>{if(cmp.on&&e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();closeSplit()}},true);
 $('tCmp').onclick=()=>cmp.on?closeSplit():openSplit();
 
 // ================= EXPORT 3D (OBJ + DAE in ZIP) =================
